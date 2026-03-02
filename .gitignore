@@ -35,5 +35,8 @@ create_test_data.py
 BUILD_PLAN.txt
 build_plan.md
 
+# Legacy docs
+PINPOINT_IDEA.txt
+
 # Claude Code session data
 .claude/
