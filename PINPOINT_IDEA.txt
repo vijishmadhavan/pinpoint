@@ -1,0 +1,288 @@
+================================================================================
+PINPOINT — Find photos by what's in them
+================================================================================
+
+THE IDEA
+--------
+Pinpoint is a small tool that sits on your computer and finds photos by what's
+in them. It indexes everything in the background, and after that you just type
+what you remember — "white car," "Aadhar card," "mom at wedding," any text
+written in the image — and it finds it.
+
+Works across your entire computer, any folder, any drive.
+No cloud, no account, nothing leaves your machine.
+
+The killer feature: WhatsApp bot. You message from your phone — "find that
+business card from Kochi" — and it sends the photo back. Conversational.
+You can say "no not that, the blue one" and it refines. Like talking to
+someone who knows where all your photos are.
+
+
+ARCHITECTURE
+------------
+
+  Indexing (background, one-time per image):
+    Image → Moondream 2B 4-bit → Normal caption → Store in SQLite
+    Image → InsightFace        → Face embeddings → Store in SQLite
+    Image → Sentence embed     → Caption embedding → Store for vector search
+
+  Search (3 modes):
+    Text query:   "red dress at beach"  → Embeddings + FTS → matches
+    Face query:   [send photo of person] → InsightFace → face match
+    Combined:     [face photo] + "at beach" → face match + caption filter
+
+  Face tagging (one-time per person):
+    User sends photo + "this is mom"
+    → InsightFace extracts face embedding
+    → Stored as: name → embedding mapping
+    → From now on: "photos of mom" just works
+
+  Auto face grouping:
+    InsightFace clusters all faces automatically during indexing.
+    Bot asks: "I found 12 people. Want to name them?"
+    User names each cluster once. Done forever.
+
+  WhatsApp Bot:
+    Message → Gemini Flash-Lite (conversation layer) → Search query → Results → Reply
+    Connected via whatsapp-web.js (QR code scan, free, no API)
+    Only text goes to cloud. Photos NEVER leave the machine.
+
+  Hardware auto-detection:
+    GPU available  → Moondream 2B 4-bit (fast, ~1s/image)
+    No GPU         → CLIP embeddings only (basic but works)
+
+
+TECH STACK
+----------
+  Vision model:      Moondream 2B 4-bit (moondream/moondream-2b-2025-04-14-4bit)
+  Face recognition:  InsightFace (face detection + 512-dim embeddings)
+  Text embeddings:   Sentence-transformers (all-MiniLM-L6-v2 or similar, ~80MB)
+  Storage:           SQLite + FTS5 (full-text search) + vector columns
+  File watching:     OS-native (inotify/ReadDirectoryChangesW)
+  WhatsApp:          whatsapp-web.js (QR code, no API key, free)
+  Conversation LLM:  Gemini 2.5 Flash-Lite (cloud, only text — no images sent)
+  Installer:         One-click .exe (embedded Python, auto-downloads models)
+  Tray icon:         pystray (background service)
+
+
+USER EXPERIENCE
+---------------
+
+  Install:
+    1. Download PinpointSetup.exe
+    2. Double click → installs, downloads model (~1.5GB one time)
+    3. Scan WhatsApp QR code
+    4. Done.
+
+  First time — face tagging:
+    Bot: "I found 12 people in your photos. Want to name them?"
+    Bot: [sends face thumbnail] "Who is this? (appears in 47 photos)"
+    You: "that's mom"
+    Bot: [sends next face] "Who is this? (128 photos)"
+    You: "that's me"
+    Bot: "Done! You can now search by name."
+
+  Daily use:
+    - Pinpoint runs silently in background (system tray)
+    - Indexes new photos automatically
+    - User messages on WhatsApp:
+
+      You: "hey find that business card from kochi"
+      Bot: "Found 5 business cards from Kochi:"
+      Bot: [sends image]
+      You: "no, the dark blue one"
+      Bot: "This one?"
+      Bot: [sends correct image]
+      You: "yes thanks"
+
+      You: "photos of mom"
+      Bot: "Found 47 photos of mom:"
+      Bot: [sends top results]
+
+      You: "mom and me at the beach"
+      Bot: [finds photos where both faces appear + caption has "beach"]
+
+      You: [sends photo of a person]
+      You: "who is this?"
+      Bot: "That's Sijish! Found 23 photos of him."
+
+      You: "find all photos of me wearing red"
+      Bot: [face match "me" + caption "red"] → results
+
+  No desktop UI needed. WhatsApp IS the UI.
+
+
+MODELS TESTED
+-------------
+
+  Model                  | Speed    | VRAM     | Quality    | Verdict
+  -----------------------|----------|----------|------------|--------
+  Moondream 2B fp16      | 0.74s    | 3,700 MB | Good       | Good
+  Moondream 2B 4-bit *   | 0.37s *  | 2,308 MB | Best       | WINNER
+  SmolVLM2-256M          | 1.15s    | 497 MB   | Weak       | Too weak
+  SmolVLM2-2.2B          | 1.00s    | 4,305 MB | Good       | Slower
+
+  * With model.compile(), after warmup. Real-world average: ~1.09s/image
+
+  Moondream 2B 4-bit was chosen because:
+  - Fastest after compile
+  - Lowest VRAM (2.3GB — fits any GPU)
+  - Best caption quality
+  - Built-in detect() and point() for future features
+  - OCR happens automatically in normal caption mode
+
+
+INDEXING PERFORMANCE (TESTED)
+-----------------------------
+
+  Test: 626 real images from Downloads folder
+  GPU: NVIDIA RTX 4080 (16GB)
+
+  Total time:     11.4 minutes
+  Average:        1.09 seconds per image
+  Throughput:     ~3,307 images/hour
+  Errors:         0
+  VRAM used:      1,954 MB
+
+  Estimated indexing times:
+    1,000 photos   → ~18 minutes
+    10,000 photos  → ~3 hours
+    50,000 photos  → ~15 hours (background, one-time)
+
+
+SEARCH — WHAT WORKS
+--------------------
+
+  Tested searches that returned correct results:
+
+  "girl red dress"        → Found woman in red dress photo
+  "7299061425"            → Found business cards with that phone number
+  "laptop"                → Found laptop screens, people working on laptops
+  "business card"         → Found all business card variants
+  "Sijish Madhavan"       → Found business cards by name
+  "futureforward"         → Found company business cards
+  "Kochi"                 → Found images mentioning Kochi
+
+  Caption quality example (business card):
+    Moondream captured: company name, person name, phone number,
+    email, full addresses, pin codes — all from a normal caption,
+    no separate OCR step needed.
+
+
+WHAT'S NEXT TO BUILD
+---------------------
+
+  Phase 1 — Core indexing (DONE):
+    [x] Moondream 2B 4-bit captioning
+    [x] SQLite + FTS5 storage
+    [x] Basic text search
+    [x] Tested on 626 real images
+    [x] OCR works automatically via normal captions
+
+  Phase 2 — Face recognition:
+    [ ] InsightFace integration (detect + embed faces)
+    [ ] Store face embeddings per image
+    [ ] Auto-cluster faces (group same person)
+    [ ] Face tagging: name → embedding mapping
+    [ ] Search by face: send photo → find matches
+
+  Phase 3 — Semantic search:
+    [ ] Sentence embeddings for captions
+    [ ] Vector similarity search
+    [ ] Hybrid: FTS + vector + face matching
+    [ ] Complex queries: "mom wearing red at beach"
+
+  Phase 4 — WhatsApp bot:
+    [ ] whatsapp-web.js integration
+    [ ] QR code setup flow
+    [ ] Send/receive images
+    [ ] Gemini Flash-Lite for conversation understanding
+    [ ] Face tagging via chat ("this is mom")
+    [ ] Refinement ("no, the blue one")
+
+  Phase 5 — Background service:
+    [ ] Auto-scan all drives
+    [ ] File watcher for new/changed images
+    [ ] System tray icon with progress
+    [ ] Incremental indexing (skip already indexed)
+
+  Phase 6 — Distribution:
+    [ ] One-click installer (.exe)
+    [ ] Embedded Python (no system install needed)
+    [ ] Auto model download on first launch
+    [ ] GPU auto-detection + CLIP fallback for CPU-only
+
+
+KEY INSIGHTS
+------------
+
+  1. Normal captions > short captions. Worth the extra time.
+     Normal captures colors, clothing, objects, text, scene — all searchable.
+
+  2. OCR is free. Moondream's normal caption mode reads text automatically.
+     Phone numbers, emails, addresses — all captured without extra inference.
+
+  3. model.compile() is critical. Without it: 6-9s/image. With it: ~1s/image.
+     First image after compile takes ~50s (JIT warmup), then it's fast.
+
+  4. No LLM needed for search. Embeddings handle semantic matching.
+     LLM is only needed for the conversational WhatsApp layer.
+
+  5. WhatsApp as UI > Desktop app. Zero install on phone, everyone knows it,
+     natural language input, results already in a shareable format.
+
+  6. The hard part isn't AI — it's making install invisible.
+     One-click installer that hides all complexity.
+
+  7. Face recognition is the killer feature. "Find photos of mom" is what
+     people actually want. InsightFace is fast (~10-50ms/face), accurate,
+     and 100% local. Combined with captions: "mom wearing red at beach."
+
+  8. Privacy split: photos NEVER leave the machine (Moondream + InsightFace
+     run locally). Only text chat goes to cloud (Gemini Flash-Lite for
+     conversation). User's images stay private.
+
+  9. Face tagging via WhatsApp is natural. Send photo + "this is mom" once.
+     Auto-clustering reduces tagging work — bot groups faces first, user
+     just names the clusters.
+
+
+WHY PINPOINT IS DIFFERENT
+--------------------------
+
+  Google Photos:    Cloud-based. Your photos on Google's servers.
+  Apple Photos:     Apple-only. Locked to iCloud ecosystem.
+  Windows Search:   Can't search by content. Only filenames.
+  Pinpoint:         Local. Private. Any OS. WhatsApp UI. Face search.
+                    Works on your phone without installing anything.
+
+  The unique combination:
+    Local AI (Moondream + InsightFace)
+  + WhatsApp as UI (zero phone install)
+  + Face tagging via chat ("this is mom")
+  + Semantic search (embeddings)
+  + Cloud LLM for conversation only (no images sent)
+  = Nothing like this exists.
+
+
+FILES IN PROJECT
+----------------
+
+  /mnt/d/pinpoint/
+  ├── PINPOINT_IDEA.txt          ← This file
+  ├── index_and_search.py        ← Main indexing + search script
+  ├── test_moondream.py          ← Moondream 2B fp16 test bench
+  ├── test_all_skills.py         ← All 4 skills test (caption/query/detect/point)
+  ├── test_4bit.py               ← Moondream 2B 4-bit benchmark
+  ├── test_smolvlm.py            ← SmolVLM2 comparison test
+  ├── test_station.py            ← Moondream Station test (abandoned)
+  └── pinpoint.db                ← SQLite database with 626 indexed images
+
+
+ENVIRONMENT
+-----------
+
+  Conda env:      pinpoint (Python 3.11)
+  Key packages:   torch 2.6.0+cu124, transformers 4.46.0, torchao 0.8.0
+  Model:          moondream/moondream-2b-2025-04-14-4bit (HuggingFace)
+  GPU tested on:  NVIDIA RTX 4080 (16GB VRAM)
