@@ -12,6 +12,8 @@ __pycache__/
 
 # Databases
 *.db
+*.db-shm
+*.db-wal
 
 # Reference repos (downloaded for learning)
 chonkie-main/

@@ -154,8 +154,148 @@ const DEFAULT_SAVE_FOLDER = pathModule.join(DOWNLOADS, "Pinpoint");
 
 console.log(`[Pinpoint] User home: ${USER_HOME}`);
 
-// --- Gemini setup ---
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+// --- LLM setup (Gemini default, Ollama optional) ---
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || ""; // e.g. "qwen3.5:9b" — set to use local LLM instead of Gemini
+const OLLAMA_URL = process.env.OLLAMA_URL || "http://localhost:11434";
+const USE_OLLAMA = !!OLLAMA_MODEL;
+
+const ai = USE_OLLAMA ? null : new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+if (USE_OLLAMA) console.log(`[Pinpoint] Using Ollama: ${OLLAMA_MODEL} at ${OLLAMA_URL}`);
+else console.log(`[Pinpoint] Using Gemini: ${GEMINI_MODEL}`);
+
+// --- Ollama adapter: translates Gemini format ↔ Ollama format ---
+// So the rest of the code stays identical regardless of which LLM is used.
+function geminiToolsToOllama(geminiTools) {
+  // Gemini: [{ functionDeclarations: [{ name, description, parameters: { type: "OBJECT", properties, required } }] }]
+  // Ollama: [{ type: "function", function: { name, description, parameters: { type: "object", ... } } }]
+  if (!geminiTools?.[0]?.functionDeclarations) return [];
+  return geminiTools[0].functionDeclarations.map(fd => ({
+    type: "function",
+    function: {
+      name: fd.name,
+      description: fd.description,
+      parameters: lowerTypes(fd.parameters),
+    },
+  }));
+}
+
+function lowerTypes(schema) {
+  if (!schema) return schema;
+  const out = { ...schema };
+  if (out.type) out.type = out.type.toLowerCase();
+  if (out.properties) {
+    out.properties = {};
+    for (const [k, v] of Object.entries(schema.properties)) {
+      out.properties[k] = lowerTypes(v);
+    }
+  }
+  if (out.items) out.items = lowerTypes(out.items);
+  return out;
+}
+
+function geminiContentsToOllama(contents, systemInstruction) {
+  // Convert Gemini contents array to Ollama messages array
+  const messages = [];
+  if (systemInstruction) messages.push({ role: "system", content: systemInstruction });
+
+  for (const entry of contents) {
+    if (!entry?.parts) continue;
+    const role = entry.role === "model" ? "assistant" : "user";
+
+    // Check for function calls (model response with tool calls)
+    const funcCalls = entry.parts.filter(p => p.functionCall);
+    if (funcCalls.length > 0) {
+      // Text part if any
+      const textParts = entry.parts.filter(p => p.text).map(p => p.text).join("\n");
+      messages.push({
+        role: "assistant",
+        content: textParts || "",
+        tool_calls: funcCalls.map(p => ({
+          id: `call_${p.functionCall.name}_${Date.now()}`,
+          type: "function",
+          function: { name: p.functionCall.name, arguments: p.functionCall.args || {} },
+        })),
+      });
+      continue;
+    }
+
+    // Check for function responses (tool results)
+    const funcResponses = entry.parts.filter(p => p.functionResponse);
+    if (funcResponses.length > 0) {
+      for (const p of funcResponses) {
+        messages.push({
+          role: "tool",
+          content: JSON.stringify(p.functionResponse.response?.result ?? ""),
+        });
+      }
+      // Also include any text nudges (round-based efficiency hints)
+      const textNudges = entry.parts.filter(p => p.text);
+      for (const p of textNudges) {
+        messages.push({ role: "system", content: p.text });
+      }
+      continue;
+    }
+
+    // Regular text (+ possibly inlineData images — skip images for Ollama text-only)
+    const text = entry.parts.filter(p => p.text).map(p => p.text).join("\n");
+    if (text) messages.push({ role, content: text });
+  }
+  return messages;
+}
+
+async function ollamaGenerate(contents, config, toolsDefs) {
+  // Build Ollama chat request
+  const messages = geminiContentsToOllama(contents, config?.systemInstruction);
+  const body = {
+    model: OLLAMA_MODEL,
+    messages,
+    stream: false,
+    think: false, // Disable thinking — too slow for tool calling
+  };
+  if (toolsDefs) body.tools = geminiToolsToOllama(toolsDefs);
+
+  const resp = await fetch(`${OLLAMA_URL}/api/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!resp.ok) throw new Error(`Ollama error: ${resp.status} ${await resp.text()}`);
+  const data = await resp.json();
+  const msg = data.message || {};
+
+  // Translate Ollama response → Gemini response shape
+  const functionCalls = (msg.tool_calls || []).map(tc => ({
+    name: tc.function.name,
+    args: typeof tc.function.arguments === "string" ? JSON.parse(tc.function.arguments) : tc.function.arguments,
+  }));
+
+  return {
+    text: msg.content || "",
+    functionCalls: functionCalls.length > 0 ? functionCalls : null,
+    candidates: [{
+      content: {
+        role: "model",
+        parts: [
+          ...(msg.content ? [{ text: msg.content }] : []),
+          ...functionCalls.map(fc => ({ functionCall: { name: fc.name, args: fc.args } })),
+        ],
+      },
+      finishReason: functionCalls.length > 0 ? "TOOL_CALLS" : "STOP",
+    }],
+    usageMetadata: {
+      promptTokenCount: data.prompt_eval_count || 0,
+      candidatesTokenCount: data.eval_count || 0,
+    },
+  };
+}
+
+// Unified LLM call — routes to Gemini or Ollama
+async function llmGenerate({ model, contents, config, tools: toolsDefs }) {
+  if (USE_OLLAMA) {
+    return ollamaGenerate(contents, config, toolsDefs);
+  }
+  return ai.models.generateContent({ model, contents, config: { ...config, tools: toolsDefs } });
+}
 
 // --- Load skills from skills/*.md at startup (hierarchical: general + task-specific) ---
 const SKILLS_DIR = pathModule.join(__dirname, "..", "skills");
@@ -1950,7 +2090,7 @@ Conversation:
       summaryInput += `${m.role}: ${m.content.slice(0, 300)}\n`;
     }
 
-    const response = await ai.models.generateContent({
+    const response = await llmGenerate({
       model: GEMINI_MODEL,
       contents: [{ role: "user", parts: [{ text: summaryInput }] }],
     });
@@ -2007,7 +2147,7 @@ Conversation:
 ${summaryParts.join("\n")}`;
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await llmGenerate({
       model: GEMINI_MODEL,
       contents: [{ role: "user", parts: [{ text: summaryInput }] }],
     });
@@ -2076,7 +2216,8 @@ async function runGemini(userMessage, sock, chatJid, opts = {}) {
   const config = {
     systemInstruction: getSystemPrompt(userMessage),
   };
-  if (!opts.noTools) config.tools = tools;
+  let activeTools = null;
+  if (!opts.noTools) activeTools = tools;
 
   const toolCache = new Map(); // Dedup: cache tool results within this turn
   const toolLog = []; // Track tool calls for conversation context
@@ -2126,10 +2267,11 @@ async function runGemini(userMessage, sock, chatJid, opts = {}) {
       }
     }
 
-    const response = await ai.models.generateContent({
+    const response = await llmGenerate({
       model: GEMINI_MODEL,
       contents,
       config,
+      tools: activeTools,
     });
 
     // Track token usage
@@ -2310,7 +2452,7 @@ async function runGemini(userMessage, sock, chatJid, opts = {}) {
         if (finishReason === "MALFORMED_FUNCTION_CALL" && opts.noTools && round === 0 && !opts.inlineImage) {
           console.log(`[Gemini] MALFORMED_FUNCTION_CALL in no-tools mode — retrying with tools`);
           opts.noTools = false;
-          config.tools = tools;
+          activeTools = tools;
           continue; // retry this round
         }
       }
