@@ -160,6 +160,7 @@ const OLLAMA_URL = process.env.OLLAMA_URL || "http://localhost:11434";
 const USE_OLLAMA = !!OLLAMA_MODEL;
 
 const ai = USE_OLLAMA ? null : new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const LLM_TAG = USE_OLLAMA ? "Ollama" : "Gemini";
 if (USE_OLLAMA) console.log(`[Pinpoint] Using Ollama: ${OLLAMA_MODEL} at ${OLLAMA_URL}`);
 else console.log(`[Pinpoint] Using Gemini: ${GEMINI_MODEL}`);
 
@@ -236,9 +237,14 @@ function geminiContentsToOllama(contents, systemInstruction) {
       continue;
     }
 
-    // Regular text (+ possibly inlineData images — skip images for Ollama text-only)
+    // Regular text + images (Ollama uses "images" array with base64 data)
     const text = entry.parts.filter(p => p.text).map(p => p.text).join("\n");
-    if (text) messages.push({ role, content: text });
+    const images = entry.parts.filter(p => p.inlineData).map(p => p.inlineData.data);
+    if (text || images.length > 0) {
+      const msg = { role, content: text || "" };
+      if (images.length > 0) msg.images = images;
+      messages.push(msg);
+    }
   }
   return messages;
 }
@@ -321,7 +327,7 @@ const INTENT_KEYWORDS = {
   image: /photo|image|picture|jpg|png|face|person|selfie|caption|detect|object|bounding|visual|heic|camera|screenshot/i,
   search: /find|search|where|which|document|file.*contain|look.*for|indexed/i,
   data: /excel|csv|spreadsheet|column|row|data|analyze|chart|graph|pandas|filter|sort/i,
-  files: /move|copy|rename|delete|duplicate|folder|list|organize|clean.*up|batch/i,
+  files: /move|copy|rename|delete|duplicate|folder|list|organize|clean.*up|batch|zip|unzip|compress|extract|archive/i,
   write: /write|create|pdf|merge|split|combine|generate/i,
   media: /video|mp4|clip|frame|scene/i,
   web: /download|url|web|search.*online|internet|website/i,
@@ -432,6 +438,52 @@ function getSystemPrompt(userMessage = "") {
     prompt += `\n\n## Memory\nMemory is currently OFF. If user asks to remember something, tell them to enable it with /memory on.`;
   }
   return prompt;
+}
+
+// --- Tool grouping: map each tool to intent categories (mirrors SKILL_CATEGORIES) ---
+// Core tools are always included. Category tools added based on user message intent.
+const CORE_TOOLS = new Set([
+  "search_documents", "search_facts", "read_document", "read_file",
+  "list_files", "send_file", "get_status", "calculate",
+]);
+const TOOL_GROUPS = {
+  search: ["search_history", "grep_files", "index_file"],
+  image: [
+    "detect_faces", "crop_face", "find_person", "find_person_by_face",
+    "count_faces", "compare_faces", "remember_face", "forget_face",
+    "search_images_visual", "ocr", "detect_objects",
+  ],
+  data: ["analyze_data", "read_excel", "generate_chart", "extract_tables"],
+  files: [
+    "file_info", "move_file", "copy_file", "batch_move",
+    "create_folder", "delete_file", "find_duplicates", "batch_rename",
+    "compress_files", "extract_archive",
+  ],
+  write: [
+    "write_file", "generate_excel", "merge_pdf", "split_pdf",
+    "pdf_to_images", "images_to_pdf", "resize_image", "convert_image", "crop_image",
+  ],
+  media: ["search_video", "extract_frame"],
+  web: ["web_search", "download_url"],
+  memory: ["memory_save", "memory_search", "memory_delete", "memory_forget"],
+  code: ["run_python"],
+  archive: ["compress_files", "extract_archive"],
+  automation: ["set_reminder", "list_reminders", "cancel_reminder", "watch_folder", "unwatch_folder", "list_watched"],
+};
+
+// Build filtered tools array based on user message intent
+function getToolsForIntent(message) {
+  const cats = detectIntentCategories(message);
+  const allowedNames = new Set(CORE_TOOLS);
+  for (const cat of cats) {
+    for (const name of (TOOL_GROUPS[cat] || [])) allowedNames.add(name);
+  }
+  // automation tools always available (reminders, watch)
+  for (const name of TOOL_GROUPS.automation) allowedNames.add(name);
+
+  const filtered = tools[0].functionDeclarations.filter(fd => allowedNames.has(fd.name));
+  console.log(`[Pinpoint] Tools: ${filtered.length}/${tools[0].functionDeclarations.length} (intents: ${[...cats].join(",")})`);
+  return [{ functionDeclarations: filtered }];
 }
 
 // --- Tool declarations for Gemini ---
@@ -1729,7 +1781,7 @@ function preValidate(name, args) {
 async function executeTool(functionCall, sock, chatJid) {
   const { name } = functionCall;
   const args = resolveRefsInArgs(functionCall.args);
-  console.log(`[Gemini] Tool call: ${name}(${JSON.stringify(args).slice(0, 200)})`);
+  console.log(`[${LLM_TAG}] Tool call: ${name}(${JSON.stringify(args).slice(0, 200)})`);
 
   // Pre-validate args before hitting the API
   const validationError = preValidate(name, args);
@@ -2217,7 +2269,7 @@ async function runGemini(userMessage, sock, chatJid, opts = {}) {
     systemInstruction: getSystemPrompt(userMessage),
   };
   let activeTools = null;
-  if (!opts.noTools) activeTools = tools;
+  if (!opts.noTools) activeTools = getToolsForIntent(userMessage);
 
   const toolCache = new Map(); // Dedup: cache tool results within this turn
   const toolLog = []; // Track tool calls for conversation context
@@ -2238,7 +2290,7 @@ async function runGemini(userMessage, sock, chatJid, opts = {}) {
   for (let round = 0; round < MAX_ROUNDS; round++) {
     // Check if user sent "stop" / "cancel" (lock was released)
     if (!activeRequests.has(chatJid)) {
-      console.log(`[Gemini] Stopped by user after ${round} rounds`);
+      console.log(`[${LLM_TAG}] Stopped by user after ${round} rounds`);
       return { text: "Request stopped.", toolLog };
     }
 
@@ -2301,7 +2353,7 @@ async function runGemini(userMessage, sock, chatJid, opts = {}) {
       // Execute each tool call
       const elapsed = Math.round((Date.now() - toolStartTime) / 1000);
       const tokenInfo = roundTokens ? `, ${formatTokens(roundTokens.input)} in / ${formatTokens(roundTokens.output)} out` : "";
-      console.log(`[Gemini] Round ${round + 1}, ${response.functionCalls.length} tool(s), ${elapsed}s elapsed${tokenInfo}`);
+      console.log(`[${LLM_TAG}] Round ${round + 1}, ${response.functionCalls.length} tool(s), ${elapsed}s elapsed${tokenInfo}`);
       const functionResponses = [];
       const imageParts = []; // For read_file images — Gemini sees them visually
       for (const fc of response.functionCalls) {
@@ -2310,7 +2362,7 @@ async function runGemini(userMessage, sock, chatJid, opts = {}) {
         if (callHash === lastCallHash) {
           lastCallCount++;
           if (lastCallCount >= LOOP_THRESHOLD) {
-            console.warn(`[Gemini] Loop detected: ${fc.name} called ${lastCallCount}x with same args`);
+            console.warn(`[${LLM_TAG}] Loop detected: ${fc.name} called ${lastCallCount}x with same args`);
             functionResponses.push({
               functionResponse: {
                 name: fc.name,
@@ -2330,7 +2382,7 @@ async function runGemini(userMessage, sock, chatJid, opts = {}) {
         //   const resourceKey = `${fc.name}:${resource}`;
         //   toolResourceCounts[resourceKey] = (toolResourceCounts[resourceKey] || 0) + 1;
         //   if (toolResourceCounts[resourceKey] >= SEMANTIC_LOOP_THRESHOLD) {
-        //     console.warn(`[Gemini] Semantic loop: ${fc.name} on ${resource} called ${toolResourceCounts[resourceKey]}x`);
+        //     console.warn(`[${LLM_TAG}] Semantic loop: ${fc.name} on ${resource} called ${toolResourceCounts[resourceKey]}x`);
         //     functionResponses.push({ functionResponse: { name: fc.name,
         //       response: { result: { error: `Called ${fc.name} on same path too many times.` } } } });
         //     continue;
@@ -2341,7 +2393,7 @@ async function runGemini(userMessage, sock, chatJid, opts = {}) {
         let result;
         if (toolCache.has(callHash)) {
           result = toolCache.get(callHash);
-          console.log(`[Gemini] Dedup skip: ${fc.name} (cached)`);
+          console.log(`[${LLM_TAG}] Dedup skip: ${fc.name} (cached)`);
         } else {
           result = await executeTool(fc, sock, chatJid);
           toolCache.set(callHash, result);
@@ -2357,7 +2409,7 @@ async function runGemini(userMessage, sock, chatJid, opts = {}) {
             const sent = await sendFile(sock, chatJid, autoSendPath, `${PREFIX} ${pathModule.basename(autoSendPath)}`);
             if (sent) {
               result._auto_sent = true;
-              console.log(`[Gemini] Tail call: auto-sent ${pathModule.basename(autoSendPath)}`);
+              console.log(`[${LLM_TAG}] Tail call: auto-sent ${pathModule.basename(autoSendPath)}`);
             }
           }
         }
@@ -2446,13 +2498,13 @@ async function runGemini(userMessage, sock, chatJid, opts = {}) {
       if (!text) {
         const finishReason = response.candidates?.[0]?.finishReason;
         const safetyRatings = response.candidates?.[0]?.safetyRatings;
-        console.error(`[Gemini] Empty response. finishReason=${finishReason}, safety=${JSON.stringify(safetyRatings || [])}`);
+        console.error(`[${LLM_TAG}] Empty response. finishReason=${finishReason}, safety=${JSON.stringify(safetyRatings || [])}`);
         // MALFORMED_FUNCTION_CALL in no-tools mode: Gemini tried to call a tool
         // Only re-enable tools if this was a text message (not a bare image/file)
         if (finishReason === "MALFORMED_FUNCTION_CALL" && opts.noTools && round === 0 && !opts.inlineImage) {
-          console.log(`[Gemini] MALFORMED_FUNCTION_CALL in no-tools mode — retrying with tools`);
+          console.log(`[${LLM_TAG}] MALFORMED_FUNCTION_CALL in no-tools mode — retrying with tools`);
           opts.noTools = false;
-          activeTools = tools;
+          activeTools = getToolsForIntent(userMessage);
           continue; // retry this round
         }
       }
@@ -2464,7 +2516,7 @@ async function runGemini(userMessage, sock, chatJid, opts = {}) {
   }
 
   // Max rounds reached — return what we have
-  console.warn(`[Gemini] Max rounds (${MAX_ROUNDS}) reached`);
+  console.warn(`[${LLM_TAG}] Max rounds (${MAX_ROUNDS}) reached`);
   return { text: `I've completed ${MAX_ROUNDS} rounds of work. Here's what I did so far — let me know if you need me to continue.`, toolLog };
 }
 
@@ -2883,7 +2935,7 @@ async function handleMedia(sock, msg, chatJid) {
           inlineImage = { mimeType: mimetype, data: imgData };
           // Save for follow-up messages (e.g. user sends photo, then asks "who is this?")
           lastImage.set(chatJid, { mimeType: mimetype, data: imgData, path: savePath, ts: Date.now() });
-          console.log(`[Pinpoint] Sending image inline to Gemini (${sizeStr})`);
+          console.log(`[Pinpoint] Sending image inline to ${LLM_TAG} (${sizeStr})`);
         } catch (e) {
           console.error("[Pinpoint] Failed to read image for inline:", e.message);
         }
@@ -2896,7 +2948,7 @@ async function handleMedia(sock, msg, chatJid) {
       if (!current || current.id !== myRequestId) {
         console.log(`[Pinpoint] Discarded media result (stopped)`);
       } else {
-        console.log(`[Gemini] Response: ${result.text.length} chars`);
+        console.log(`[${LLM_TAG}] Response: ${result.text.length} chars`);
         const replyText = `${PREFIX} ${markdownToWhatsApp(result.text)}`;
         const chunks = chunkText(replyText);
         for (const chunk of chunks) {
@@ -2911,7 +2963,7 @@ async function handleMedia(sock, msg, chatJid) {
         await saveMessage(chatJid, "assistant", assistantSave);
       }
     } catch (err) {
-      console.error("[Gemini] Error on media processing:", err.message);
+      console.error(`[${LLM_TAG}] Error on media processing:`, err.message);
     } finally {
       const current = activeRequests.get(chatJid);
       if (current && current.id === myRequestId) {
@@ -3210,12 +3262,12 @@ stop — Cancel current request`;
         result = await runGemini(geminiMsg, sock, chatJid, { noTools, inlineImage });
         // Clear lastImage after use (one-shot re-injection)
         if (inlineImage) lastImage.delete(chatJid);
-        console.log(`[Gemini] Response: ${result.text.length} chars`);
+        console.log(`[${LLM_TAG}] Response: ${result.text.length} chars`);
       } else {
         result = await fallbackSearch(userMsg);
       }
     } catch (err) {
-      console.error("[Gemini] Error:", err.message);
+      console.error(`[${LLM_TAG}] Error:`, err.message);
       // Fallback to direct keyword search
       try {
         result = await fallbackSearch(userMsg);
