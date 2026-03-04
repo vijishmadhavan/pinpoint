@@ -12,6 +12,8 @@ Scoring rubric:
 HTML report: thumbnail gallery (base64 tiny JPEGs), click opens original.
 """
 
+from __future__ import annotations
+
 import html as html_mod
 import io
 import json
@@ -20,6 +22,7 @@ import shutil
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Any
 
 from database import DB_PATH, get_db
 from extractors import IMAGE_EXTENSIONS, _get_gemini, _preprocess_image, gemini_call_with_retry
@@ -29,7 +32,7 @@ from extractors import IMAGE_EXTENSIONS, _get_gemini, _preprocess_image, gemini_
 _db_lock = threading.Lock()
 
 
-def _init_table(conn):
+def _init_table(conn: Any) -> None:
     conn.execute("""
         CREATE TABLE IF NOT EXISTS photo_scores (
             path TEXT PRIMARY KEY,
@@ -52,7 +55,7 @@ def _init_table(conn):
     conn.commit()
 
 
-def _get_conn():
+def _get_conn() -> Any:
     conn = get_db(DB_PATH)
     _init_table(conn)
     return conn
@@ -61,7 +64,7 @@ def _get_conn():
 _gemini_call_with_retry = gemini_call_with_retry  # alias for backward compat
 
 
-def _cached_score(conn, path, mtime):
+def _cached_score(conn: Any, path: str, mtime: float) -> dict[str, Any] | None:
     row = conn.execute("SELECT * FROM photo_scores WHERE path = ? AND mtime = ?", (path, mtime)).fetchone()
     if row:
         return dict(row)
@@ -106,7 +109,7 @@ _SCORE_SCHEMA = {
 }
 
 
-def score_photo(path: str) -> dict:
+def score_photo(path: str) -> dict[str, Any]:
     """Score a single photo. Returns breakdown with _hint."""
     path = os.path.abspath(path)
     if not os.path.exists(path):
@@ -217,7 +220,7 @@ _cull_jobs = {}  # folder → progress dict
 _cull_lock = threading.Lock()
 
 
-def _make_thumbnail_b64(path, size=160):
+def _make_thumbnail_b64(path: str, size: int = 160) -> str | None:
     """Create a tiny JPEG thumbnail as base64 for the HTML report."""
     try:
         from PIL import Image
@@ -233,7 +236,14 @@ def _make_thumbnail_b64(path, size=160):
         return None
 
 
-def _generate_html_report(folder, scored_photos, kept_paths, rejected_paths, rejects_folder, threshold):
+def _generate_html_report(
+    folder: str,
+    scored_photos: list[dict[str, Any]],
+    kept_paths: list[str],
+    rejected_paths: list[str],
+    rejects_folder: str,
+    threshold: int,
+) -> str:
     """Generate a lightweight HTML gallery with thumbnails. Click opens original."""
     # Sort by score descending
     scored_photos.sort(key=lambda x: x.get("total", 0), reverse=True)
@@ -327,7 +337,7 @@ function filterCards(f,btn){{
     return report_path
 
 
-def cull_photos(folder: str, keep_pct: int = 80, rejects_folder: str = None) -> dict:
+def cull_photos(folder: str, keep_pct: int = 80, rejects_folder: str | None = None) -> dict[str, Any]:
     """Start background photo culling. Returns immediately with status."""
     folder = os.path.abspath(folder)
     if not os.path.isdir(folder):
@@ -362,7 +372,7 @@ def cull_photos(folder: str, keep_pct: int = 80, rejects_folder: str = None) -> 
     with _cull_lock:
         _cull_jobs[folder] = progress
 
-    def _run():
+    def _run() -> None:
         scored = []
         start = time.time()
 
@@ -471,7 +481,7 @@ def cull_photos(folder: str, keep_pct: int = 80, rejects_folder: str = None) -> 
     }
 
 
-def get_cull_status(folder: str, cancel: bool = False) -> dict:
+def get_cull_status(folder: str, cancel: bool = False) -> dict[str, Any]:
     """Get culling progress for a folder. Set cancel=True to stop the job."""
     folder = os.path.abspath(folder)
     with _cull_lock:
@@ -521,7 +531,7 @@ _CLASSIFY_PROMPT_TEMPLATE = """Classify this photo into EXACTLY ONE of these cat
 Return ONLY the category name from the list above. Nothing else."""
 
 
-def _cached_classification(conn, path, mtime):
+def _cached_classification(conn: Any, path: str, mtime: float) -> str | None:
     row = conn.execute(
         "SELECT category FROM photo_classifications WHERE path = ? AND mtime = ?", (path, mtime)
     ).fetchone()
@@ -530,7 +540,7 @@ def _cached_classification(conn, path, mtime):
     return None
 
 
-def _get_indexed_caption(conn, path):
+def _get_indexed_caption(conn: Any, path: str) -> str | None:
     """Check if this photo is already indexed in documents DB → return caption if so."""
     row = conn.execute("SELECT hash FROM documents WHERE path = ? AND active = 1", (path,)).fetchone()
     if row:
@@ -540,7 +550,7 @@ def _get_indexed_caption(conn, path):
     return None
 
 
-def _classify_photo(path, categories, categories_lower):
+def _classify_photo(path: str, categories: list[str], categories_lower: list[str]) -> dict[str, Any]:
     """Classify a single photo. Priority: cache → caption (text-only Gemini) → Gemini vision."""
     abs_path = os.path.abspath(path)
     mtime = os.path.getmtime(abs_path)
@@ -631,7 +641,7 @@ def _classify_photo(path, categories, categories_lower):
         return {"error": str(e), "path": abs_path}
 
 
-def _fuzzy_match(text, categories, categories_lower):
+def _fuzzy_match(text: str, categories: list[str], categories_lower: list[str]) -> str | None:
     """Fuzzy match Gemini response to a category. Returns category name or None."""
     text = text.strip().strip('"').strip("'").strip("-").strip()
     t = text.lower()
@@ -641,7 +651,7 @@ def _fuzzy_match(text, categories, categories_lower):
     return None
 
 
-def _save_classification(abs_path, mtime, category):
+def _save_classification(abs_path: str, mtime: float, category: str) -> None:
     """Save a single classification to DB cache."""
     with _db_lock:
         conn = _get_conn()
@@ -660,7 +670,7 @@ _VISION_BATCH_SIZE = 5  # images per Gemini vision call
 _CAPTION_BATCH_SIZE = 20  # captions per text-only call
 
 
-def _classify_schema(categories):
+def _classify_schema(categories: list[str]) -> dict[str, Any]:
     """Build structured output schema for batch classification — category enum enforced by Gemini."""
     return {
         "type": "OBJECT",
@@ -681,7 +691,12 @@ def _classify_schema(categories):
     }
 
 
-def _classify_batch_vision(items, categories, categories_lower, cached_content=None):
+def _classify_batch_vision(
+    items: list[tuple[str, float]],
+    categories: list[str],
+    categories_lower: list[str],
+    cached_content: str | None = None,
+) -> list[dict[str, Any]]:
     """Classify a batch of images via one Gemini vision call with structured output.
     items: [(abs_path, mtime), ...]
     cached_content: optional cache name (holds category prompt, saves input tokens)
@@ -764,7 +779,12 @@ def _classify_batch_vision(items, categories, categories_lower, cached_content=N
     return results
 
 
-def _classify_batch_captions(items, categories, categories_lower, cached_content=None):
+def _classify_batch_captions(
+    items: list[tuple[str, float, str]],
+    categories: list[str],
+    categories_lower: list[str],
+    cached_content: str | None = None,
+) -> list[dict[str, Any]]:
     """Classify a batch of captioned images via one text-only Gemini call with structured output.
     items: [(abs_path, mtime, caption), ...]
     cached_content: optional cache name (holds category prompt, saves input tokens)
@@ -844,7 +864,7 @@ _SUGGEST_SCHEMA = {
 }
 
 
-def suggest_categories(folder: str) -> dict:
+def suggest_categories(folder: str) -> dict[str, Any]:
     """Sample photos from a folder and suggest grouping categories via Gemini."""
     folder = os.path.abspath(folder)
     if not os.path.isdir(folder):
@@ -931,7 +951,7 @@ def suggest_categories(folder: str) -> dict:
         return {"error": f"Category suggestion failed: {e}"}
 
 
-def group_photos(folder: str, categories: list, uncategorized_folder: str = None) -> dict:
+def group_photos(folder: str, categories: list[str], uncategorized_folder: str | None = None) -> dict[str, Any]:
     """Start background photo grouping by Gemini vision classification. Returns immediately."""
     folder = os.path.abspath(folder)
     if not os.path.isdir(folder):
@@ -967,7 +987,7 @@ def group_photos(folder: str, categories: list, uncategorized_folder: str = None
     with _group_lock:
         _group_jobs[folder] = progress
 
-    def _run():
+    def _run() -> None:
         classified = []
         categories_lower = [c.lower() for c in categories]
         start = time.time()
@@ -1034,7 +1054,7 @@ def group_photos(folder: str, categories: list, uncategorized_folder: str = None
                 f"[Group] {len(cached_items)} from cache, {len(caption_items)} with captions, {len(vision_items)} need vision"
             )
 
-        def _cleanup_cache():
+        def _cleanup_cache() -> None:
             if gemini_cache_name:
                 try:
                     cl = _get_gemini()
@@ -1155,7 +1175,9 @@ def group_photos(folder: str, categories: list, uncategorized_folder: str = None
     }
 
 
-def _generate_group_report(folder, classified, categories, group_counts):
+def _generate_group_report(
+    folder: str, classified: list[dict[str, Any]], categories: list[str], group_counts: dict[str, int]
+) -> str:
     """Generate HTML report showing groups with thumbnails."""
     groups = {}
     for item in classified:
@@ -1221,7 +1243,7 @@ h2{{font-size:1.1em;margin:16px 0 8px;color:#7ec8e3}}
     return report_path
 
 
-def get_group_status(folder: str, cancel: bool = False) -> dict:
+def get_group_status(folder: str, cancel: bool = False) -> dict[str, Any]:
     """Get grouping progress for a folder. Set cancel=True to stop the job."""
     folder = os.path.abspath(folder)
     with _group_lock:

@@ -4,13 +4,17 @@ Search inside videos by text description: extract frames, embed with SigLIP2,
 find frames matching a text query. Embeddings cached in SQLite.
 """
 
+from __future__ import annotations
+
 import os
 import sqlite3
 import struct
 import subprocess
 import tempfile
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime
+from typing import Any
 
 import numpy as np
 from PIL import Image
@@ -42,14 +46,14 @@ def _get_conn() -> sqlite3.Connection:
 # --- Reuse SigLIP2 from image_search ---
 
 
-def _get_siglip():
+def _get_siglip() -> tuple[Any, Any, Any]:
     """Reuse SigLIP2 model from image_search (shared lazy singleton)."""
     from image_search import _get_siglip as _img_get_siglip
 
     return _img_get_siglip()
 
 
-def _embed_text(query: str) -> np.ndarray:
+def _embed_text(query: str) -> Any:
     """Reuse text embedding from image_search."""
     from image_search import embed_text
 
@@ -61,18 +65,20 @@ from image_search import _normalize
 # --- Embedding serialization ---
 
 
-def _embedding_to_bytes(emb: np.ndarray) -> bytes:
+def _embedding_to_bytes(emb: Any) -> bytes:
     return struct.pack(f"{EMBED_DIM}f", *emb.tolist())
 
 
-def _bytes_to_embedding(data: bytes) -> np.ndarray:
+def _bytes_to_embedding(data: bytes) -> Any:
     return np.array(struct.unpack(f"{EMBED_DIM}f", data), dtype=np.float32)
 
 
 # --- Frame extraction with ffmpeg ---
 
 
-def extract_frames(video_path: str, fps: float = DEFAULT_FPS, temp_dir: str = None) -> list:
+def extract_frames(
+    video_path: str, fps: float = DEFAULT_FPS, temp_dir: str | None = None
+) -> tuple[list[tuple[str, float]], float]:
     """
     Extract frames from video using ffmpeg.
     Returns list of (frame_path, timestamp_sec) tuples.
@@ -123,7 +129,7 @@ def extract_frames(video_path: str, fps: float = DEFAULT_FPS, temp_dir: str = No
 # --- DB cache operations ---
 
 
-def _load_cached_embeddings(video_path: str) -> dict:
+def _load_cached_embeddings(video_path: str) -> dict[float, Any]:
     """Load cached frame embeddings for a video. Returns {frame_sec: ndarray} if valid."""
     conn = _get_conn()
     try:
@@ -151,7 +157,7 @@ def _load_cached_embeddings(video_path: str) -> dict:
     return cached
 
 
-def _save_embeddings(video_path: str, frame_embeddings: list):
+def _save_embeddings(video_path: str, frame_embeddings: list[tuple[float, Any]]) -> None:
     """Save frame embeddings. frame_embeddings: [(frame_sec, ndarray), ...]"""
     if not frame_embeddings:
         return
@@ -188,7 +194,9 @@ def _timestamp_to_seconds(ts: str) -> float:
     return 0.0
 
 
-def embed_video(video_path: str, fps: float = DEFAULT_FPS, progress_callback=None) -> dict:
+def embed_video(
+    video_path: str, fps: float = DEFAULT_FPS, progress_callback: Callable[[int, int], None] | None = None
+) -> dict[float, Any]:
     """
     Embed all frames of a video. Returns {frame_sec: embedding_ndarray}.
     Uses DB cache if video unchanged.
@@ -271,7 +279,7 @@ def embed_video(video_path: str, fps: float = DEFAULT_FPS, progress_callback=Non
         shutil.rmtree(temp_dir, ignore_errors=True)
 
 
-def _search_video_gemini(video_path: str, query: str, fps: float = DEFAULT_FPS, limit: int = 5) -> dict:
+def _search_video_gemini(video_path: str, query: str, fps: float = DEFAULT_FPS, limit: int = 5) -> dict[str, Any]:
     """Gemini native video analysis — upload full video, no frame extraction needed.
     Note: fps is accepted for API compatibility but unused (Gemini analyzes the full video)."""
     from extractors import _get_gemini
@@ -381,7 +389,7 @@ def _search_video_gemini(video_path: str, query: str, fps: float = DEFAULT_FPS, 
     }
 
 
-def search_video(video_path: str, query: str, fps: float = DEFAULT_FPS, limit: int = 5) -> dict:
+def search_video(video_path: str, query: str, fps: float = DEFAULT_FPS, limit: int = 5) -> dict[str, Any]:
     """
     Search a video by text description.
     Returns matching frames with timestamps and similarity scores.
@@ -457,7 +465,7 @@ def search_video(video_path: str, query: str, fps: float = DEFAULT_FPS, limit: i
     }
 
 
-def extract_frame_image(video_path: str, seconds: float, output_path: str = None) -> str:
+def extract_frame_image(video_path: str, seconds: float, output_path: str | None = None) -> str:
     """Extract a single frame from video at given timestamp. Returns output path."""
     video_path = os.path.abspath(video_path)
     if output_path is None:

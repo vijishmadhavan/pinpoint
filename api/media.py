@@ -1,5 +1,7 @@
 """Media search & processing router — visual search, video, audio, OCR."""
 
+from __future__ import annotations
+
 import os
 
 from fastapi import APIRouter, HTTPException, Query
@@ -55,7 +57,7 @@ class OcrRequest(BaseModel):
 
 
 @router.post("/search-images-visual")
-def search_images_visual_endpoint(req: VisualSearchRequest):
+def search_images_visual_endpoint(req: VisualSearchRequest) -> dict:
     """Search images in a folder by text description using SigLIP2 embeddings."""
     folder = os.path.abspath(req.folder)
     _check_safe(folder)
@@ -118,10 +120,10 @@ def search_images_visual_endpoint(req: VisualSearchRequest):
             total_batches = math.ceil(len(files) / 200)
             _embedding_jobs[folder] = {"status": "running", "total": total_batches, "done": 0}
 
-            def _bg_gemini_search():
+            def _bg_gemini_search() -> None:
                 try:
 
-                    def _progress(done, total):
+                    def _progress(done: int, total: int) -> None:
                         _embedding_jobs[folder]["done"] = done
 
                     result = _search_images_gemini(
@@ -189,11 +191,11 @@ def search_images_visual_endpoint(req: VisualSearchRequest):
 
         _embedding_jobs[folder] = {"status": "running", "total": len(files), "done": len(cached)}
 
-        def _bg_embed():
+        def _bg_embed() -> None:
             try:
                 from image_search import embed_images
 
-                def _progress(done, total):
+                def _progress(done: int, total: int) -> None:
                     _embedding_jobs[folder]["done"] = done + len(cached)
 
                 embed_images(folder, progress_callback=_progress)
@@ -221,7 +223,7 @@ def search_images_visual_endpoint(req: VisualSearchRequest):
 
 
 @router.get("/embedding-status")
-def embedding_status(folder: str = Query(...)):
+def embedding_status(folder: str = Query(...)) -> dict:
     """Check background embedding progress."""
     folder = os.path.abspath(folder)
     _check_safe(folder)
@@ -235,7 +237,7 @@ def embedding_status(folder: str = Query(...)):
 
 
 @router.post("/search-video")
-def search_video_endpoint(req: VideoSearchRequest):
+def search_video_endpoint(req: VideoSearchRequest) -> dict:
     """Search inside a video by text description using SigLIP2 frame embeddings."""
     video_path = os.path.abspath(req.video_path)
     _check_safe(video_path)
@@ -251,7 +253,7 @@ def search_video_endpoint(req: VideoSearchRequest):
 
 
 @router.post("/extract-frame")
-def extract_frame_endpoint(req: ExtractFrameRequest):
+def extract_frame_endpoint(req: ExtractFrameRequest) -> dict:
     """Extract a single frame from a video at a given timestamp."""
     video_path = os.path.abspath(req.video_path)
     _check_safe(video_path)
@@ -271,7 +273,7 @@ def extract_frame_endpoint(req: ExtractFrameRequest):
 
 
 @router.post("/transcribe-audio")
-def transcribe_audio_endpoint(req: TranscribeAudioRequest):
+def transcribe_audio_endpoint(req: TranscribeAudioRequest) -> dict:
     """Transcribe an audio file to text using Gemini."""
     path = os.path.abspath(req.path)
     _check_safe(path)
@@ -286,7 +288,7 @@ def transcribe_audio_endpoint(req: TranscribeAudioRequest):
 
 
 @router.post("/search-audio")
-def search_audio_endpoint(req: SearchAudioRequest):
+def search_audio_endpoint(req: SearchAudioRequest) -> dict:
     """Search within an audio file for specific content."""
     path = os.path.abspath(req.audio_path)
     _check_safe(path)
@@ -304,7 +306,7 @@ def search_audio_endpoint(req: SearchAudioRequest):
 
 
 @router.post("/ocr")
-def ocr_endpoint(req: OcrRequest):
+def ocr_endpoint(req: OcrRequest) -> dict:
     """Extract text from an image, PDF, or all files in a folder using OCR."""
     from api.files import _ocr_single
 

@@ -1,5 +1,7 @@
 """Search endpoints: full-text search, facts search, document lookup, web read."""
 
+from __future__ import annotations
+
 import re
 from urllib.parse import parse_qs, unquote, urlparse
 
@@ -21,7 +23,7 @@ def search_endpoint(
     limit: int = Query(20, ge=1, le=100, description="Max results"),
     file_type: str | None = Query(None, description="Filter by type: pdf, docx, xlsx, image, etc."),
     folder: str | None = Query(None, description="Filter by folder path prefix"),
-):
+) -> dict:
     """Search across all indexed documents. Supports file_type and folder filters."""
     result = search(q, DB_PATH, limit, file_type=file_type, folder=folder)
     if not result.get("results"):
@@ -40,7 +42,7 @@ def search_endpoint(
 def search_facts_endpoint(
     q: str = Query(..., description="Search query"),
     limit: int = Query(10, ge=1, le=50),
-):
+) -> dict:
     """Search extracted facts from documents."""
     conn = _get_conn()
     rows = conn.execute(
@@ -61,7 +63,7 @@ def search_facts_endpoint(
 
 
 @router.get("/document/{doc_id}")
-def document_endpoint(doc_id: int):
+def document_endpoint(doc_id: int) -> dict:
     """Get full document text by ID. Used by Gemini read_document tool."""
     conn = _get_conn()
     row = conn.execute(
@@ -86,7 +88,7 @@ _WEB_READ_MAX = 8000  # max chars per chunk
 _h2t = None
 
 
-def _get_html2text():
+def _get_html2text() -> object:
     global _h2t
     if _h2t is None:
         import html2text
@@ -99,7 +101,7 @@ def _get_html2text():
     return _h2t
 
 
-def _paginate(text, start):
+def _paginate(text: str, start: int) -> dict:
     """Paginate text: cut at nearest newline, return chunk + metadata."""
     text = re.sub(r"\n{3,}", "\n\n", text)
     total = len(text)
@@ -119,7 +121,7 @@ def _paginate(text, start):
 def web_read(
     url: str = Query(..., description="URL to fetch and read"),
     start: int = Query(0, ge=0, description="Character offset for pagination"),
-):
+) -> dict:
     """Fetch any URL and return clean markdown text. Works like a browser."""
     import requests as req
 
@@ -150,7 +152,7 @@ def web_read(
         html = resp.text
 
         # Decode DDG redirect URLs to actual URLs
-        def _decode_ddg(m):
+        def _decode_ddg(m: re.Match) -> str:
             try:
                 params = parse_qs(urlparse(m.group(0)).query)
                 return unquote(params.get("uddg", [m.group(0)])[0])

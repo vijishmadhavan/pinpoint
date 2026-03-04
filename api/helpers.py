@@ -1,6 +1,9 @@
 """Shared helpers, constants, and utilities for all API router modules."""
 
+from __future__ import annotations
+
 import os
+import sqlite3
 import threading
 from datetime import datetime
 
@@ -14,7 +17,7 @@ _migrations_done = False
 _migrations_lock = threading.Lock()
 
 
-def _get_conn():
+def _get_conn() -> sqlite3.Connection:
     global _migrations_done
     conn = getattr(_local, "conn", None)
     if conn is None:

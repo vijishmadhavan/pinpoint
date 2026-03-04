@@ -14,13 +14,15 @@ Loads model lazily (only when first face operation is requested).
 Caches face data in SQLite for instant repeat queries.
 """
 
+from __future__ import annotations
+
 import hashlib
 import json
 import os
-import sqlite3
 import struct
 import tempfile
 from datetime import UTC
+from typing import Any
 
 import numpy as np
 from PIL import Image
@@ -29,7 +31,7 @@ from PIL import Image
 MAX_FACE_DIM = 1280
 
 
-def _preprocess_for_face(img_path: str):
+def _preprocess_for_face(img_path: str) -> Any:
     """Load and resize image for face detection. Originals untouched."""
     img = Image.open(img_path).convert("RGB")
     w, h = img.size
@@ -44,7 +46,7 @@ def _preprocess_for_face(img_path: str):
 _app = None
 
 
-def _get_model():
+def _get_model() -> Any:
     """Load InsightFace buffalo_l once, on first use."""
     global _app
     if _app is None:
@@ -63,11 +65,11 @@ def _get_model():
 # --- Embedding serialization ---
 
 
-def _embedding_to_bytes(emb: np.ndarray) -> bytes:
+def _embedding_to_bytes(emb: Any) -> bytes:
     return struct.pack(f"{len(emb)}f", *emb)
 
 
-def _bytes_to_embedding(data: bytes) -> np.ndarray:
+def _bytes_to_embedding(data: bytes) -> Any:
     n = len(data) // 4
     return np.array(struct.unpack(f"{n}f", data), dtype=np.float32)
 
@@ -84,7 +86,7 @@ def _file_hash(path: str) -> str:
 # --- Extract full face data from InsightFace result ---
 
 
-def _extract_face_data(face, idx: int) -> dict:
+def _extract_face_data(face: Any, idx: int) -> dict[str, Any]:
     """Extract all available data from an InsightFace face object."""
     bbox = face.bbox.astype(int).tolist()
     w = bbox[2] - bbox[0]
@@ -116,7 +118,7 @@ def _extract_face_data(face, idx: int) -> dict:
 # --- Cache operations ---
 
 
-def _get_cached_faces(conn: sqlite3.Connection, image_path: str):
+def _get_cached_faces(conn: Any, image_path: str) -> list[dict[str, Any]] | None:
     """Get cached face data if file hasn't changed. Returns list or None."""
     current_hash = _file_hash(image_path)
     rows = conn.execute(
@@ -144,7 +146,7 @@ def _get_cached_faces(conn: sqlite3.Connection, image_path: str):
     return faces
 
 
-def _cache_faces(conn: sqlite3.Connection, image_path: str, faces: list):
+def _cache_faces(conn: Any, image_path: str, faces: list[dict[str, Any]]) -> None:
     """Store face data in cache."""
     fh = _file_hash(image_path)
     conn.execute("DELETE FROM face_cache WHERE image_path = ?", (image_path,))
@@ -169,7 +171,7 @@ def _cache_faces(conn: sqlite3.Connection, image_path: str, faces: list):
     conn.commit()
 
 
-def _face_to_api(face: dict) -> dict:
+def _face_to_api(face: dict[str, Any]) -> dict[str, Any]:
     """Convert face dict to API-safe dict (no raw embeddings)."""
     result = {
         "face_idx": face["face_idx"],
@@ -191,7 +193,9 @@ def _face_to_api(face: dict) -> dict:
 # --- Core functions ---
 
 
-def _recognize_against_known(faces_with_embeddings: list, conn: sqlite3.Connection, threshold: float = 0.5) -> dict:
+def _recognize_against_known(
+    faces_with_embeddings: list[dict[str, Any]], conn: Any, threshold: float = 0.5
+) -> dict[int, dict[str, Any]]:
     """Match face embeddings against known_faces table. Returns {face_idx: name}."""
     known = conn.execute("SELECT id, name, embedding FROM known_faces").fetchall()
     if not known:
@@ -220,7 +224,7 @@ def _recognize_against_known(faces_with_embeddings: list, conn: sqlite3.Connecti
     return matches
 
 
-def detect_faces(image_path: str, conn: sqlite3.Connection = None):
+def detect_faces(image_path: str, conn: Any = None) -> list[dict[str, Any]] | dict[str, Any]:
     """
     Detect all faces in an image. Returns full analysis for each face:
     face_idx, bbox, confidence, age, gender, head pose.
@@ -266,7 +270,7 @@ def detect_faces(image_path: str, conn: sqlite3.Connection = None):
     return api_faces
 
 
-def crop_face(image_path: str, face_idx: int, conn: sqlite3.Connection = None):
+def crop_face(image_path: str, face_idx: int, conn: Any = None) -> dict[str, Any]:
     """
     Crop a specific face from an image with padding.
     Saves to temp file. Returns path + face metadata.
@@ -321,11 +325,11 @@ def crop_face(image_path: str, face_idx: int, conn: sqlite3.Connection = None):
     return result
 
 
-def _cosine_sim(a: np.ndarray, b: np.ndarray) -> float:
+def _cosine_sim(a: Any, b: Any) -> float:
     return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)))
 
 
-def _scan_folder_for_faces(app, folder: str, conn: sqlite3.Connection = None):
+def _scan_folder_for_faces(app: Any, folder: str, conn: Any = None) -> tuple[dict[str, list[dict[str, Any]]], int, int]:
     """Scan a folder and return all face data (cached or fresh)."""
     IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tiff", ".tif", ".heic"}
     all_faces = {}  # path → [face_dicts]
@@ -364,7 +368,7 @@ def _scan_folder_for_faces(app, folder: str, conn: sqlite3.Connection = None):
     return all_faces, scanned, errors
 
 
-def find_person(reference_image: str, folder: str, conn: sqlite3.Connection = None, threshold: float = 0.4):
+def find_person(reference_image: str, folder: str, conn: Any = None, threshold: float = 0.4) -> dict[str, Any]:
     """
     Find photos matching a reference face in a folder.
     Reference image must have exactly 1 face.
@@ -433,8 +437,8 @@ def find_person(reference_image: str, folder: str, conn: sqlite3.Connection = No
 
 
 def find_person_by_face(
-    reference_image: str, face_idx: int, folder: str, conn: sqlite3.Connection = None, threshold: float = 0.4
-):
+    reference_image: str, face_idx: int, folder: str, conn: Any = None, threshold: float = 0.4
+) -> dict[str, Any]:
     """
     Find photos matching a specific face (by index) from a multi-face reference.
     """
@@ -484,7 +488,7 @@ def find_person_by_face(
     }
 
 
-def count_faces(image_path: str, conn: sqlite3.Connection = None):
+def count_faces(image_path: str, conn: Any = None) -> dict[str, Any]:
     """Quick count of faces in an image with age/gender summary."""
     faces = detect_faces(image_path, conn)
     if isinstance(faces, dict) and "error" in faces:
@@ -512,8 +516,8 @@ def count_faces(image_path: str, conn: sqlite3.Connection = None):
 
 
 def compare_faces(
-    image_path_1: str, face_idx_1: int, image_path_2: str, face_idx_2: int, conn: sqlite3.Connection = None
-):
+    image_path_1: str, face_idx_1: int, image_path_2: str, face_idx_2: int, conn: Any = None
+) -> dict[str, Any]:
     """
     Compare two specific faces from two images.
     Returns similarity score and whether they're the same person.
@@ -522,7 +526,7 @@ def compare_faces(
     image_path_2 = os.path.abspath(image_path_2)
 
     # Get embeddings
-    def _get_embedding(img_path, fidx):
+    def _get_embedding(img_path: str, fidx: int) -> tuple[Any | None, dict[str, Any]]:
         if conn:
             cached = _get_cached_faces(conn, img_path)
             if cached:
@@ -561,7 +565,7 @@ def compare_faces(
 # --- Persistent face memory (Segment 18V) ---
 
 
-def remember_face(image_path: str, face_idx: int, name: str, conn: sqlite3.Connection):
+def remember_face(image_path: str, face_idx: int, name: str, conn: Any) -> dict[str, Any]:
     """
     Save a face embedding for future recognition.
     One person can have multiple embeddings (different angles improve accuracy).
@@ -616,7 +620,7 @@ def remember_face(image_path: str, face_idx: int, name: str, conn: sqlite3.Conne
     }
 
 
-def forget_face(name: str, conn: sqlite3.Connection):
+def forget_face(name: str, conn: Any) -> dict[str, Any]:
     """Delete all saved face data for a person."""
     if not name or not name.strip():
         return {"error": "Name is required."}
@@ -628,7 +632,7 @@ def forget_face(name: str, conn: sqlite3.Connection):
     return {"name": name, "deleted_count": cursor.rowcount}
 
 
-def recognize_faces(image_path: str, conn: sqlite3.Connection, threshold: float = 0.5):
+def recognize_faces(image_path: str, conn: Any, threshold: float = 0.5) -> dict[str, Any]:
     """
     Detect faces and match against all known faces.
     Standalone recognition — for when detect_faces isn't being called.
@@ -667,7 +671,7 @@ def recognize_faces(image_path: str, conn: sqlite3.Connection, threshold: float 
     return {"image_path": image_path, "faces": faces, "face_count": len(faces)}
 
 
-def list_known_faces(conn: sqlite3.Connection):
+def list_known_faces(conn: Any) -> list[dict[str, Any]]:
     """List all known faces (unique names with embedding counts)."""
     rows = conn.execute(
         "SELECT name, COUNT(*) as count, MIN(created_at) as first_added FROM known_faces GROUP BY name ORDER BY name"

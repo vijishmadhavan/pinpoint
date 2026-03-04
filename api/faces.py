@@ -1,5 +1,7 @@
 """Face recognition router — detect, crop, find, compare, remember, forget, recognize."""
 
+from __future__ import annotations
+
 import os
 
 from fastapi import APIRouter, HTTPException
@@ -67,7 +69,7 @@ class RecognizeFacesRequest(BaseModel):
 
 
 @router.post("/detect-faces")
-def detect_faces_endpoint(req: DetectFacesRequest):
+def detect_faces_endpoint(req: DetectFacesRequest) -> dict:
     """Detect faces in an image or all images in a folder."""
     from face_search import detect_faces
 
@@ -104,7 +106,7 @@ def detect_faces_endpoint(req: DetectFacesRequest):
 
 
 @router.post("/crop-face")
-def crop_face_endpoint(req: CropFaceRequest):
+def crop_face_endpoint(req: CropFaceRequest) -> dict:
     """Crop a specific face from an image. Returns path to cropped image."""
     from face_search import crop_face
 
@@ -116,7 +118,7 @@ def crop_face_endpoint(req: CropFaceRequest):
 
 
 @router.post("/find-person")
-def find_person_endpoint(req: FindPersonRequest):
+def find_person_endpoint(req: FindPersonRequest) -> dict:
     """Find photos matching a reference face in a folder."""
     from face_search import find_person
 
@@ -134,7 +136,7 @@ def find_person_endpoint(req: FindPersonRequest):
 
 
 @router.post("/find-person-by-face")
-def find_person_by_face_endpoint(req: FindPersonByFaceRequest):
+def find_person_by_face_endpoint(req: FindPersonByFaceRequest) -> dict:
     """Find photos matching a specific face (by index) from a reference image."""
     from face_search import find_person_by_face
 
@@ -152,7 +154,7 @@ def find_person_by_face_endpoint(req: FindPersonByFaceRequest):
 
 
 @router.post("/count-faces")
-def count_faces_endpoint(req: CountFacesRequest):
+def count_faces_endpoint(req: CountFacesRequest) -> dict:
     """Count faces in an image, a list of images, or all images in a folder."""
     from face_search import count_faces
 
@@ -191,7 +193,7 @@ def count_faces_endpoint(req: CountFacesRequest):
 
 
 @router.post("/compare-faces")
-def compare_faces_endpoint(req: CompareFacesRequest):
+def compare_faces_endpoint(req: CompareFacesRequest) -> dict:
     """Compare two faces to check if they're the same person."""
     from face_search import compare_faces
 
@@ -207,7 +209,7 @@ def compare_faces_endpoint(req: CompareFacesRequest):
 
 
 @router.post("/remember-face")
-def remember_face_endpoint(req: RememberFaceRequest):
+def remember_face_endpoint(req: RememberFaceRequest) -> dict:
     """Save a face for future recognition."""
     from face_search import remember_face
 
@@ -222,7 +224,7 @@ def remember_face_endpoint(req: RememberFaceRequest):
 
 
 @router.post("/forget-face")
-def forget_face_endpoint(req: ForgetFaceRequest):
+def forget_face_endpoint(req: ForgetFaceRequest) -> dict:
     """Delete all saved face data for a person."""
     from face_search import forget_face
 
@@ -234,7 +236,7 @@ def forget_face_endpoint(req: ForgetFaceRequest):
 
 
 @router.post("/recognize-faces")
-def recognize_faces_endpoint(req: RecognizeFacesRequest):
+def recognize_faces_endpoint(req: RecognizeFacesRequest) -> dict:
     """Recognize known faces in an image."""
     from face_search import recognize_faces
 

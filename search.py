@@ -5,10 +5,13 @@ FTS5 query builder + BM25 scoring + normalization + strong signal detection.
 Gemini query expansion + RRF fusion (Segment 16).
 """
 
+from __future__ import annotations
+
 import json
 import os
 import re
 import sqlite3
+from typing import Any
 
 from database import DB_PATH, cache_get, cache_set, init_db
 
@@ -95,7 +98,7 @@ def _snippet(text: str, query_terms: list[str], max_len: int = 200) -> str:
 _gemini_client = None
 
 
-def _get_gemini():
+def _get_gemini() -> Any | None:
     """Lazy-load Gemini client."""
     global _gemini_client
     if _gemini_client is None:
@@ -162,8 +165,8 @@ def _has_chunks(conn: sqlite3.Connection) -> bool:
 
 
 def _fts5_search(
-    conn: sqlite3.Connection, fts5_query: str, limit: int, file_type: str = None, folder: str = None
-) -> list[dict]:
+    conn: sqlite3.Connection, fts5_query: str, limit: int, file_type: str | None = None, folder: str | None = None
+) -> list[dict[str, Any]]:
     """Run FTS5 search. Searches chunks_fts if chunks exist, else documents_fts."""
     if not fts5_query:
         return []
@@ -226,7 +229,7 @@ def _fts5_search(
     return [dict(row) for row in rows]
 
 
-def _rrf_fusion(result_lists: list[tuple[float, list[dict]]], k: int = 60) -> list[dict]:
+def _rrf_fusion(result_lists: list[tuple[float, list[dict[str, Any]]]], k: int = 60) -> list[dict[str, Any]]:
     """
     Reciprocal Rank Fusion — merge multiple ranked result lists.
     Each entry: (weight, results_list).
@@ -248,7 +251,9 @@ def _rrf_fusion(result_lists: list[tuple[float, list[dict]]], k: int = 60) -> li
     return sorted_docs
 
 
-def search(query: str, db_path: str = DB_PATH, limit: int = 20, file_type: str = None, folder: str = None) -> dict:
+def search(
+    query: str, db_path: str = DB_PATH, limit: int = 20, file_type: str | None = None, folder: str | None = None
+) -> dict[str, Any]:
     """
     Search indexed documents using FTS5 + BM25.
 
@@ -374,7 +379,7 @@ def search(query: str, db_path: str = DB_PATH, limit: int = 20, file_type: str =
     }
 
 
-def search_simple(query: str, db_path: str = DB_PATH, limit: int = 10) -> list[dict]:
+def search_simple(query: str, db_path: str = DB_PATH, limit: int = 10) -> list[dict[str, Any]]:
     """Convenience: just return the results list."""
     return search(query, db_path, limit)["results"]
 

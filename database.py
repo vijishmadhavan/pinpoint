@@ -6,10 +6,13 @@ FTS5 full-text search with porter unicode61 tokenizer.
 Soft delete for removed files, llm_cache for Gemini responses.
 """
 
+from __future__ import annotations
+
 import hashlib
 import os
 import sqlite3
 from datetime import UTC, datetime
+from typing import Any
 
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pinpoint.db")
 
@@ -410,7 +413,7 @@ def cleanup_orphaned_content(conn: sqlite3.Connection) -> int:
     return cursor.rowcount
 
 
-def get_stats(conn: sqlite3.Connection) -> dict:
+def get_stats(conn: sqlite3.Connection) -> dict[str, Any]:
     """Return indexing statistics."""
     total = conn.execute("SELECT COUNT(*) as n FROM documents WHERE active = 1").fetchone()["n"]
 
@@ -434,7 +437,7 @@ def get_stats(conn: sqlite3.Connection) -> dict:
 _chunker = None
 
 
-def _get_chunker():
+def _get_chunker() -> Any:
     """Load Chonkie RecursiveChunker once."""
     global _chunker
     if _chunker is None:

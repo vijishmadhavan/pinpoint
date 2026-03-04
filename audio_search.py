@@ -4,9 +4,12 @@ Transcribe audio files and search within audio by text query.
 Gemini supports up to 9.5 hours of audio at 32 tokens/sec.
 """
 
+from __future__ import annotations
+
 import json
 import os
 import time
+from typing import Any
 
 AUDIO_EXTS = {".mp3", ".wav", ".flac", ".aac", ".ogg", ".wma", ".m4a", ".aiff"}
 AUDIO_MIME = {
@@ -21,7 +24,7 @@ AUDIO_MIME = {
 }
 
 
-def _get_audio_part(client, audio_path: str):
+def _get_audio_part(client: Any, audio_path: str) -> Any:
     """Build a Gemini Part from an audio file. Inline <100MB, File API for larger."""
     from google.genai import types
 
@@ -48,7 +51,7 @@ def _get_audio_part(client, audio_path: str):
         return types.Part.from_uri(file_uri=uploaded.uri, mime_type=mime)
 
 
-def transcribe_audio(audio_path: str) -> dict:
+def transcribe_audio(audio_path: str) -> dict[str, Any]:
     """Transcribe an audio file to text using Gemini."""
     from google.genai import types
 
@@ -98,7 +101,7 @@ def transcribe_audio(audio_path: str) -> dict:
     }
 
 
-def search_audio(audio_path: str, query: str, limit: int = 5) -> dict:
+def search_audio(audio_path: str, query: str, limit: int = 5) -> dict[str, Any]:
     """Search within an audio file for specific content using Gemini."""
     from google.genai import types
 

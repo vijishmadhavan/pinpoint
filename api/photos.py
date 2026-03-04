@@ -1,5 +1,7 @@
 """Photo management endpoints — score, cull, suggest categories, group."""
 
+from __future__ import annotations
+
 from fastapi import APIRouter, Query
 from pydantic import BaseModel
 
@@ -20,7 +22,7 @@ class CullPhotosRequest(BaseModel):
 
 
 @router.post("/score-photo")
-def api_score_photo(req: ScorePhotoRequest):
+def api_score_photo(req: ScorePhotoRequest) -> dict:
     """Score a photo's technical + aesthetic quality (Gemini vision, /100)."""
     from photo_cull import score_photo
 
@@ -28,7 +30,7 @@ def api_score_photo(req: ScorePhotoRequest):
 
 
 @router.post("/cull-photos")
-def api_cull_photos(req: CullPhotosRequest):
+def api_cull_photos(req: CullPhotosRequest) -> dict:
     """Auto-cull photos: score all, move bottom rejects to _rejects folder. Background job."""
     from photo_cull import cull_photos
 
@@ -39,7 +41,7 @@ def api_cull_photos(req: CullPhotosRequest):
 def api_cull_status(
     folder: str = Query(..., description="Folder being culled"),
     cancel: bool = Query(False, description="Set true to cancel the job"),
-):
+) -> dict:
     """Poll cull job progress. Set cancel=true to stop."""
     from photo_cull import get_cull_status
 
@@ -54,7 +56,7 @@ class SuggestCategoriesRequest(BaseModel):
 
 
 @router.post("/suggest-categories")
-def api_suggest_categories(req: SuggestCategoriesRequest):
+def api_suggest_categories(req: SuggestCategoriesRequest) -> dict:
     """Sample photos and suggest grouping categories via Gemini vision."""
     from photo_cull import suggest_categories
 
@@ -68,7 +70,7 @@ class GroupPhotosRequest(BaseModel):
 
 
 @router.post("/group-photos")
-def api_group_photos(req: GroupPhotosRequest):
+def api_group_photos(req: GroupPhotosRequest) -> dict:
     """Auto-group photos: classify ALL images via Gemini vision, move to category subfolders. Background job."""
     from photo_cull import group_photos
 
@@ -79,7 +81,7 @@ def api_group_photos(req: GroupPhotosRequest):
 def api_group_status(
     folder: str = Query(..., description="Folder being grouped"),
     cancel: bool = Query(False, description="Set true to cancel the job"),
-):
+) -> dict:
     """Poll group job progress. Set cancel=true to stop."""
     from photo_cull import get_group_status
 

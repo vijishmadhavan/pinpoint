@@ -5,9 +5,13 @@ Scans folders → extracts text (via extractors.py) → stores in DB (via databa
 Hash-based change detection: skip unchanged files (instant re-scan).
 """
 
+from __future__ import annotations
+
 import os
 import time
+from collections.abc import Callable
 from datetime import UTC
+from typing import Any
 
 from database import chunk_document, get_stats, init_db, soft_delete_missing, upsert_document
 from extractors import IMAGE_EXTENSIONS, OFFICE_EXTENSIONS, TEXT_EXTENSIONS, extract
@@ -28,7 +32,9 @@ def scan_folder(folder: str) -> list[str]:
     return sorted(files)
 
 
-def index_folder(folder: str, db_path: str | None = None, progress_callback=None) -> dict:
+def index_folder(
+    folder: str, db_path: str | None = None, progress_callback: Callable[[str, int, int, str], None] | None = None
+) -> dict[str, Any]:
     """
     Index all supported files in a folder.
 

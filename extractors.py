@@ -8,8 +8,11 @@ TXT/CSV/LOG/MD:      direct read  (instant)
 Images:              Gemini 3.1 Flash-Lite captioning (multimodal, cheap)
 """
 
+from __future__ import annotations
+
 import os
 import time
+from typing import Any
 
 # Max dimension for image preprocessing (originals untouched, resize in memory)
 MAX_IMAGE_DIM = 1024
@@ -52,7 +55,7 @@ _SCRIPT_TO_LANG = {
 }
 
 
-def _detect_tesseract_lang(img) -> str:
+def _detect_tesseract_lang(img: Any) -> str:
     """Detect script from image and return best Tesseract lang code."""
     import pytesseract
 
@@ -67,7 +70,7 @@ def _detect_tesseract_lang(img) -> str:
     return "eng"
 
 
-def _ocr_tesseract(images: list) -> str:
+def _ocr_tesseract(images: list[Any]) -> str:
     """OCR a list of PIL images using Tesseract with auto language detection."""
     import pytesseract
 
@@ -81,7 +84,7 @@ def _ocr_tesseract(images: list) -> str:
     return "\n\n".join(texts)
 
 
-def _ocr_gemini(images: list) -> str:
+def _ocr_gemini(images: list[Any]) -> str:
     """OCR via Gemini vision when Tesseract unavailable."""
     client = _get_gemini()
     if not client:
@@ -120,7 +123,7 @@ def _ocr_gemini(images: list) -> str:
     return "\n\n".join(texts)
 
 
-def _preprocess_image(img, max_dim=MAX_IMAGE_DIM):
+def _preprocess_image(img: Any, max_dim: int = MAX_IMAGE_DIM) -> Any:
     """Resize image if larger than max_dim. Returns new image (original untouched)."""
     from PIL import Image
 
@@ -132,7 +135,7 @@ def _preprocess_image(img, max_dim=MAX_IMAGE_DIM):
     return img.resize((new_w, new_h), Image.LANCZOS)
 
 
-def _is_scanned_pdf(doc) -> bool:
+def _is_scanned_pdf(doc: Any) -> bool:
     """Check if a PDF is scanned (no extractable text) vs digital.
     Samples up to 3 pages. If most have little text → scanned."""
     pages_to_check = min(len(doc), 3)
@@ -308,7 +311,7 @@ def extract_office(path: str) -> dict | None:
 _gemini_client = None
 
 
-def _get_gemini():
+def _get_gemini() -> Any | None:
     """Lazy-load Gemini client for image captioning."""
     global _gemini_client
     if _gemini_client is None:
@@ -321,7 +324,7 @@ def _get_gemini():
     return _gemini_client
 
 
-def gemini_call_with_retry(client, model, contents, config=None, retries=2):
+def gemini_call_with_retry(client: Any, model: str, contents: Any, config: Any | None = None, retries: int = 2) -> Any:
     """Call Gemini with exponential backoff on 429/503 transient errors."""
     for attempt in range(retries + 1):
         try:

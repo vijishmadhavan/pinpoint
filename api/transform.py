@@ -1,5 +1,7 @@
 """File transformation & creation endpoints — write, generate, convert, compress, download, run."""
 
+from __future__ import annotations
+
 import os
 import shutil
 
@@ -21,7 +23,7 @@ class WriteFileRequest(BaseModel):
 
 
 @router.post("/write-file")
-def write_file_endpoint(req: WriteFileRequest):
+def write_file_endpoint(req: WriteFileRequest) -> dict:
     """Create or write a text file."""
     path = os.path.abspath(req.path)
     _check_safe(path)
@@ -40,7 +42,7 @@ class GenerateExcelRequest(BaseModel):
 
 
 @router.post("/generate-excel")
-def generate_excel_endpoint(req: GenerateExcelRequest):
+def generate_excel_endpoint(req: GenerateExcelRequest) -> dict:
     """Create an Excel file from data."""
     import pandas as pd
 
@@ -65,7 +67,7 @@ class GenerateChartRequest(BaseModel):
 
 
 @router.post("/generate-chart")
-def generate_chart_endpoint(req: GenerateChartRequest):
+def generate_chart_endpoint(req: GenerateChartRequest) -> dict:
     """Generate a chart image using matplotlib."""
     import matplotlib
 
@@ -125,7 +127,7 @@ class MergePdfRequest(BaseModel):
 
 
 @router.post("/merge-pdf")
-def merge_pdf_endpoint(req: MergePdfRequest):
+def merge_pdf_endpoint(req: MergePdfRequest) -> dict:
     """Merge multiple PDFs into one."""
     import fitz  # PyMuPDF
 
@@ -155,7 +157,7 @@ class SplitPdfRequest(BaseModel):
 
 
 @router.post("/split-pdf")
-def split_pdf_endpoint(req: SplitPdfRequest):
+def split_pdf_endpoint(req: SplitPdfRequest) -> dict:
     """Extract specific pages from a PDF."""
     import fitz
 
@@ -204,7 +206,7 @@ class PdfToImagesRequest(BaseModel):
 
 
 @router.post("/pdf-to-images")
-def pdf_to_images_endpoint(req: PdfToImagesRequest):
+def pdf_to_images_endpoint(req: PdfToImagesRequest) -> dict:
     """Render PDF pages as images."""
     import fitz
 
@@ -260,7 +262,7 @@ class ImagesToPdfRequest(BaseModel):
 
 
 @router.post("/images-to-pdf")
-def images_to_pdf_endpoint(req: ImagesToPdfRequest):
+def images_to_pdf_endpoint(req: ImagesToPdfRequest) -> dict:
     """Combine images into a single PDF."""
     from PIL import Image
 
@@ -304,7 +306,7 @@ class ResizeImageRequest(BaseModel):
 
 
 @router.post("/resize-image")
-def resize_image_endpoint(req: ResizeImageRequest):
+def resize_image_endpoint(req: ResizeImageRequest) -> dict:
     """Resize or compress an image."""
     from PIL import Image
 
@@ -348,7 +350,7 @@ class ConvertImageRequest(BaseModel):
 
 
 @router.post("/convert-image")
-def convert_image_endpoint(req: ConvertImageRequest):
+def convert_image_endpoint(req: ConvertImageRequest) -> dict:
     """Convert image to a different format."""
     from PIL import Image
 
@@ -390,7 +392,7 @@ class CropImageRequest(BaseModel):
 
 
 @router.post("/crop-image")
-def crop_image_endpoint(req: CropImageRequest):
+def crop_image_endpoint(req: CropImageRequest) -> dict:
     """Crop an image to specified dimensions."""
     from PIL import Image
 
@@ -443,7 +445,7 @@ def _extract_exif(filepath: str) -> dict:
         result["exif"] = None
         return result
 
-    def _rational(val):
+    def _rational(val: object) -> float | None:
         """Convert IFDRational or tuple to float."""
         if val is None:
             return None
@@ -503,7 +505,7 @@ def _extract_exif(filepath: str) -> dict:
         gps_ifd = exif_data.get_ifd(IFD.GPSInfo)
         if gps_ifd:
 
-            def _dms_to_dd(dms, ref):
+            def _dms_to_dd(dms: tuple, ref: str) -> float:
                 d, m, s = [_rational(x) for x in dms]
                 dd = d + m / 60 + s / 3600
                 return -dd if ref in ("S", "W") else dd
@@ -548,7 +550,7 @@ IMAGE_EXTS_EXIF = {
 
 
 @router.post("/image-metadata")
-def image_metadata_endpoint(req: ImageMetadataRequest):
+def image_metadata_endpoint(req: ImageMetadataRequest) -> dict:
     """Extract EXIF metadata from photos."""
     if req.path:
         path = os.path.abspath(req.path)
@@ -629,7 +631,7 @@ class CompressFilesRequest(BaseModel):
 
 
 @router.post("/compress-files")
-def compress_files_endpoint(req: CompressFilesRequest):
+def compress_files_endpoint(req: CompressFilesRequest) -> dict:
     """Compress files into a zip archive."""
     import zipfile
 
@@ -664,7 +666,7 @@ class ExtractArchiveRequest(BaseModel):
 
 
 @router.post("/extract-archive")
-def extract_archive_endpoint(req: ExtractArchiveRequest):
+def extract_archive_endpoint(req: ExtractArchiveRequest) -> dict:
     """Extract a zip archive."""
     import zipfile
 
@@ -700,7 +702,7 @@ class DownloadUrlRequest(BaseModel):
 
 
 @router.post("/download-url")
-def download_url_endpoint(req: DownloadUrlRequest):
+def download_url_endpoint(req: DownloadUrlRequest) -> dict:
     """Download a file from a URL."""
     import urllib.error
     import urllib.request
@@ -752,7 +754,7 @@ class RunPythonRequest(BaseModel):
 
 
 @router.post("/run-python")
-def run_python_endpoint(req: RunPythonRequest):
+def run_python_endpoint(req: RunPythonRequest) -> dict:
     """Execute Python code and return stdout + created files."""
     import contextlib
     import io
@@ -803,7 +805,7 @@ except ImportError:
     stderr_capture = io.StringIO()
 
     # Timeout handler
-    def timeout_handler(signum, frame):
+    def timeout_handler(signum: int, frame: object) -> None:
         raise TimeoutError(f"Code execution timed out after {timeout}s")
 
     try:

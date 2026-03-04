@@ -1,9 +1,12 @@
 """Data analysis & calculation endpoints — /calculate, /read_excel, /analyze-data, /extract-tables."""
 
+from __future__ import annotations
+
 import ast
 import math
 import os
 import time
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
@@ -41,7 +44,7 @@ _SAFE_MATH = {
 }
 
 
-def _safe_eval(expression: str) -> float:
+def _safe_eval(expression: str) -> float | int:
     """Safely evaluate a math expression using AST parsing."""
     # Parse the expression into an AST
     tree = ast.parse(expression, mode="eval")
@@ -80,7 +83,7 @@ def _safe_eval(expression: str) -> float:
 
 
 @router.post("/calculate")
-def calculate_endpoint(req: CalculateRequest):
+def calculate_endpoint(req: CalculateRequest) -> dict:
     """Safely evaluate a mathematical expression."""
     expr = req.expression.strip()
     if not expr:
@@ -110,7 +113,7 @@ class ReadExcelRequest(BaseModel):
 
 
 @router.post("/read_excel")
-def read_excel_endpoint(req: ReadExcelRequest):
+def read_excel_endpoint(req: ReadExcelRequest) -> dict:
     """Read specific cells/ranges from an Excel file via openpyxl."""
     path = os.path.abspath(req.path)
     _check_safe(path)
@@ -204,7 +207,7 @@ def _normalize_for_search(val: str) -> str:
     return val.lower().strip()
 
 
-def _load_df(path: str, ext: str, sheet: str = None):
+def _load_df(path: str, ext: str, sheet: str | None = None) -> tuple[Any, str | None, list[str] | None]:
     """Load DataFrame with LRU cache. Returns (df, sheet_name, all_sheet_names)."""
     import pandas as pd
 
@@ -248,7 +251,7 @@ def _load_df(path: str, ext: str, sheet: str = None):
     return df, sheet_name, all_sheets
 
 
-def _get_schema(df) -> dict:
+def _get_schema(df: Any) -> dict:
     """Return column types + sample values for Gemini guidance."""
     schema = {}
     for col in df.columns:
@@ -273,7 +276,7 @@ class AnalyzeDataRequest(BaseModel):
 
 
 @router.post("/analyze-data")
-def analyze_data_endpoint(req: AnalyzeDataRequest):
+def analyze_data_endpoint(req: AnalyzeDataRequest) -> dict:
     """Run pandas analysis on CSV or Excel files. Cached, multi-sheet, with search."""
     import pandas as pd
 
@@ -468,7 +471,7 @@ def analyze_data_endpoint(req: AnalyzeDataRequest):
 def extract_tables_endpoint(
     path: str = Query(..., description="Path to PDF file"),
     pages: str | None = Query(None, description="Page range: '1-5', '3', 'all'. Default: all"),
-):
+) -> dict:
     """Extract structured tables from a PDF using pdfplumber."""
     path = os.path.abspath(path)
     _check_safe(path)

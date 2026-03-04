@@ -7,11 +7,15 @@ In-memory cache for instant repeat queries.
 Uses ONNX runtime (no torch dependency). Same model as InsightFace runtime.
 """
 
+from __future__ import annotations
+
 import os
 import sqlite3
 import struct
 import sys
 import time
+from collections.abc import Callable
+from typing import Any
 
 import numpy as np
 from PIL import Image
@@ -50,7 +54,7 @@ _siglip = None  # (vision_session, text_session, processor)
 _mem_cache = {}  # folder_abs → {paths: [...], emb_norm: ndarray}
 
 
-def _get_siglip():
+def _get_siglip() -> tuple[Any, Any, Any]:
     """Lazy-load SigLIP2 ONNX sessions and processor."""
     global _siglip
     if _siglip is None:
@@ -106,12 +110,12 @@ def _get_conn() -> sqlite3.Connection:
 # --- Embedding serialization (768 floats → bytes) ---
 
 
-def _embedding_to_bytes(emb: np.ndarray) -> bytes:
+def _embedding_to_bytes(emb: Any) -> bytes:
     """Convert 1D float array to compact bytes."""
     return struct.pack(f"{EMBED_DIM}f", *emb.tolist())
 
 
-def _bytes_to_embedding(data: bytes) -> np.ndarray:
+def _bytes_to_embedding(data: bytes) -> Any:
     """Convert bytes back to 1D float array."""
     return np.array(struct.unpack(f"{EMBED_DIM}f", data), dtype=np.float32)
 
@@ -119,7 +123,7 @@ def _bytes_to_embedding(data: bytes) -> np.ndarray:
 # --- Fast image loading ---
 
 
-def _load_image_fast(path: str) -> Image.Image:
+def _load_image_fast(path: str) -> Any:
     """Load image with fast JPEG draft decoding + resize."""
     img = Image.open(path)
     img.draft("RGB", (MAX_LOAD_DIM, MAX_LOAD_DIM))
@@ -144,7 +148,7 @@ def _get_image_files(folder: str, recursive: bool = False) -> list[str]:
     return sorted([os.path.join(folder, f) for f in os.listdir(folder) if os.path.splitext(f)[1].lower() in IMAGE_EXTS])
 
 
-def _normalize(v: np.ndarray, axis=-1) -> np.ndarray:
+def _normalize(v: Any, axis: int = -1) -> Any:
     """L2-normalize along axis."""
     norm = np.linalg.norm(v, axis=axis, keepdims=True)
     norm = np.maximum(norm, 1e-12)
@@ -154,7 +158,7 @@ def _normalize(v: np.ndarray, axis=-1) -> np.ndarray:
 # --- DB operations ---
 
 
-def _load_cached_embeddings(paths: list[str]) -> dict:
+def _load_cached_embeddings(paths: list[str]) -> dict[str, Any]:
     """Load cached embeddings from DB. Returns {path: ndarray} for valid (unchanged) files."""
     if not paths:
         return {}
@@ -178,7 +182,7 @@ def _load_cached_embeddings(paths: list[str]) -> dict:
     return cached
 
 
-def _save_embeddings(path_embeddings: list):
+def _save_embeddings(path_embeddings: list[tuple[str, Any, float]]) -> None:
     """Save embeddings to DB. path_embeddings: [(path, ndarray, mtime), ...]"""
     if not path_embeddings:
         return
@@ -194,7 +198,7 @@ def _save_embeddings(path_embeddings: list):
 # --- Core functions ---
 
 
-def embed_images(folder: str, progress_callback=None) -> dict:
+def embed_images(folder: str, progress_callback: Callable[[int, int], None] | None = None) -> dict[str, Any]:
     """
     Embed all images in a folder. Returns {path: embedding_ndarray}.
     Uses DB cache for unchanged files, only embeds new/changed ones.
@@ -261,7 +265,7 @@ def embed_images(folder: str, progress_callback=None) -> dict:
     return result
 
 
-def embed_text(query: str) -> np.ndarray:
+def embed_text(query: str) -> Any:
     """Embed a text query. Returns normalized embedding array."""
     _, text_session, processor = _get_siglip()
     inputs = processor(text=[query], return_tensors="np", padding="max_length")
@@ -280,8 +284,12 @@ def embed_text(query: str) -> np.ndarray:
 
 
 def _search_images_gemini(
-    folder: str, query: str, limit: int = 10, progress_callback=None, recursive: bool = False
-) -> dict:
+    folder: str,
+    query: str,
+    limit: int = 10,
+    progress_callback: Callable[[int, int], None] | None = None,
+    recursive: bool = False,
+) -> dict[str, Any]:
     """Gemini vision fallback — multi-image concurrent ranking with LOW resolution.
     Handles 10K+ images: 200/batch, 5 concurrent workers, 280 tokens/image (LOW res)."""
     from extractors import _get_gemini
@@ -309,7 +317,7 @@ def _search_images_gemini(
     scores_lock = threading.Lock()
     done_count = [0]
 
-    def _score_batch(batch_files):
+    def _score_batch(batch_files: list[str]) -> dict[str, float]:
         parts = []
         names = []
         for fpath in batch_files:
@@ -399,7 +407,7 @@ def _search_images_gemini(
     }
 
 
-def search_images(folder: str, query: str, limit: int = 10, recursive: bool = False) -> dict:
+def search_images(folder: str, query: str, limit: int = 10, recursive: bool = False) -> dict[str, Any]:
     """
     Search images in a folder by text description.
     Returns dict with results, timing, and cache info.

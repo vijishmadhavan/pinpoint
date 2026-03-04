@@ -1,6 +1,9 @@
 """Conversation, memory, settings, and reminders endpoints."""
 
+from __future__ import annotations
+
 import os
+import sqlite3
 from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, Query
@@ -25,7 +28,7 @@ class ConversationResetRequest(BaseModel):
 
 
 @router.post("/conversation")
-def conversation_save(msg: ConversationMessage):
+def conversation_save(msg: ConversationMessage) -> dict:
     """Save a conversation message (user or assistant)."""
     if msg.role not in ("user", "assistant"):
         raise HTTPException(status_code=400, detail="role must be 'user' or 'assistant'")
@@ -60,7 +63,7 @@ def conversation_save(msg: ConversationMessage):
 def conversation_history(
     session_id: str = Query(..., description="Session ID (chat JID)"),
     limit: int = Query(20, ge=1, le=100, description="Max messages to return"),
-):
+) -> dict:
     """Load recent conversation history for a session."""
     conn = _get_conn()
 
@@ -95,7 +98,7 @@ def conversation_history(
 
 
 @router.post("/conversation/reset")
-def conversation_reset(req: ConversationResetRequest):
+def conversation_reset(req: ConversationResetRequest) -> dict:
     """Delete all messages for a session (reset conversation)."""
     conn = _get_conn()
 
@@ -113,7 +116,7 @@ def conversation_search(
     q: str = Query(..., description="Search keywords"),
     session_id: str | None = Query(None, description="Filter by session ID"),
     limit: int = Query(20, ge=1, le=100, description="Max results"),
-):
+) -> dict:
     """Search past conversation messages by keyword."""
     conn = _get_conn()
 
@@ -150,7 +153,7 @@ class MemorySaveRequest(BaseModel):
     category: str = "general"
 
 
-def _memory_fts_search(conn, query: str, limit: int = 10, user_id: str = None) -> list:
+def _memory_fts_search(conn: sqlite3.Connection, query: str, limit: int = 10, user_id: str | None = None) -> list:
     """Search memories using FTS5 BM25 (porter stemming). Falls back to LIKE if FTS fails."""
     try:
         # Build FTS query: extract words, quote each, join with OR for recall
@@ -207,12 +210,14 @@ def _memory_fts_search(conn, query: str, limit: int = 10, user_id: str = None) -
     return list(candidates.values())[:limit]
 
 
-def _memory_find_similar(conn, fact: str, limit: int = 5) -> list:
+def _memory_find_similar(conn: sqlite3.Connection, fact: str, limit: int = 5) -> list:
     """Find existing memories similar to a new fact using FTS5 BM25."""
     return _memory_fts_search(conn, fact, limit)
 
 
-def _memory_log_history(conn, memory_id: int, old_fact: str, new_fact: str, action: str):
+def _memory_log_history(
+    conn: sqlite3.Connection, memory_id: int, old_fact: str | None, new_fact: str | None, action: str
+) -> None:
     """Log a memory change to the audit trail."""
     now = datetime.utcnow().isoformat()
     conn.execute(
@@ -221,7 +226,7 @@ def _memory_log_history(conn, memory_id: int, old_fact: str, new_fact: str, acti
     )
 
 
-def _memory_fts_sync(conn, memory_id: int, fact: str, delete_only: bool = False):
+def _memory_fts_sync(conn: sqlite3.Connection, memory_id: int, fact: str, delete_only: bool = False) -> None:
     """Keep memories_fts in sync with memories table."""
     try:
         conn.execute("DELETE FROM memories_fts WHERE rowid = ?", (memory_id,))
@@ -231,7 +236,7 @@ def _memory_fts_sync(conn, memory_id: int, fact: str, delete_only: bool = False)
         pass  # FTS sync is best-effort
 
 
-def _memory_decide_with_llm(new_fact: str, new_category: str, existing: list) -> dict:
+def _memory_decide_with_llm(new_fact: str, new_category: str, existing: list[dict]) -> dict:
     """Use Gemini flash-lite to decide how new fact relates to existing memories.
     Returns: {"action": "ADD|UPDATE|DELETE|NONE", "target_id": int|null, "merged_text": str|null}
     """
@@ -311,7 +316,7 @@ Decide the best action."""
 
 
 @router.post("/memory")
-def memory_save(req: MemorySaveRequest):
+def memory_save(req: MemorySaveRequest) -> dict:
     """Save a personal fact to persistent memory. Uses LLM to detect duplicates, merge related facts, and handle contradictions."""
     if not req.fact.strip():
         raise HTTPException(status_code=400, detail="fact cannot be empty")
@@ -391,7 +396,7 @@ def memory_save(req: MemorySaveRequest):
 def memory_search(
     q: str = Query(..., description="Search keywords"),
     limit: int = Query(10, ge=1, le=50),
-):
+) -> dict:
     """Search persistent memories using FTS5 BM25."""
     conn = _get_conn()
     results = _memory_fts_search(conn, q, limit)
@@ -402,7 +407,7 @@ def memory_search(
 def memory_list(
     category: str | None = Query(None, description="Filter by category"),
     limit: int = Query(50, ge=1, le=200),
-):
+) -> dict:
     """List all persistent memories (optionally filter by category)."""
     conn = _get_conn()
     if category:
@@ -418,7 +423,7 @@ def memory_list(
 
 
 @router.delete("/memory/{memory_id}")
-def memory_delete(memory_id: int):
+def memory_delete(memory_id: int) -> dict:
     """Delete a memory by ID."""
     conn = _get_conn()
     cursor = conn.execute("DELETE FROM memories WHERE id = ?", (memory_id,))
@@ -433,7 +438,7 @@ class MemoryForgetRequest(BaseModel):
 
 
 @router.post("/memory/forget")
-def memory_forget(req: MemoryForgetRequest):
+def memory_forget(req: MemoryForgetRequest) -> dict:
     """Forget a memory by description — uses FTS5 to find best match and deletes it."""
     if not req.description.strip():
         raise HTTPException(status_code=400, detail="description cannot be empty")
@@ -454,7 +459,9 @@ def memory_forget(req: MemoryForgetRequest):
 
 
 @router.get("/memory/context")
-def memory_context(q: str | None = Query(None, description="Current user message for query-relevant retrieval")):
+def memory_context(
+    q: str | None = Query(None, description="Current user message for query-relevant retrieval"),
+) -> dict:
     """Get active memories for system prompt. Static always included, dynamic filtered by relevance if query given."""
     conn = _get_conn()
     STATIC = ["preferences", "people", "places"]
@@ -510,7 +517,7 @@ def memory_context(q: str | None = Query(None, description="Current user message
 
 
 @router.get("/setting")
-def setting_get(key: str = Query(...)):
+def setting_get(key: str = Query(...)) -> dict:
     """Get a setting value."""
     conn = _get_conn()
     row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
@@ -518,7 +525,7 @@ def setting_get(key: str = Query(...)):
 
 
 @router.post("/setting")
-def setting_set(key: str = Query(...), value: str = Query(...)):
+def setting_set(key: str = Query(...), value: str = Query(...)) -> dict:
     """Set a setting value."""
     conn = _get_conn()
     conn.execute(
@@ -540,7 +547,7 @@ class ReminderRequest(BaseModel):
 
 
 @router.post("/reminders")
-def save_reminder(req: ReminderRequest):
+def save_reminder(req: ReminderRequest) -> dict:
     """Save a reminder to the database."""
     conn = _get_conn()
     now = datetime.utcnow().isoformat()
@@ -553,7 +560,7 @@ def save_reminder(req: ReminderRequest):
 
 
 @router.get("/reminders")
-def list_reminders_endpoint(chat_jid: str | None = Query(None)):
+def list_reminders_endpoint(chat_jid: str | None = Query(None)) -> dict:
     """Load all reminders (optionally filtered by chat_jid)."""
     conn = _get_conn()
     if chat_jid:
@@ -564,7 +571,7 @@ def list_reminders_endpoint(chat_jid: str | None = Query(None)):
 
 
 @router.delete("/reminders/{reminder_id}")
-def delete_reminder(reminder_id: int):
+def delete_reminder(reminder_id: int) -> dict:
     """Delete a reminder."""
     conn = _get_conn()
     conn.execute("DELETE FROM reminders WHERE id = ?", (reminder_id,))
@@ -573,7 +580,7 @@ def delete_reminder(reminder_id: int):
 
 
 @router.put("/reminders/{reminder_id}")
-def update_reminder(reminder_id: int, trigger_at: str = Query(...)):
+def update_reminder(reminder_id: int, trigger_at: str = Query(...)) -> dict:
     """Update a reminder's trigger time (used for rescheduling recurring reminders)."""
     conn = _get_conn()
     conn.execute("UPDATE reminders SET trigger_at = ? WHERE id = ?", (trigger_at, reminder_id))

@@ -1,6 +1,9 @@
 """Core endpoints: health, status, indexing, file watcher."""
 
+from __future__ import annotations
+
 import os
+import sqlite3
 import threading
 from datetime import datetime
 
@@ -17,7 +20,7 @@ router = APIRouter()
 
 
 @router.get("/ping")
-def ping():
+def ping() -> dict:
     return {"status": "ok"}
 
 
@@ -32,7 +35,7 @@ class IndexRequest(BaseModel):
 
 
 @router.post("/index")
-def index_endpoint(req: IndexRequest):
+def index_endpoint(req: IndexRequest) -> dict:
     """Index all supported files in a folder. Large folders run in background automatically."""
     folder = os.path.abspath(req.folder)
     if not os.path.isdir(folder):
@@ -94,7 +97,7 @@ def index_endpoint(req: IndexRequest):
             "percent": 0,
         }
 
-        def _bg_index():
+        def _bg_index() -> None:
             try:
                 index_folder(folder, DB_PATH, progress_callback=_update_progress)
                 _indexing_progress[folder]["status"] = "done"
@@ -118,7 +121,7 @@ def index_endpoint(req: IndexRequest):
     return result
 
 
-def _update_progress(folder: str, total: int, processed: int, current_file: str):
+def _update_progress(folder: str, total: int, processed: int, current_file: str) -> None:
     """Callback for indexing progress."""
     _indexing_progress[folder] = {
         "total": total,
@@ -130,7 +133,7 @@ def _update_progress(folder: str, total: int, processed: int, current_file: str)
 
 
 @router.get("/indexing/status")
-def indexing_status():
+def indexing_status() -> dict:
     """Get current indexing progress for all active jobs. Includes both indexing and embedding."""
     jobs = []
     for k, v in _indexing_progress.items():
@@ -149,7 +152,7 @@ def indexing_status():
 
 
 @router.get("/status")
-def status_endpoint():
+def status_endpoint() -> dict:
     """Return indexing statistics."""
     conn = _get_conn()
     stats = get_stats(conn)
@@ -166,7 +169,7 @@ class IndexFileRequest(BaseModel):
 
 
 @router.post("/index-file")
-def index_file_endpoint(req: IndexFileRequest):
+def index_file_endpoint(req: IndexFileRequest) -> dict:
     """Index a single file into the search database on demand. Extracts facts if text is substantial."""
     path = os.path.abspath(req.path)
     _check_safe(path)
@@ -234,7 +237,7 @@ def index_file_endpoint(req: IndexFileRequest):
     }
 
 
-def _extract_facts(conn, doc_id: int, text: str, filename: str) -> int:
+def _extract_facts(conn: sqlite3.Connection, doc_id: int, text: str, filename: str) -> int:
     """Extract key facts from document text using Gemini."""
     GEMINI_KEY = os.getenv("GEMINI_API_KEY")
     if not GEMINI_KEY:
@@ -328,7 +331,7 @@ _WATCH_EXTS = {
 }
 
 
-def _auto_index_file(path: str):
+def _auto_index_file(path: str) -> None:
     """Auto-index a single file (called by watcher after debounce)."""
     _watch_debounce.pop(path, None)
     if not os.path.exists(path):
@@ -356,13 +359,13 @@ def _auto_index_file(path: str):
         print(f"[Watcher] Failed to index {path}: {e}")
 
 
-def _start_watcher(folder: str):
+def _start_watcher(folder: str) -> None:
     """Start watching a folder for file changes."""
     from watchdog.events import FileSystemEventHandler
     from watchdog.observers import Observer
 
     class IndexHandler(FileSystemEventHandler):
-        def _handle(self, event):
+        def _handle(self, event: object) -> None:
             if event.is_directory:
                 return
             path = event.src_path
@@ -377,10 +380,10 @@ def _start_watcher(folder: str):
             _watch_debounce[path] = t
             t.start()
 
-        def on_created(self, event):
+        def on_created(self, event: object) -> None:
             self._handle(event)
 
-        def on_modified(self, event):
+        def on_modified(self, event: object) -> None:
             self._handle(event)
 
     observer = Observer()
@@ -391,7 +394,7 @@ def _start_watcher(folder: str):
     print(f"[Watcher] Watching: {folder}")
 
 
-def _stop_watcher(folder: str):
+def _stop_watcher(folder: str) -> None:
     """Stop watching a folder."""
     obs = _watchers.pop(folder, None)
     if obs:
@@ -400,7 +403,7 @@ def _stop_watcher(folder: str):
 
 
 @router.post("/watch")
-def watch_folder_endpoint(folder: str = Query(..., description="Folder to watch")):
+def watch_folder_endpoint(folder: str = Query(..., description="Folder to watch")) -> dict:
     """Start auto-indexing new/modified files in a folder."""
     folder = os.path.abspath(folder)
     _check_safe(folder)
@@ -427,7 +430,7 @@ def watch_folder_endpoint(folder: str = Query(..., description="Folder to watch"
 
 
 @router.post("/unwatch")
-def unwatch_folder_endpoint(folder: str = Query(..., description="Folder to stop watching")):
+def unwatch_folder_endpoint(folder: str = Query(..., description="Folder to stop watching")) -> dict:
     """Stop auto-indexing a folder."""
     folder = os.path.abspath(folder)
     _check_safe(folder)
@@ -449,12 +452,12 @@ def unwatch_folder_endpoint(folder: str = Query(..., description="Folder to stop
 
 
 @router.get("/watched")
-def list_watched():
+def list_watched() -> dict:
     """List all currently watched folders."""
     return {"folders": list(_watchers.keys()), "count": len(_watchers)}
 
 
-def restore_watchers_on_startup():
+def restore_watchers_on_startup() -> None:
     """Restore watchers from settings DB. Call from app startup."""
     try:
         conn = _get_conn()

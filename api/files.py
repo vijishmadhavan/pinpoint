@@ -1,5 +1,7 @@
 """File operation endpoints: list, info, read, move, batch move, create, delete, grep, duplicates, batch rename."""
 
+from __future__ import annotations
+
 import os
 import shutil
 
@@ -48,7 +50,7 @@ def list_files_endpoint(
     name_contains: str | None = Query(None, description="Filter by filename containing this text (case-insensitive)"),
     recursive: bool = Query(False, description="Search subdirectories recursively"),
     limit: int = Query(200, ge=1, le=2000, description="Max entries"),
-):
+) -> dict:
     """List contents of a folder with sorting and filtering."""
     folder = os.path.abspath(folder)
     _check_safe(folder)
@@ -66,7 +68,7 @@ def list_files_endpoint(
     entries = []
     _SCAN_CAP = 10000  # cap total files scanned to prevent multi-minute walks
 
-    def _process_entry(de_name, de_path, is_scan_entry=True):
+    def _process_entry(de_name: str, de_path: str, is_scan_entry: bool = True) -> None:
         """Process a directory entry and add to entries if it matches filters."""
         if name_lower and name_lower not in de_name.lower():
             return
@@ -210,7 +212,7 @@ class GrepRequest(BaseModel):
 
 
 @router.post("/grep")
-def grep_endpoint(req: GrepRequest):
+def grep_endpoint(req: GrepRequest) -> dict:
     """Search inside files by text pattern using OS grep."""
     import subprocess
 
@@ -252,7 +254,7 @@ def grep_endpoint(req: GrepRequest):
 @router.get("/file_info")
 def file_info_endpoint(
     path: str = Query(..., description="File or folder path"),
-):
+) -> dict:
     """Get detailed file/folder metadata and indexed status."""
     path = os.path.abspath(path)
     _check_safe(path)
@@ -312,7 +314,7 @@ class ReadFileRequest(BaseModel):
 
 
 @router.post("/read_file")
-def read_file_endpoint(req: ReadFileRequest):
+def read_file_endpoint(req: ReadFileRequest) -> dict:
     """Read actual file from disk. Images return base64, documents return text."""
     import base64
 
@@ -535,7 +537,7 @@ class MoveFileRequest(BaseModel):
 
 
 @router.post("/move_file")
-def move_file_endpoint(req: MoveFileRequest):
+def move_file_endpoint(req: MoveFileRequest) -> dict:
     """Move, copy, or rename a file."""
     src = os.path.abspath(req.source)
     _check_safe(src)
@@ -590,7 +592,7 @@ class BatchMoveRequest(BaseModel):
 
 
 @router.post("/batch_move")
-def batch_move_endpoint(req: BatchMoveRequest):
+def batch_move_endpoint(req: BatchMoveRequest) -> dict:
     """Move or copy multiple files to a destination folder."""
     dest_folder = os.path.abspath(req.destination)
     _check_safe(dest_folder)
@@ -649,7 +651,7 @@ class CreateFolderRequest(BaseModel):
 
 
 @router.post("/create_folder")
-def create_folder_endpoint(req: CreateFolderRequest):
+def create_folder_endpoint(req: CreateFolderRequest) -> dict:
     """Create a new directory (with parents if needed)."""
     path = os.path.abspath(req.path)
     _check_safe(path)
@@ -668,7 +670,7 @@ class DeleteFileRequest(BaseModel):
 
 
 @router.post("/delete_file")
-def delete_file_endpoint(req: DeleteFileRequest):
+def delete_file_endpoint(req: DeleteFileRequest) -> dict:
     """Delete a file (not folders — too dangerous)."""
     path = os.path.abspath(req.path)
     _check_safe(path)
@@ -696,7 +698,7 @@ class FindDuplicatesRequest(BaseModel):
 
 
 @router.post("/find-duplicates")
-def find_duplicates_endpoint(req: FindDuplicatesRequest):
+def find_duplicates_endpoint(req: FindDuplicatesRequest) -> dict:
     """Find duplicate files in a folder by content hash."""
     import hashlib
 
@@ -756,7 +758,7 @@ class BatchRenameRequest(BaseModel):
 
 
 @router.post("/batch-rename")
-def batch_rename_endpoint(req: BatchRenameRequest):
+def batch_rename_endpoint(req: BatchRenameRequest) -> dict:
     """Rename files in a folder matching a pattern. dry_run=true (default) shows preview only."""
     import re
 
