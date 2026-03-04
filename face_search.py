@@ -267,7 +267,7 @@ def crop_face(image_path: str, face_idx: int, conn: sqlite3.Connection = None):
         if cached:
             for f in cached:
                 if f["face_idx"] == face_idx:
-                    bbox = eval(f["bbox"])
+                    bbox = json.loads(f["bbox"])
                     face_meta = _face_to_api(f)
                     break
 

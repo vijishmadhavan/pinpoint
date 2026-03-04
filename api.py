@@ -29,10 +29,7 @@ Endpoints:
   POST /forget-face                     → delete saved face data for a person
   POST /recognize-faces                 → recognize known faces in an image
   POST /ocr                             → OCR text extraction (Tesseract)
-  POST /caption-image                   → Moondream image captioning
-  POST /query-image                     → Ask a question about an image (Moondream)
-  POST /detect-objects                   → Detect objects with bounding boxes (Moondream)
-  POST /point-object                    → Get center coordinates of objects (Moondream)
+
   POST /analyze-data                    → Pandas data analysis on CSV/Excel
   POST /index-file                      → Index a single file on demand
   POST /write-file                      → Create/write text files
@@ -57,6 +54,8 @@ Endpoints:
   DELETE /memory/{id}                   → Delete a memory
   GET  /memory/context                  → All memories as text for system prompt
   POST /memory/forget                   → Forget a memory by description (no ID needed)
+  POST /transcribe-audio                → Transcribe audio file to text (Gemini)
+  POST /search-audio                    → Search within audio file for content (Gemini)
   GET  /search-facts?q=                 → Search extracted facts from documents
   GET  /indexing/status                 → Current indexing progress for active jobs
   GET  /setting?key=                    → Get a setting value
@@ -85,38 +84,61 @@ load_dotenv()  # Load .env for JINA_API_KEY etc.
 from fastapi import FastAPI, Query, HTTPException
 from pydantic import BaseModel
 
+import threading
+
 from database import init_db, get_stats, DB_PATH
 from search import search
 from indexer import index_folder
 
 app = FastAPI(title="Pinpoint", version="0.2.0")
 
-# Initialize DB on startup
-_conn = None
+# --- API auth (shared secret) ---
+API_SECRET = os.environ.get("API_SECRET", "")
+
+@app.middleware("http")
+async def check_api_secret(request, call_next):
+    """Require API_SECRET header on all endpoints except /ping."""
+    if API_SECRET and request.url.path != "/ping":
+        token = request.headers.get("X-API-Secret", "")
+        if token != API_SECRET:
+            from starlette.responses import JSONResponse
+            return JSONResponse({"error": "Unauthorized"}, status_code=401)
+    return await call_next(request)
+
+# Thread-local DB connections (one per thread — safe for FastAPI/uvicorn)
+_local = threading.local()
+_migrations_done = False
+_migrations_lock = threading.Lock()
 
 
 def _get_conn():
-    global _conn
-    if _conn is None:
-        _conn = init_db(DB_PATH)
-        # Migrations for existing DBs
-        try:
-            _conn.execute("SELECT superseded_by FROM memories LIMIT 1")
-        except Exception:
-            try: _conn.execute("ALTER TABLE memories ADD COLUMN superseded_by INTEGER DEFAULT NULL")
-            except Exception: pass
-        try:
-            _conn.execute("SELECT 1 FROM facts LIMIT 1")
-        except Exception:
-            _conn.execute("""CREATE TABLE IF NOT EXISTS facts (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                document_id INTEGER NOT NULL,
-                fact_text TEXT NOT NULL,
-                category TEXT DEFAULT 'general',
-                created_at TEXT NOT NULL
-            )""")
-            _conn.commit()
-    return _conn
+    global _migrations_done
+    conn = getattr(_local, "conn", None)
+    if conn is None:
+        conn = init_db(DB_PATH)
+        _local.conn = conn
+    # Run migrations once across all threads
+    if not _migrations_done:
+        with _migrations_lock:
+            if not _migrations_done:
+                try:
+                    conn.execute("SELECT superseded_by FROM memories LIMIT 1")
+                except Exception:
+                    try: conn.execute("ALTER TABLE memories ADD COLUMN superseded_by INTEGER DEFAULT NULL")
+                    except Exception: pass
+                try:
+                    conn.execute("SELECT 1 FROM facts LIMIT 1")
+                except Exception:
+                    conn.execute("""CREATE TABLE IF NOT EXISTS facts (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        document_id INTEGER NOT NULL,
+                        fact_text TEXT NOT NULL,
+                        category TEXT DEFAULT 'general',
+                        created_at TEXT NOT NULL
+                    )""")
+                    conn.commit()
+                _migrations_done = True
+    return conn
 
 
 def _human_size(size_bytes: int) -> str:
@@ -168,6 +190,8 @@ def search_endpoint(
     result = search(q, DB_PATH, limit, file_type=file_type, folder=folder)
     if not result.get("results"):
         result["_hint"] = "No results. File may not be indexed — use index_file first, then retry. Or try search_facts for quick factual lookups."
+    else:
+        result["_hint"] = f"{len(result['results'])} result(s) found. Answer the user's question using these."
     return result
 
 
@@ -445,6 +469,10 @@ def list_files_endpoint(
         result["largest"] = f"{entries[0]['name']} ({entries[0]['size_human']})"
     if total > len(entries):
         result["_hint"] = f"{total} items found, showing {len(entries)}. Use name_contains or filter_ext to narrow down."
+    elif total > 0:
+        result["_hint"] = f"{total} item(s) listed. Use this to answer or plan next action."
+    else:
+        result["_hint"] = "Folder is empty. Check if the path is correct."
     return result
 
 
@@ -736,7 +764,10 @@ def move_file_endpoint(req: MoveFileRequest):
         conn.execute("UPDATE documents SET path = ? WHERE path = ?", (dest, src))
         conn.commit()
 
-    return {"success": True, "source": src, "destination": dest, "action": action}
+    return {
+        "success": True, "source": src, "destination": dest, "action": action,
+        "_hint": f"{action.capitalize()} {os.path.basename(src)} → {dest}. Report this to user.",
+    }
 
 
 # --- Batch move/copy files ---
@@ -780,14 +811,23 @@ def batch_move_endpoint(req: BatchMoveRequest):
 
     conn.commit()
     action = "copied" if req.is_copy else "moved"
+    moved_count = len(results["moved"])
+    skipped_count = len(results["skipped"])
+    error_count = len(results["errors"])
+    # Honest result hint — forces truthful reporting (OpenClaw pattern: make lies impossible)
+    if moved_count == 0:
+        hint = f"WARNING: 0 files were {action}. {skipped_count} skipped (already exist at destination or source missing). {error_count} errors. Tell the user NO files were {action}."
+    else:
+        hint = f"ACTUALLY {action} {moved_count} files to {dest_folder}. {skipped_count} skipped, {error_count} errors. Report these exact numbers."
     return {
-        "success": True,
+        "success": moved_count > 0,
         "action": action,
         "destination": dest_folder,
-        "moved_count": len(results["moved"]),
-        "skipped_count": len(results["skipped"]),
-        "error_count": len(results["errors"]),
-        "errors": results["errors"][:5],  # First 5 errors only
+        "moved_count": moved_count,
+        "skipped_count": skipped_count,
+        "error_count": error_count,
+        "errors": results["errors"][:5],
+        "_hint": hint,
     }
 
 
@@ -1173,6 +1213,8 @@ def detect_faces_endpoint(req: DetectFacesRequest):
         resp = {"folder": os.path.abspath(req.folder), "images_processed": len(results), "results": results}
         if capped:
             resp["_hint"] = f"Capped at {_BATCH_CAP} images. Process remaining in separate calls."
+        else:
+            resp["_hint"] = f"Face detection complete for {len(results)} images. Report results directly."
         return resp
 
     result = detect_faces(req.image_path, conn)
@@ -1203,6 +1245,8 @@ def find_person_endpoint(req: FindPersonRequest):
     result = find_person(req.reference_image, req.folder, conn, req.threshold)
     if isinstance(result, dict) and "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
+    if isinstance(result, list):
+        result = {"matches": result, "count": len(result), "_hint": f"{len(result)} photo(s) with matching face. Report or send these."}
     return result
 
 
@@ -1214,6 +1258,8 @@ def find_person_by_face_endpoint(req: FindPersonByFaceRequest):
     result = find_person_by_face(req.reference_image, req.face_idx, req.folder, conn, req.threshold)
     if isinstance(result, dict) and "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
+    if isinstance(result, list):
+        result = {"matches": result, "count": len(result), "_hint": f"{len(result)} photo(s) with matching face. Report or send these."}
     return result
 
 
@@ -1243,11 +1289,14 @@ def count_faces_endpoint(req: CountFacesRequest):
             result = count_faces(img_path, conn)
             if not (isinstance(result, dict) and "error" in result):
                 results[os.path.basename(img_path)] = result
-        return {"folder": os.path.abspath(req.folder), "images_processed": len(results), "results": results}
+        resp = {"folder": os.path.abspath(req.folder), "images_processed": len(results), "results": results}
+        resp["_hint"] = f"Face counts complete for {len(results)} images. Report results directly."
+        return resp
 
     result = count_faces(req.image_path, conn)
     if isinstance(result, dict) and "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
+    result["_hint"] = "Face count complete. Report the number directly."
     return result
 
 
@@ -1329,12 +1378,56 @@ def search_images_visual_endpoint(req: VisualSearchRequest):
     if not os.path.isdir(folder):
         raise HTTPException(status_code=404, detail=f"Folder not found: {folder}")
 
-    from image_search import search_images, _get_image_files, _mem_cache, _load_cached_embeddings
+    from image_search import search_images, _get_image_files, _mem_cache, _load_cached_embeddings, _HAS_SIGLIP
 
     # Check if embedding is needed (folder not in memory cache)
     files = _get_image_files(folder)
     if not files:
         return {"error": f"No images found in {folder}", "results": []}
+
+    # No SigLIP — dispatch to Gemini vision (no embedding needed)
+    if not _HAS_SIGLIP:
+        from image_search import _search_images_gemini
+        if len(files) > 500:
+            # Large folder — run in background
+            if folder in _embedding_jobs:
+                job = _embedding_jobs[folder]
+                if job["status"] == "running":
+                    return {"status": "scoring", "total_batches": job["total"], "done_batches": job["done"],
+                            "_hint": f"Still scoring images with Gemini ({job['done']}/{job['total']} batches). Tell the user to wait and try again."}
+                if job["status"] == "done":
+                    result = job.get("result", {})
+                    del _embedding_jobs[folder]
+                    result["_hint"] = "Visual search complete. Results are AI-analyzed — trust them to answer, categorize, or group."
+                    return result
+                if job["status"] == "error":
+                    del _embedding_jobs[folder]
+
+            import threading, math
+            total_batches = math.ceil(len(files) / 200)
+            _embedding_jobs[folder] = {"status": "running", "total": total_batches, "done": 0}
+
+            def _bg_gemini_search():
+                try:
+                    def _progress(done, total):
+                        _embedding_jobs[folder]["done"] = done
+                    result = _search_images_gemini(folder, req.query, limit=req.limit, progress_callback=_progress)
+                    _embedding_jobs[folder]["status"] = "done"
+                    _embedding_jobs[folder]["result"] = result
+                except Exception as e:
+                    _embedding_jobs[folder]["status"] = "error"
+                    _embedding_jobs[folder]["error"] = str(e)
+
+            threading.Thread(target=_bg_gemini_search, daemon=True).start()
+            return {"status": "scoring", "total_images": len(files), "total_batches": total_batches,
+                    "_hint": f"Scoring {len(files)} images with Gemini vision in {total_batches} batches. Tell the user it's processing and will be ready soon."}
+
+        # Small folder — do inline
+        result = search_images(folder, req.query, limit=req.limit)
+        if "error" in result and not result.get("results"):
+            raise HTTPException(status_code=404, detail=result["error"])
+        result["_hint"] = "Visual search complete. Results are AI-analyzed — trust them to answer, categorize, or group."
+        return result
 
     mem = _mem_cache.get(folder)
     if mem and len(mem["paths"]) == len(files):
@@ -1350,10 +1443,20 @@ def search_images_visual_endpoint(req: VisualSearchRequest):
 
     if to_embed > 50:
         # Large job — run in background
-        if folder in _embedding_jobs and _embedding_jobs[folder]["status"] == "running":
+        if folder in _embedding_jobs:
             job = _embedding_jobs[folder]
-            return {"status": "embedding", "total": job["total"], "done": job["done"],
-                    "_hint": f"Still embedding ({job['done']}/{job['total']}). Tell the user to wait and try again in a bit."}
+            if job["status"] == "running":
+                return {"status": "embedding", "total": job["total"], "done": job["done"],
+                        "_hint": f"Still embedding ({job['done']}/{job['total']}). Tell the user to wait and try again in a bit."}
+            if job["status"] == "done":
+                # Background embedding finished — search now
+                result = search_images(folder, req.query, limit=req.limit)
+                if "error" in result and not result.get("results"):
+                    raise HTTPException(status_code=404, detail=result["error"])
+                result["_hint"] = "Visual search complete. Results are AI-analyzed — trust them to answer, categorize, or group."
+                return result
+            if job["status"] == "error":
+                del _embedding_jobs[folder]  # Clear failed job, will retry below
 
         import threading
         _embedding_jobs[folder] = {"status": "running", "total": len(files), "done": len(cached)}
@@ -1378,6 +1481,7 @@ def search_images_visual_endpoint(req: VisualSearchRequest):
     result = search_images(folder, req.query, limit=req.limit)
     if "error" in result and not result.get("results"):
         raise HTTPException(status_code=404, detail=result["error"])
+    result["_hint"] = "Visual search complete. Results are AI-analyzed — trust them to answer, categorize, or group."
     return result
 
 
@@ -1435,6 +1539,44 @@ def extract_frame_endpoint(req: ExtractFrameRequest):
         raise HTTPException(status_code=500, detail=f"Frame extraction failed: {e}")
 
 
+# --- Audio (Gemini native) ---
+
+class TranscribeAudioRequest(BaseModel):
+    path: str
+
+
+@app.post("/transcribe-audio")
+def transcribe_audio_endpoint(req: TranscribeAudioRequest):
+    """Transcribe an audio file to text using Gemini."""
+    path = os.path.abspath(req.path)
+    if not os.path.isfile(path):
+        raise HTTPException(status_code=404, detail=f"Audio file not found: {path}")
+    from audio_search import transcribe_audio
+    result = transcribe_audio(path)
+    if "error" in result and "text" not in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+
+class SearchAudioRequest(BaseModel):
+    audio_path: str
+    query: str
+    limit: int = 5
+
+
+@app.post("/search-audio")
+def search_audio_endpoint(req: SearchAudioRequest):
+    """Search within an audio file for specific content."""
+    path = os.path.abspath(req.audio_path)
+    if not os.path.isfile(path):
+        raise HTTPException(status_code=404, detail=f"Audio file not found: {path}")
+    from audio_search import search_audio
+    result = search_audio(path, req.query, limit=req.limit)
+    if "error" in result and not result.get("results"):
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+
 # --- OCR (Tesseract) ---
 
 class OcrRequest(BaseModel):
@@ -1457,12 +1599,14 @@ def _ocr_single(path: str) -> dict:
         return {"path": path, "text": result["text"], "pages": result.get("page_count", 0), "method": "pdf_ocr"}
     elif ext in _IMAGE_EXTS:
         try:
-            from extractors import _ocr_tesseract, _preprocess_image
+            from extractors import _ocr_tesseract, _ocr_gemini, _HAS_TESSERACT, _preprocess_image, _get_gemini
             from PIL import Image
             img = Image.open(path).convert("RGB")
             img = _preprocess_image(img)
-            text = _ocr_tesseract([img])
-            return {"path": path, "text": text, "method": "tesseract_ocr",
+            _gemini = _get_gemini()
+            text = _ocr_gemini([img]) if _gemini else (_ocr_tesseract([img]) if _HAS_TESSERACT else "")
+            method = "gemini_ocr" if _gemini else ("tesseract_ocr" if _HAS_TESSERACT else "none")
+            return {"path": path, "text": text, "method": method,
                     "_hint": "Use index_file to make this text searchable, or search_documents if already indexed."}
         except Exception as e:
             return {"error": f"OCR failed: {e}"}
@@ -1500,91 +1644,6 @@ def ocr_endpoint(req: OcrRequest):
     if not req.path:
         raise HTTPException(status_code=400, detail="Provide path or folder")
     result = _ocr_single(req.path)
-    if "error" in result:
-        raise HTTPException(status_code=400, detail=result["error"])
-    return result
-
-
-# --- Moondream captioning (Segment 15) ---
-
-class CaptionImageRequest(BaseModel):
-    path: str = None
-    folder: str = None
-
-
-@app.post("/caption-image")
-def caption_image_endpoint(req: CaptionImageRequest):
-    """Generate AI captions for an image or all images in a folder."""
-    from extractors import extract_image
-
-    if req.folder:
-        images = _get_images_in_folder(req.folder)
-        if not images:
-            raise HTTPException(status_code=404, detail=f"No images found in: {req.folder}")
-        _BATCH_CAP = 50  # prevent multi-minute blocking
-        capped = len(images) > _BATCH_CAP
-        images = images[:_BATCH_CAP]
-        results = {}
-        for img_path in images:
-            result = extract_image(img_path)
-            if result:
-                results[os.path.basename(img_path)] = result["text"]
-        resp = {"folder": os.path.abspath(req.folder), "images_processed": len(results), "results": results}
-        if capped:
-            resp["_hint"] = f"Capped at {_BATCH_CAP} images. Process remaining in separate calls."
-        return resp
-
-    path = os.path.abspath(req.path)
-    if not os.path.exists(path):
-        raise HTTPException(status_code=404, detail=f"File not found: {path}")
-    result = extract_image(path)
-    if result is None:
-        raise HTTPException(status_code=400, detail="Failed to caption image")
-    return {"path": path, "caption": result["text"]}
-
-
-# --- Moondream query/detect/point (Segment 18: Full Moondream powers) ---
-
-class QueryImageRequest(BaseModel):
-    path: str
-    question: str
-
-
-@app.post("/query-image")
-def query_image_endpoint(req: QueryImageRequest):
-    """Ask a question about an image using Moondream."""
-    from extractors import moondream_query
-    result = moondream_query(req.path, req.question)
-    if "error" in result:
-        raise HTTPException(status_code=400, detail=result["error"])
-    return result
-
-
-class DetectObjectsRequest(BaseModel):
-    path: str
-    object: str
-
-
-@app.post("/detect-objects")
-def detect_objects_endpoint(req: DetectObjectsRequest):
-    """Detect objects in an image with bounding boxes using Moondream."""
-    from extractors import moondream_detect
-    result = moondream_detect(req.path, req.object)
-    if "error" in result:
-        raise HTTPException(status_code=400, detail=result["error"])
-    return result
-
-
-class PointObjectRequest(BaseModel):
-    path: str
-    object: str
-
-
-@app.post("/point-object")
-def point_object_endpoint(req: PointObjectRequest):
-    """Get center coordinates of objects in an image using Moondream."""
-    from extractors import moondream_point
-    result = moondream_point(req.path, req.object)
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
     return result
@@ -1833,6 +1892,13 @@ def analyze_data_endpoint(req: AnalyzeDataRequest):
     else:
         raise HTTPException(status_code=400, detail=f"Unknown operation: {op}. Use: describe, head, columns, value_counts, groupby, filter, corr, sort, unique, eval, search, shape")
 
+    # Sufficiency hints per operation
+    if op == "columns":
+        result["_hint"] = "Column info loaded. Now call the specific operation you need (filter, groupby, search, sort, etc.)."
+    elif op in ("filter", "search", "groupby", "sort", "value_counts", "head", "describe", "eval", "unique", "corr"):
+        if not result.get("_hint"):
+            result["_hint"] = "Data retrieved. Answer the user's question with these results."
+
     return result
 
 
@@ -1956,6 +2022,8 @@ def search_facts_endpoint(
     resp = {"query": q, "count": len(rows), "results": [dict(r) for r in rows]}
     if not rows:
         resp["_hint"] = "No facts match. Try search_documents for full-text search across document content."
+    else:
+        resp["_hint"] = f"{len(rows)} fact(s) found. Answer the user's question using these."
     return resp
 
 
@@ -2324,6 +2392,196 @@ def crop_image_endpoint(req: CropImageRequest):
     os.makedirs(os.path.dirname(output), exist_ok=True)
     cropped.save(output)
     return {"success": True, "path": output, "crop_box": list(box), "new_size": list(cropped.size)}
+
+
+# --- Image Metadata (EXIF) ---
+
+class ImageMetadataRequest(BaseModel):
+    path: Optional[str] = None
+    folder: Optional[str] = None
+
+
+def _extract_exif(filepath: str) -> dict:
+    """Extract EXIF metadata from a single image file."""
+    from PIL import Image
+    from PIL.ExifTags import IFD
+    try:
+        from pillow_heif import register_heif_opener
+        register_heif_opener()
+    except ImportError:
+        pass
+
+    img = Image.open(filepath)
+    result = {
+        "path": filepath,
+        "dimensions": {"width": img.width, "height": img.height},
+        "format": img.format or os.path.splitext(filepath)[1].lstrip(".").upper(),
+    }
+
+    exif_data = img.getexif()
+    if not exif_data:
+        img.close()
+        result["exif"] = None
+        return result
+
+    def _rational(val):
+        """Convert IFDRational or tuple to float."""
+        if val is None:
+            return None
+        if hasattr(val, "numerator"):
+            return float(val)
+        if isinstance(val, tuple) and len(val) == 2:
+            return val[0] / val[1] if val[1] else 0
+        return float(val)
+
+    exif = {}
+    # DateTimeOriginal
+    dt = exif_data.get(36867) or exif_data.get(306)  # DateTimeOriginal or DateTime
+    if dt:
+        exif["date_taken"] = str(dt).replace(":", "-", 2)  # 2025:02:20 → 2025-02-20
+
+    # Camera
+    make = (exif_data.get(271) or "").strip()
+    model = (exif_data.get(272) or "").strip()
+    if model:
+        # Avoid "Canon Canon EOS 5D"
+        exif["camera"] = model if make and model.startswith(make) else f"{make} {model}".strip()
+
+    # Lens
+    ifd_exif = exif_data.get_ifd(IFD.Exif)
+    lens = ifd_exif.get(42036) if ifd_exif else None
+    if lens:
+        exif["lens"] = str(lens)
+
+    # Focal length
+    fl = ifd_exif.get(37386) if ifd_exif else None
+    if fl is not None:
+        v = _rational(fl)
+        exif["focal_length"] = f"{v:.0f}mm" if v else None
+
+    # Aperture
+    fn = ifd_exif.get(33437) if ifd_exif else None
+    if fn is not None:
+        v = _rational(fn)
+        exif["aperture"] = f"f/{v:.1f}" if v else None
+
+    # Shutter speed
+    et = ifd_exif.get(33434) if ifd_exif else None
+    if et is not None:
+        v = _rational(et)
+        if v and v < 1:
+            exif["shutter_speed"] = f"1/{int(round(1/v))}"
+        elif v:
+            exif["shutter_speed"] = f"{v:.1f}s"
+
+    # ISO
+    iso = ifd_exif.get(34855) if ifd_exif else None
+    if iso is not None:
+        exif["iso"] = int(iso) if not isinstance(iso, tuple) else int(iso[0])
+
+    # GPS
+    try:
+        gps_ifd = exif_data.get_ifd(IFD.GPSInfo)
+        if gps_ifd:
+            def _dms_to_dd(dms, ref):
+                d, m, s = [_rational(x) for x in dms]
+                dd = d + m / 60 + s / 3600
+                return -dd if ref in ("S", "W") else dd
+
+            lat_dms = gps_ifd.get(2)
+            lat_ref = gps_ifd.get(1)
+            lon_dms = gps_ifd.get(4)
+            lon_ref = gps_ifd.get(3)
+            if lat_dms and lon_dms:
+                exif["gps"] = {
+                    "lat": round(_dms_to_dd(lat_dms, lat_ref), 6),
+                    "lon": round(_dms_to_dd(lon_dms, lon_ref), 6),
+                }
+    except Exception:
+        pass
+
+    # Orientation
+    orient = exif_data.get(274)
+    if orient:
+        exif["orientation"] = int(orient)
+
+    img.close()
+    result["exif"] = exif if exif else None
+    return result
+
+
+IMAGE_EXTS_EXIF = {".jpg", ".jpeg", ".png", ".tiff", ".tif", ".heic", ".heif", ".webp", ".bmp", ".dng", ".cr2", ".nef", ".arw"}
+
+
+@app.post("/image-metadata")
+def image_metadata_endpoint(req: ImageMetadataRequest):
+    """Extract EXIF metadata from photos."""
+    if req.path:
+        path = os.path.abspath(req.path)
+        if not os.path.exists(path):
+            raise HTTPException(status_code=404, detail=f"File not found: {path}")
+        try:
+            result = _extract_exif(path)
+            result["_hint"] = "Metadata extracted. Answer the user's question about this image."
+            return result
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Cannot read image: {e}")
+
+    elif req.folder:
+        folder = os.path.abspath(req.folder)
+        if not os.path.isdir(folder):
+            raise HTTPException(status_code=404, detail=f"Folder not found: {folder}")
+
+        results = {}
+        dates = []
+        cameras = set()
+        has_gps = 0
+        total = 0
+
+        for fname in sorted(os.listdir(folder)):
+            if total >= 200:
+                break
+            ext = os.path.splitext(fname)[1].lower()
+            if ext not in IMAGE_EXTS_EXIF:
+                continue
+            fpath = os.path.join(folder, fname)
+            if not os.path.isfile(fpath):
+                continue
+            try:
+                meta = _extract_exif(fpath)
+                # Strip full path for batch — just filename
+                meta["path"] = fname
+                results[fname] = meta
+                total += 1
+                if meta.get("exif"):
+                    if meta["exif"].get("date_taken"):
+                        dates.append(meta["exif"]["date_taken"][:10])
+                    if meta["exif"].get("camera"):
+                        cameras.add(meta["exif"]["camera"])
+                    if meta["exif"].get("gps"):
+                        has_gps += 1
+            except Exception:
+                continue
+
+        if not results:
+            return {"folder": folder, "images_processed": 0, "results": {}, "_hint": "No images found in folder."}
+
+        summary = {
+            "date_range": f"{min(dates)} to {max(dates)}" if dates else None,
+            "cameras": sorted(cameras) if cameras else [],
+            "has_gps": has_gps,
+            "total": total,
+        }
+        return {
+            "folder": folder,
+            "images_processed": total,
+            "results": results,
+            "summary": summary,
+            "_hint": f"Metadata for {total} images. Summary shows date range and cameras used.",
+        }
+
+    else:
+        raise HTTPException(status_code=400, detail="Provide path (single image) or folder (batch).")
 
 
 # --- Archive Tools (Segment 15B) ---

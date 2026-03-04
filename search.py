@@ -126,7 +126,7 @@ def expand_query(query: str, conn: sqlite3.Connection) -> list[str]:
 
     try:
         response = client.models.generate_content(
-            model="gemini-3-flash-preview",
+            model=os.environ.get("GEMINI_MODEL", "gemini-3-flash-preview"),
             contents=f'Expand this search query into 3-5 keyword variants for full-text search. Return ONLY a JSON array of strings, nothing else. Query: "{query}"',
         )
         text = response.text.strip()

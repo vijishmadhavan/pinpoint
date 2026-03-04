@@ -4,7 +4,7 @@
 Resize, convert formats (HEIC/JPG/PNG/WebP), crop, compress images.
 
 ## Cannot do
-Cannot understand image content. For that use caption_image (describe scene) or detect_faces (find faces).
+Cannot understand image content. For that use read_file (Gemini sees images) or detect_faces (find faces).
 
 ## Tools
 - **resize_image(path, width?, height?, quality?, output_path?)** → Resize or compress. Set width OR height to maintain aspect ratio, or both for exact size. quality 1-100 (default 85). If no output_path, overwrites original.

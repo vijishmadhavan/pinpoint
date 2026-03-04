@@ -5,7 +5,7 @@ Digital PDF:         PyMuPDF4LLM  (instant, CPU)
 Scanned PDF:         Tesseract (0.5s/page CPU, 125 languages, auto script detection)
 DOCX/XLSX/PPTX/EPUB: MarkItDown  (instant, CPU)
 TXT/CSV/LOG/MD:      direct read  (instant)
-Images:              Moondream Cloud API (no local GPU needed)
+Images:              Gemini 3.1 Flash-Lite captioning (multimodal, cheap)
 """
 
 import os
@@ -15,6 +15,16 @@ MAX_IMAGE_DIM = 1024
 
 # OCR DPI: 200 for batch/indexing (fast), 300 for single-file (quality)
 OCR_DPI = int(os.environ.get("OCR_DPI", "200"))
+
+# Tesseract availability detection
+_HAS_TESSERACT = False
+try:
+    import pytesseract
+    pytesseract.get_tesseract_version()
+    _HAS_TESSERACT = True
+except Exception:
+    pass
+print(f"[Pinpoint] Tesseract: {'available' if _HAS_TESSERACT else 'not installed — Gemini OCR fallback'}")
 
 # Minimum text per page to consider it "digital" (not scanned)
 _MIN_TEXT_PER_PAGE = 50
@@ -54,6 +64,33 @@ def _ocr_tesseract(images: list) -> str:
         if text.strip():
             texts.append(text.strip())
 
+    return "\n\n".join(texts)
+
+
+def _ocr_gemini(images: list) -> str:
+    """OCR via Gemini vision when Tesseract unavailable."""
+    client = _get_gemini()
+    if not client:
+        return ""
+    from google.genai import types
+    import io
+    texts = []
+    for img in images:
+        try:
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=85)
+            response = client.models.generate_content(
+                model=os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite-preview"),
+                contents=[types.Content(parts=[
+                    types.Part.from_bytes(data=buf.getvalue(), mime_type="image/jpeg"),
+                    types.Part.from_text("Extract ALL text from this image exactly as written. Preserve formatting and line breaks. Return ONLY the extracted text."),
+                ])],
+            )
+            text = (response.text or "").strip()
+            if text:
+                texts.append(text)
+        except Exception as e:
+            print(f"[Gemini OCR] Failed on image: {e}")
     return "\n\n".join(texts)
 
 
@@ -120,7 +157,7 @@ def extract_pdf(path: str) -> dict | None:
                     pix = doc_render[page_num].get_pixmap(dpi=OCR_DPI)
                     img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
                     images.append(img)
-                batch_text = _ocr_tesseract(images)
+                batch_text = _ocr_gemini(images) if _get_gemini() else (_ocr_tesseract(images) if _HAS_TESSERACT else "")
                 if batch_text.strip():
                     all_texts.append(batch_text.strip())
                 del images  # free batch memory before next batch
@@ -231,109 +268,75 @@ def extract_office(path: str) -> dict | None:
     }
 
 
-# --- Moondream Cloud API (caption, query, detect, point) ---
+# --- Gemini captioning ---
 
-def _moondream_api(path: str, endpoint: str, extra_params: dict = None) -> dict | None:
-    """Shared Moondream API caller. Returns parsed JSON response or None."""
-    import base64, io, requests
-    api_key = os.environ.get("MOONDREAM_API_KEY")
-    if not api_key:
+_gemini_client = None
+
+
+def _get_gemini():
+    """Lazy-load Gemini client for image captioning."""
+    global _gemini_client
+    if _gemini_client is None:
+        from google import genai
+        api_key = os.environ.get("GEMINI_API_KEY")
+        if not api_key:
+            return None
+        _gemini_client = genai.Client(api_key=api_key)
+    return _gemini_client
+
+
+def extract_image(path: str) -> dict | None:
+    """Caption an image using Gemini Flash-Lite. Requires GEMINI_API_KEY in .env."""
+    if not os.path.exists(path):
+        print(f"[SKIP] File not found: {path}")
         return None
+
+    client = _get_gemini()
+    if not client:
+        print(f"[SKIP] GEMINI_API_KEY not set: {path}")
+        return None
+
     try:
+        import base64, io
         from PIL import Image
+
         img = Image.open(path).convert("RGB")
         img = _preprocess_image(img)
         buf = io.BytesIO()
         img.save(buf, format="JPEG", quality=85)
         b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
-        image_url = f"data:image/jpeg;base64,{b64}"
 
-        payload = {"image_url": image_url}
-        if extra_params:
-            payload.update(extra_params)
-
-        resp = requests.post(
-            f"https://api.moondream.ai/v1/{endpoint}",
-            json=payload,
-            headers={"X-Moondream-Auth": api_key},
-            timeout=30,
+        from google.genai import types
+        response = client.models.generate_content(
+            model=os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite-preview"),
+            contents=[
+                types.Content(parts=[
+                    types.Part.from_bytes(data=buf.getvalue(), mime_type="image/jpeg"),
+                    types.Part.from_text("Describe this image in 1-2 sentences. Be specific about objects, people, text, and scene."),
+                ]),
+            ],
         )
-        resp.raise_for_status()
-        return resp.json()
+        caption = response.text.strip()
+        if not caption:
+            print(f"[SKIP] Gemini returned empty caption: {path}")
+            return None
+
+        return {
+            "path": os.path.abspath(path),
+            "text": caption,
+            "page_count": 0,
+            "file_type": "image",
+        }
     except Exception as e:
-        print(f"[Moondream API] {endpoint} failed: {path} — {e}")
+        print(f"[SKIP] Gemini captioning failed: {path} — {e}")
         return None
-
-
-def extract_image(path: str) -> dict | None:
-    """Caption an image using Moondream Cloud API. Requires MOONDREAM_API_KEY in .env."""
-    if not os.path.exists(path):
-        print(f"[SKIP] File not found: {path}")
-        return None
-
-    data = _moondream_api(path, "caption", {"length": "normal"})
-    if not data or not data.get("caption"):
-        print(f"[SKIP] Moondream API failed or MOONDREAM_API_KEY not set: {path}")
-        return None
-
-    return {
-        "path": os.path.abspath(path),
-        "text": data["caption"].strip(),
-        "page_count": 0,
-        "file_type": "image",
-    }
-
-
-def moondream_query(path: str, question: str) -> dict:
-    """Ask a question about an image. Returns answer text."""
-    path = os.path.abspath(path)
-    if not os.path.exists(path):
-        return {"error": f"File not found: {path}"}
-    data = _moondream_api(path, "query", {"question": question})
-    if not data:
-        return {"error": "Moondream API failed. Check MOONDREAM_API_KEY."}
-    return {"path": path, "question": question, "answer": data.get("answer", "")}
-
-
-def moondream_detect(path: str, object_name: str) -> dict:
-    """Detect objects in an image. Returns bounding boxes."""
-    path = os.path.abspath(path)
-    if not os.path.exists(path):
-        return {"error": f"File not found: {path}"}
-    data = _moondream_api(path, "detect", {"object": object_name})
-    if not data:
-        return {"error": "Moondream API failed. Check MOONDREAM_API_KEY."}
-    objects = data.get("objects", [])
-    return {
-        "path": path,
-        "object": object_name,
-        "count": len(objects),
-        "objects": objects,
-    }
-
-
-def moondream_point(path: str, object_name: str) -> dict:
-    """Get center coordinates of objects in an image."""
-    path = os.path.abspath(path)
-    if not os.path.exists(path):
-        return {"error": f"File not found: {path}"}
-    data = _moondream_api(path, "point", {"object": object_name})
-    if not data:
-        return {"error": "Moondream API failed. Check MOONDREAM_API_KEY."}
-    points = data.get("points", [])
-    return {
-        "path": path,
-        "object": object_name,
-        "count": len(points),
-        "points": points,
-    }
 
 
 # Extension routing
 OFFICE_EXTENSIONS = {".docx", ".xlsx", ".pptx", ".epub"}
 # NOT supported: .doc, .xls, .ppt (old binary formats — need LibreOffice)
 
-IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tiff", ".tif"}
+IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tiff", ".tif", ".heic"}
 
 TEXT_EXTENSIONS = {".txt", ".csv", ".log", ".md"}
 

@@ -8,14 +8,31 @@ Uses ONNX runtime (no torch dependency). Same model as InsightFace runtime.
 """
 
 import os
+import sys
 import time
 import struct
 import sqlite3
 import numpy as np
 from PIL import Image
-from datetime import datetime
+
+# Ensure CUDA 12 libs from pip nvidia packages are on LD_LIBRARY_PATH (onnxruntime needs them)
+_site_pkgs = os.path.join(sys.prefix, "lib", f"python{sys.version_info.major}.{sys.version_info.minor}", "site-packages", "nvidia")
+for _subdir in ["cublas/lib", "cudnn/lib", "cuda_runtime/lib"]:
+    _p = os.path.join(_site_pkgs, _subdir)
+    if os.path.isdir(_p):
+        os.environ["LD_LIBRARY_PATH"] = _p + ":" + os.environ.get("LD_LIBRARY_PATH", "")
+from datetime import datetime, timezone
 
 from database import DB_PATH, get_db
+
+# SigLIP2 availability detection
+_HAS_SIGLIP = False
+try:
+    import onnxruntime
+    _HAS_SIGLIP = True
+except ImportError:
+    pass
+print(f"[Pinpoint] SigLIP2: {'available' if _HAS_SIGLIP else 'not installed — Gemini vision fallback'}")
 
 # --- Config ---
 SIGLIP_MODEL = "onnx-community/siglip2-base-patch16-224-ONNX"
@@ -50,11 +67,23 @@ def _get_siglip():
         vision_path = hf_hub_download(SIGLIP_MODEL, f"onnx/vision_model{suffix}.onnx")
         text_path = hf_hub_download(SIGLIP_MODEL, f"onnx/text_model{suffix}.onnx")
 
-        # Create sessions
+        # Create sessions (fall back to CPU + fp32 if GPU fails)
         sess_opts = ort.SessionOptions()
-        sess_opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
-        vision_session = ort.InferenceSession(vision_path, sess_opts, providers=ep)
-        text_session = ort.InferenceSession(text_path, sess_opts, providers=ep)
+        sess_opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_BASIC
+        try:
+            vision_session = ort.InferenceSession(vision_path, sess_opts, providers=ep)
+            text_session = ort.InferenceSession(text_path, sess_opts, providers=ep)
+        except Exception as gpu_err:
+            if has_cuda:
+                print(f"[SigLIP2] GPU session failed ({gpu_err}), falling back to CPU fp32...")
+                has_cuda = False
+                ep = ["CPUExecutionProvider"]
+                vision_path = hf_hub_download(SIGLIP_MODEL, "onnx/vision_model.onnx")
+                text_path = hf_hub_download(SIGLIP_MODEL, "onnx/text_model.onnx")
+                vision_session = ort.InferenceSession(vision_path, sess_opts, providers=ep)
+                text_session = ort.InferenceSession(text_path, sess_opts, providers=ep)
+            else:
+                raise
 
         # Processor handles image preprocessing + tokenization (no torch needed)
         processor = AutoProcessor.from_pretrained(SIGLIP_MODEL, use_fast=False)
@@ -144,7 +173,7 @@ def _save_embeddings(path_embeddings: list):
     if not path_embeddings:
         return
     conn = _get_conn()
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).isoformat()
     conn.executemany(
         "INSERT OR REPLACE INTO image_embeddings (path, embedding, mtime, embedded_at) VALUES (?, ?, ?, ?)",
         [(p, _embedding_to_bytes(e), m, now) for p, e, m in path_embeddings]
@@ -237,11 +266,107 @@ def embed_text(query: str) -> np.ndarray:
     return _normalize(emb).squeeze(0)
 
 
+def _search_images_gemini(folder: str, query: str, limit: int = 10, progress_callback=None) -> dict:
+    """Gemini vision fallback — multi-image concurrent ranking with LOW resolution.
+    Handles 10K+ images: 200/batch, 5 concurrent workers, 280 tokens/image (LOW res)."""
+    from extractors import _get_gemini
+    client = _get_gemini()
+    if not client:
+        return {"error": "GEMINI_API_KEY not set", "results": []}
+    from google.genai import types
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    import io, json as _json, threading
+
+    folder = os.path.abspath(folder)
+    files = _get_image_files(folder)
+    if not files:
+        return {"error": f"No images in {folder}", "results": []}
+
+    t0 = time.time()
+    BATCH = 200  # images per Gemini call (200 × 280 tokens = 56K at LOW res)
+    WORKERS = 5  # concurrent API calls
+    model = os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite-preview")
+    all_scores = {}
+    scores_lock = threading.Lock()
+    done_count = [0]
+
+    def _score_batch(batch_files):
+        parts = []
+        names = []
+        for fpath in batch_files:
+            try:
+                img = _load_image_fast(fpath)
+                buf = io.BytesIO()
+                img.save(buf, format="JPEG", quality=80)
+                parts.append(types.Part.from_bytes(data=buf.getvalue(), mime_type="image/jpeg"))
+                parts.append(types.Part.from_text(f"[{os.path.basename(fpath)}]"))
+                names.append(fpath)
+            except Exception:
+                continue
+        if not names:
+            return {}
+        parts.append(types.Part.from_text(
+            f"Query: '{query}'\nRate each image 0-100 for relevance to the query. "
+            f"Return ONLY valid JSON: {{\"filename\": score, ...}}"
+        ))
+        try:
+            resp = client.models.generate_content(
+                model=model,
+                contents=[types.Content(parts=parts)],
+                config={"media_resolution": "MEDIA_RESOLUTION_LOW"},
+            )
+            text = (resp.text or "").strip()
+            if text.startswith("```"):
+                text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+            scores = _json.loads(text)
+            batch_scores = {}
+            for fname, score in scores.items():
+                for fp in names:
+                    if os.path.basename(fp) == fname:
+                        batch_scores[fp] = float(score)
+                        break
+            return batch_scores
+        except Exception as e:
+            print(f"[GeminiSearch] Batch error: {e}")
+            return {}
+
+    # Build batch list
+    batches = [files[i:i + BATCH] for i in range(0, len(files), BATCH)]
+    total_batches = len(batches)
+    print(f"[GeminiSearch] Scoring {len(files)} images in {total_batches} batches ({WORKERS} concurrent)...")
+
+    with ThreadPoolExecutor(max_workers=WORKERS) as pool:
+        futures = {pool.submit(_score_batch, b): idx for idx, b in enumerate(batches)}
+        for future in as_completed(futures):
+            batch_scores = future.result()
+            with scores_lock:
+                all_scores.update(batch_scores)
+                done_count[0] += 1
+            if progress_callback:
+                progress_callback(done_count[0], total_batches)
+
+    ranked = sorted(all_scores.items(), key=lambda x: x[1], reverse=True)[:limit]
+    elapsed = time.time() - t0
+    print(f"[GeminiSearch] Scored {len(all_scores)}/{len(files)} images in {elapsed:.1f}s")
+    return {
+        "folder": folder,
+        "total_images": len(files),
+        "query": query,
+        "results": [{"filename": os.path.basename(p), "path": p, "match_pct": round(s, 1)} for p, s in ranked],
+        "embed_time_s": round(elapsed, 2),
+        "search_time_s": 0.0,
+        "cached": False,
+        "note": f"Top {len(ranked)} of {len(files)} (Gemini vision, {total_batches} batches)",
+    }
+
+
 def search_images(folder: str, query: str, limit: int = 10) -> dict:
     """
     Search images in a folder by text description.
     Returns dict with results, timing, and cache info.
     """
+    if not _HAS_SIGLIP:
+        return _search_images_gemini(folder, query, limit)
     folder = os.path.abspath(folder)
     files = _get_image_files(folder)
     if not files:

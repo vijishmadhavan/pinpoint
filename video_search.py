@@ -12,15 +12,21 @@ import tempfile
 import sqlite3
 import numpy as np
 from PIL import Image
-from datetime import datetime
+from datetime import datetime, timezone
 
 from database import DB_PATH, get_db
+from image_search import _HAS_SIGLIP
 
 # --- Config ---
 EMBED_DIM = 768
 BATCH_SIZE = 16
 MAX_LOAD_DIM = 384
 VIDEO_EXTS = {".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm"}
+VIDEO_MIME = {
+    ".mp4": "video/mp4", ".mkv": "video/x-matroska", ".avi": "video/x-msvideo",
+    ".mov": "video/quicktime", ".wmv": "video/x-ms-wmv", ".flv": "video/x-flv",
+    ".webm": "video/webm",
+}
 DEFAULT_FPS = 1  # 1 frame per second
 
 
@@ -42,11 +48,7 @@ def _embed_text(query: str) -> np.ndarray:
     return embed_text(query)
 
 
-def _normalize(v: np.ndarray, axis=-1) -> np.ndarray:
-    """L2-normalize along axis."""
-    norm = np.linalg.norm(v, axis=axis, keepdims=True)
-    norm = np.maximum(norm, 1e-12)
-    return v / norm
+from image_search import _normalize
 
 
 # --- Embedding serialization ---
@@ -73,7 +75,7 @@ def extract_frames(video_path: str, fps: float = DEFAULT_FPS, temp_dir: str = No
     probe = subprocess.run(
         ["ffprobe", "-v", "quiet", "-show_entries", "format=duration",
          "-of", "default=noprint_wrappers=1:nokey=1", video_path],
-        capture_output=True, text=True
+        capture_output=True, text=True, timeout=60
     )
     duration = float(probe.stdout.strip()) if probe.stdout.strip() else 0
 
@@ -82,7 +84,7 @@ def extract_frames(video_path: str, fps: float = DEFAULT_FPS, temp_dir: str = No
     subprocess.run(
         ["ffmpeg", "-i", video_path, "-vf", f"fps={fps}", "-q:v", "2",
          "-y", pattern],
-        capture_output=True, check=True
+        capture_output=True, check=True, timeout=300
     )
 
     # Collect extracted frames with timestamps
@@ -135,7 +137,7 @@ def _save_embeddings(video_path: str, frame_embeddings: list):
         return
     conn = _get_conn()
     mtime = os.path.getmtime(video_path)
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).isoformat()
     conn.executemany(
         "INSERT OR REPLACE INTO video_embeddings (video_path, frame_sec, embedding, mtime, embedded_at) VALUES (?, ?, ?, ?, ?)",
         [(video_path, sec, _embedding_to_bytes(emb), mtime, now) for sec, emb in frame_embeddings]
@@ -153,6 +155,14 @@ def _format_timestamp(seconds: float) -> str:
     if h > 0:
         return f"{h}:{m:02d}:{s:02d}"
     return f"{m}:{s:02d}"
+
+
+def _timestamp_to_seconds(ts: str) -> float:
+    """Convert HH:MM:SS or MM:SS timestamp back to seconds."""
+    parts = ts.split(":")
+    if len(parts) == 3: return int(parts[0]) * 3600 + int(parts[1]) * 60 + float(parts[2])
+    if len(parts) == 2: return int(parts[0]) * 60 + float(parts[1])
+    return 0.0
 
 
 def embed_video(video_path: str, fps: float = DEFAULT_FPS, progress_callback=None) -> dict:
@@ -233,11 +243,100 @@ def embed_video(video_path: str, fps: float = DEFAULT_FPS, progress_callback=Non
         shutil.rmtree(temp_dir, ignore_errors=True)
 
 
+def _search_video_gemini(video_path: str, query: str, fps: float = DEFAULT_FPS, limit: int = 5) -> dict:
+    """Gemini native video analysis — upload full video, no frame extraction needed.
+    Note: fps is accepted for API compatibility but unused (Gemini analyzes the full video)."""
+    from extractors import _get_gemini
+    client = _get_gemini()
+    if not client:
+        return {"error": "GEMINI_API_KEY not set", "results": []}
+    from google.genai import types
+    import json as _json
+
+    video_path = os.path.abspath(video_path)
+    if not os.path.isfile(video_path):
+        return {"error": f"Video not found: {video_path}", "results": []}
+
+    ext = os.path.splitext(video_path)[1].lower()
+    mime = VIDEO_MIME.get(ext, "video/mp4")
+    file_size = os.path.getsize(video_path)
+    model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+
+    t0 = time.time()
+
+    # Build video part: inline <100MB, File API for larger
+    if file_size < 100 * 1024 * 1024:
+        with open(video_path, "rb") as f:
+            video_bytes = f.read()
+        video_part = types.Part.from_bytes(data=video_bytes, mime_type=mime)
+    else:
+        print(f"[GeminiVideoSearch] Uploading {file_size / 1024 / 1024:.0f}MB via File API...")
+        uploaded = client.files.upload(file=video_path, config={"mime_type": mime})
+        waited = 0
+        while uploaded.state.name == "PROCESSING":
+            if waited >= 300:
+                return {"error": "File upload timed out after 5 minutes", "results": []}
+            time.sleep(2)
+            waited += 2
+            uploaded = client.files.get(name=uploaded.name)
+        if uploaded.state.name != "ACTIVE":
+            return {"error": f"File upload failed: {uploaded.state.name}", "results": []}
+        video_part = types.Part.from_uri(file_uri=uploaded.uri, mime_type=mime)
+
+    prompt = (
+        f"Find the top {limit} moments in this video that best match: '{query}'\n"
+        f"Return ONLY valid JSON array: [{{\"timestamp\": \"MM:SS\", \"match_pct\": 0-100, \"description\": \"brief\"}}]\n"
+        f"Use HH:MM:SS for videos over 1 hour. Sort by relevance (highest first)."
+    )
+
+    try:
+        resp = client.models.generate_content(
+            model=model,
+            contents=[types.Content(parts=[video_part, types.Part.from_text(prompt)])],
+            config={"media_resolution": "MEDIA_RESOLUTION_LOW"},
+        )
+        text = (resp.text or "").strip()
+        if text.startswith("```"):
+            text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+        results_raw = _json.loads(text)
+
+        results = []
+        for item in results_raw[:limit]:
+            ts = item.get("timestamp", "0:00")
+            secs = _timestamp_to_seconds(ts)
+            results.append({
+                "timestamp": ts,
+                "seconds": round(secs, 1),
+                "match_pct": round(float(item.get("match_pct", 0)), 1),
+            })
+    except Exception as e:
+        print(f"[GeminiVideoSearch] Error: {e}")
+        return {"error": f"Gemini video analysis failed: {e}", "results": []}
+
+    elapsed = time.time() - t0
+    print(f"[GeminiVideoSearch] Analyzed video in {elapsed:.1f}s, found {len(results)} matches")
+    return {
+        "video": video_path,
+        "query": query,
+        "results": results,
+        "note": f"Top {len(results)} matching moments (Gemini full video analysis)",
+        "search_time_s": round(elapsed, 2),
+        "cached": False,
+        "_hint": f"{len(results)} matches found — use extract_frame to get specific frames for sending.",
+    }
+
+
 def search_video(video_path: str, query: str, fps: float = DEFAULT_FPS, limit: int = 5) -> dict:
     """
     Search a video by text description.
     Returns matching frames with timestamps and similarity scores.
     """
+    # Gemini native video analysis (primary), SigLIP fallback
+    from extractors import _get_gemini
+    if _get_gemini():
+        return _search_video_gemini(video_path, query, fps, limit)
+    if not _HAS_SIGLIP:
+        return {"error": "GEMINI_API_KEY not set and SigLIP unavailable", "results": []}
     video_path = os.path.abspath(video_path)
 
     if not os.path.isfile(video_path):
@@ -311,7 +410,7 @@ def extract_frame_image(video_path: str, seconds: float, output_path: str = None
     subprocess.run(
         ["ffmpeg", "-ss", str(seconds), "-i", video_path,
          "-frames:v", "1", "-q:v", "2", "-y", output_path],
-        capture_output=True, check=True
+        capture_output=True, check=True, timeout=60
     )
     return output_path
 
@@ -328,9 +427,7 @@ if __name__ == "__main__":
             print(f"Error: {result['error']}")
         else:
             print(f"Video: {result['video']}")
-            print(f"Frames: {result['total_frames']} ({result['fps_used']} fps)")
-            print(f"Cached: {result['cached']}")
-            print(f"Embed: {result['embed_time_s']}s, Search: {result['search_time_s']}s")
+            print(f"Search: {result.get('search_time_s', 0)}s")
             print(f"\nResults for '{query}':")
             for r in result["results"]:
                 print(f"  {r['timestamp']} ({r['seconds']}s) — {r['match_pct']}% match")

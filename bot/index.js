@@ -1,5 +1,5 @@
 /**
- * Pinpoint — WhatsApp Bot with Gemini AI (48 tools + skills system + file receive)
+ * Pinpoint — WhatsApp Bot with Gemini AI (60+ tools + skills system + file receive)
  *
  * Self-chat mode: message yourself to search documents.
  * Gemini understands natural language → calls tools → replies naturally.
@@ -42,13 +42,22 @@ const MAX_FILES_TO_SEND = 3;
 const MAX_IMAGE_SIZE = 16 * 1024 * 1024;
 const MAX_DOC_SIZE = 100 * 1024 * 1024;
 const TEXT_CHUNK_LIMIT = 4000;
-const GEMINI_MODEL = "gemini-3-flash-preview";
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3-flash-preview";
 // No tool-calling timeout — batch mode handles long operations in single calls (not token-burning loops)
 const IDLE_TIMEOUT_MS = 60 * 60 * 1000; // 60 minutes — auto-reset conversation
-const MAX_HISTORY_MESSAGES = 20; // last 20 messages passed to Gemini
+const MAX_HISTORY_MESSAGES = 50; // last 50 messages passed to Gemini (Claude Code sends ALL — we cap for token budget)
 const MAX_INLINE_IMAGES = 5; // Max images sent as visual data per turn
 
 const DEBOUNCE_MS = 1500; // Combine rapid messages within 1.5s
+
+// Log to file so we can check what happened (tee stdout → file)
+const logFile = pathModule.join(__dirname, "..", "pinpoint.log");
+const logStream = require("fs").createWriteStream(logFile, { flags: "a" });
+const origLog = console.log, origWarn = console.warn, origErr = console.error;
+function _ts() { return new Date().toISOString().slice(11, 19); }
+console.log = (...a) => { const s = a.map(String).join(" "); origLog(s); logStream.write(`${_ts()} ${s}\n`); };
+console.warn = (...a) => { const s = a.map(String).join(" "); origWarn(s); logStream.write(`${_ts()} WARN ${s}\n`); };
+console.error = (...a) => { const s = a.map(String).join(" "); origErr(s); logStream.write(`${_ts()} ERR ${s}\n`); };
 
 // Processing lock: prevent concurrent Gemini calls per chat (causes context loss)
 const activeRequests = new Map(); // chatJid → { msg, startTime, id }
@@ -68,17 +77,89 @@ const sessionCosts = {}; // chatJid → { input, output, rounds, started }
 const TOKEN_COST_INPUT = 0.15 / 1_000_000;   // Gemini Flash $/token (input)
 const TOKEN_COST_OUTPUT = 0.60 / 1_000_000;   // Gemini Flash $/token (output)
 
+// --- Action Ledger: structural truth enforcement (OpenClaw-inspired) ---
+// Tracks every mutating tool call + real outcome. Injected into every LLM call.
+// The LLM sees "## Actions Taken" with exact counts — cannot invent outcomes.
+const actionLedger = {}; // chatJid → [{ tool, summary, outcome, ts }]
+const MUTATING_TOOLS = new Set([
+  "batch_move", "move_file", "copy_file", "delete_file", "write_file",
+  "batch_rename", "create_folder", "generate_excel", "merge_pdf", "split_pdf",
+  "resize_image", "convert_image", "crop_image", "compress_files", "extract_archive",
+  "images_to_pdf", "pdf_to_images", "download_url",
+]);
+
+function recordAction(chatJid, toolName, args, result) {
+  if (!actionLedger[chatJid]) actionLedger[chatJid] = [];
+  const entry = { tool: toolName, ts: Date.now() };
+
+  // Build a truthful one-line summary from the ACTUAL result
+  if (result?.error) {
+    entry.outcome = "FAILED";
+    entry.summary = `${toolName} → ERROR: ${String(result.error).slice(0, 100)}`;
+  } else if (toolName === "batch_move") {
+    const moved = result?.moved_count ?? 0;
+    const skipped = result?.skipped_count ?? 0;
+    const errors = result?.error_count ?? 0;
+    const action = result?.action || "moved";
+    const dest = args?.destination || "?";
+    entry.outcome = moved > 0 ? "OK" : "NOTHING_DONE";
+    entry.summary = `batch_move → ${moved} ${action}, ${skipped} skipped, ${errors} errors → ${dest}`;
+  } else if (toolName === "move_file" || toolName === "copy_file") {
+    const action = result?.action || toolName.replace("_file", "d");
+    const src = args?.source ? pathModule.basename(args.source) : "?";
+    const dest = args?.destination || "?";
+    entry.outcome = result?.success ? "OK" : "FAILED";
+    entry.summary = `${toolName} → ${action} ${src} → ${dest}`;
+  } else if (toolName === "delete_file") {
+    entry.outcome = result?.success ? "OK" : "FAILED";
+    entry.summary = `delete_file → ${result?.success ? "deleted" : "FAILED"} ${args?.path ? pathModule.basename(args.path) : "?"}`;
+  } else if (toolName === "write_file") {
+    entry.outcome = result?.success ? "OK" : "FAILED";
+    entry.summary = `write_file → ${result?.success ? "created" : "FAILED"} ${result?.path ? pathModule.basename(result.path) : args?.path ? pathModule.basename(args.path) : "?"}`;
+  } else if (toolName === "create_folder") {
+    entry.outcome = "OK";
+    entry.summary = `create_folder → ${result?.already_existed ? "already existed" : "created"} ${result?.path || args?.path || "?"}`;
+  } else if (toolName === "batch_rename") {
+    const renamed = result?.renamed_count ?? result?.renamed ?? 0;
+    entry.outcome = renamed > 0 ? "OK" : "NOTHING_DONE";
+    entry.summary = `batch_rename → ${renamed} renamed, ${result?.error_count ?? 0} errors`;
+  } else if (toolName === "generate_excel") {
+    entry.outcome = result?.success ? "OK" : "FAILED";
+    entry.summary = `generate_excel → ${result?.path ? pathModule.basename(result.path) : "?"}`;
+  } else if (toolName === "compress_files") {
+    entry.outcome = result?.success ? "OK" : "FAILED";
+    entry.summary = `compress_files → ${result?.path ? pathModule.basename(result.path) : "?"} (${result?.file_count ?? "?"} files)`;
+  } else {
+    // Generic mutating tool
+    entry.outcome = result?.success !== false ? "OK" : "FAILED";
+    entry.summary = `${toolName} → ${result?.success !== false ? "done" : "FAILED"}`;
+    if (result?.path) entry.summary += ` → ${pathModule.basename(result.path)}`;
+  }
+
+  actionLedger[chatJid].push(entry);
+  // Cap at 50 entries per session (oldest dropped)
+  if (actionLedger[chatJid].length > 50) actionLedger[chatJid].shift();
+}
+
+function getActionLedgerText(chatJid) {
+  const entries = actionLedger[chatJid];
+  if (!entries || entries.length === 0) return "";
+  return "\n\n## Actions Taken This Session\nThese are the ACTUAL outcomes of every action you performed. Report ONLY these results.\n" +
+    entries.map(e => `- ${e.summary}`).join("\n");
+}
+
 function trackTokens(chatJid, response) {
   const usage = response.usageMetadata;
   if (!usage) return;
   if (!sessionCosts[chatJid]) {
-    sessionCosts[chatJid] = { input: 0, output: 0, rounds: 0, started: Date.now() };
+    sessionCosts[chatJid] = { input: 0, output: 0, thinking: 0, rounds: 0, started: Date.now() };
   }
   const s = sessionCosts[chatJid];
   s.input += usage.promptTokenCount || 0;
   s.output += usage.candidatesTokenCount || 0;
+  s.thinking += usage.thoughtsTokenCount || 0;
   s.rounds++;
-  return { input: usage.promptTokenCount || 0, output: usage.candidatesTokenCount || 0 };
+  return { input: usage.promptTokenCount || 0, output: usage.candidatesTokenCount || 0, thinking: usage.thoughtsTokenCount || 0 };
 }
 
 function formatTokens(n) {
@@ -92,7 +173,8 @@ function getCostSummary(chatJid) {
   if (!s || s.rounds === 0) return "No token usage in this session.";
   const cost = (s.input * TOKEN_COST_INPUT + s.output * TOKEN_COST_OUTPUT);
   const elapsed = Math.round((Date.now() - s.started) / 60000);
-  return `*Session tokens:* ${formatTokens(s.input + s.output)} (input: ${formatTokens(s.input)}, output: ${formatTokens(s.output)})\n*Rounds:* ${s.rounds}\n*Estimated cost:* $${cost.toFixed(4)}\n*Duration:* ${elapsed} min`;
+  const thinkStr = s.thinking ? `, thinking: ${formatTokens(s.thinking)}` : "";
+  return `*Session tokens:* ${formatTokens(s.input + s.output)} (input: ${formatTokens(s.input)}, output: ${formatTokens(s.output)}${thinkStr})\n*Rounds:* ${s.rounds}\n*Estimated cost:* $${cost.toFixed(4)}\n*Duration:* ${elapsed} min`;
 }
 
 function isAllowedUser(jid) {
@@ -157,6 +239,7 @@ console.log(`[Pinpoint] User home: ${USER_HOME}`);
 // --- LLM setup (Gemini default, Ollama optional) ---
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || ""; // e.g. "qwen3.5:9b" — set to use local LLM instead of Gemini
 const OLLAMA_URL = process.env.OLLAMA_URL || "http://localhost:11434";
+const OLLAMA_THINK = process.env.OLLAMA_THINK === "true"; // Enable thinking for Ollama (slower but smarter tool picks)
 const USE_OLLAMA = !!OLLAMA_MODEL;
 
 const ai = USE_OLLAMA ? null : new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
@@ -256,7 +339,7 @@ async function ollamaGenerate(contents, config, toolsDefs) {
     model: OLLAMA_MODEL,
     messages,
     stream: false,
-    think: false, // Disable thinking — too slow for tool calling
+    think: OLLAMA_THINK, // Optional thinking — smarter tool picks but slower (~30s vs ~0.8s)
   };
   if (toolsDefs) body.tools = geminiToolsToOllama(toolsDefs);
 
@@ -275,14 +358,25 @@ async function ollamaGenerate(contents, config, toolsDefs) {
     args: typeof tc.function.arguments === "string" ? JSON.parse(tc.function.arguments) : tc.function.arguments,
   }));
 
+  // Separate thinking content from visible response (Qwen3 uses <think>...</think> tags)
+  let visibleText = msg.content || "";
+  let thinkingTokens = 0;
+  if (OLLAMA_THINK && visibleText.includes("<think>")) {
+    const thinkMatch = visibleText.match(/<think>([\s\S]*?)<\/think>/);
+    if (thinkMatch) {
+      thinkingTokens = Math.ceil(thinkMatch[1].length / 4); // rough estimate
+      visibleText = visibleText.replace(/<think>[\s\S]*?<\/think>\s*/g, "").trim();
+    }
+  }
+
   return {
-    text: msg.content || "",
+    text: visibleText,
     functionCalls: functionCalls.length > 0 ? functionCalls : null,
     candidates: [{
       content: {
         role: "model",
         parts: [
-          ...(msg.content ? [{ text: msg.content }] : []),
+          ...(visibleText ? [{ text: visibleText }] : []),
           ...functionCalls.map(fc => ({ functionCall: { name: fc.name, args: fc.args } })),
         ],
       },
@@ -291,6 +385,7 @@ async function ollamaGenerate(contents, config, toolsDefs) {
     usageMetadata: {
       promptTokenCount: data.prompt_eval_count || 0,
       candidatesTokenCount: data.eval_count || 0,
+      thoughtsTokenCount: thinkingTokens,
     },
   };
 }
@@ -300,7 +395,15 @@ async function llmGenerate({ model, contents, config, tools: toolsDefs }) {
   if (USE_OLLAMA) {
     return ollamaGenerate(contents, config, toolsDefs);
   }
-  return ai.models.generateContent({ model, contents, config: { ...config, tools: toolsDefs } });
+  try {
+    return await ai.models.generateContent({ model, contents, config: { ...config, tools: toolsDefs } });
+  } catch (err) {
+    if (String(err.message).includes("500") || String(err.message).includes("Internal error")) {
+      console.warn(`[Gemini] 500 error, retrying once...`);
+      return ai.models.generateContent({ model, contents, config: { ...config, tools: toolsDefs } });
+    }
+    throw err;
+  }
 }
 
 // --- Load skills from skills/*.md at startup (hierarchical: general + task-specific) ---
@@ -316,7 +419,7 @@ const SKILL_CATEGORIES = {
   data: ["data-analysis.md"],
   files: ["file-tools.md", "smart-ops.md", "archive-tools.md"],
   write: ["write-create.md", "pdf-tools.md"],
-  media: ["video-search.md"],
+  media: ["video-search.md", "audio-search.md"],
   web: ["web-search.md", "download.md"],
   memory: ["memory.md"],
   code: ["python.md"],
@@ -324,12 +427,12 @@ const SKILL_CATEGORIES = {
 
 // Intent detection keywords → categories
 const INTENT_KEYWORDS = {
-  image: /photo|image|picture|jpg|png|face|person|selfie|caption|detect|object|bounding|visual|heic|camera|screenshot/i,
+  image: /photo|image|picture|jpg|png|face|person|selfie|detect|object|bounding|visual|heic|camera|screenshot|exif|metadata|gps|lens|aperture|iso|when.*taken|shot.*with/i,
   search: /find|search|where|which|document|file.*contain|look.*for|indexed/i,
   data: /excel|csv|spreadsheet|column|row|data|analyze|chart|graph|pandas|filter|sort/i,
   files: /move|copy|rename|delete|duplicate|folder|list|organize|clean.*up|batch|zip|unzip|compress|extract|archive/i,
   write: /write|create|pdf|merge|split|combine|generate/i,
-  media: /video|mp4|clip|frame|scene/i,
+  media: /video|mp4|clip|frame|scene|audio|mp3|wav|voice|transcri|podcast|recording|speech|listen/i,
   web: /download|url|web|search.*online|internet|website/i,
   memory: /remember|forget|memory|preference/i,
   code: /python|code|script|run|execute|program/i,
@@ -384,18 +487,28 @@ function getTaskSkills(message) {
 }
 
 const SYSTEM_PROMPT_BASE = `You are Pinpoint, a local file assistant with full power over the user's files.
-You search, read, analyze, organize, OCR, caption, and manage files on their computer.
-All files stay local — nothing leaves the machine.
+You search, read, analyze, organize, and manage files on their computer.
 
 ## How to Work
-- Before each tool call, briefly think about what you need and which tool will get it.
-- You may call tools across multiple rounds until you have the answer. When you have enough info, stop and answer.
-- After receiving tool results, analyze what you learned before deciding on the next step.
-- Don't call the same tool with identical arguments twice — you'll get the same result.
-- Don't ask for the same info multiple ways — once is enough.
-- Prefer batch tools (folder param, batch_move) over individual calls in a loop.
-- If user sends a file, image, or link with NO instruction — ask what they want. Don't auto-analyze.
-- If an image is already sent inline, you can SEE it — don't call read_file or other tools to look at it again.
+Do what has been asked; nothing more. Go straight to the point without going in circles.
+1. GATHER — call 1-2 tools to collect info. If results are sufficient, skip to step 3.
+2. ACT — if user wants something done (move, create, convert), do it in one call.
+3. ANSWER — respond concisely with what you have. Stop.
+
+When user asks you to DO something (organize, move, sort, create, convert) — do it. Don't stop to ask permission.
+Gather what you need, then act, then report. Complete the full task in one turn.
+
+Rules:
+- Never call the same tool with identical arguments twice.
+- Prefer batch tools (folder param, batch_move) over loops.
+- If user sends a file/image with NO instruction — ask what they want.
+- If an image is already inline, you can SEE it — don't re-read it.
+
+## Honesty
+- Report ONLY what tool results show. Quote exact numbers (moved_count, error_count, etc.).
+- If batch_move returned moved_count: 0, tell the user "0 files were moved" — never claim files were moved.
+- Check "Actions Taken This Session" before claiming you did something — it has the real outcomes.
+- Never claim you performed an action unless the tool result confirms it.
 
 ## Context Priority
 When multiple sources of info conflict, trust in this order:
@@ -423,7 +536,7 @@ Example: list_files returns @ref:1 (500 files) → batch_move({ sources: "@ref:1
 
 const USER_TZ = process.env.TZ || Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Kolkata";
 
-function getSystemPrompt(userMessage = "") {
+function getSystemPrompt(userMessage = "", chatJid = "") {
   const tz = USER_TZ;
   // Inject task-specific skills based on user message intent
   const taskSkills = userMessage ? getTaskSkills(userMessage) : "";
@@ -436,6 +549,11 @@ function getSystemPrompt(userMessage = "") {
     prompt += `\n\n## Saved memories\nNo memories saved yet.`;
   } else if (!memoryEnabled) {
     prompt += `\n\n## Memory\nMemory is currently OFF. If user asks to remember something, tell them to enable it with /memory on.`;
+  }
+  // Action ledger: inject real outcomes of every mutating action (OpenClaw pattern)
+  if (chatJid) {
+    const ledgerText = getActionLedgerText(chatJid);
+    if (ledgerText) prompt += ledgerText;
   }
   return prompt;
 }
@@ -451,7 +569,7 @@ const TOOL_GROUPS = {
   image: [
     "detect_faces", "crop_face", "find_person", "find_person_by_face",
     "count_faces", "compare_faces", "remember_face", "forget_face",
-    "search_images_visual", "ocr", "detect_objects",
+    "search_images_visual", "ocr", "image_metadata",
   ],
   data: ["analyze_data", "read_excel", "generate_chart", "extract_tables"],
   files: [
@@ -463,7 +581,7 @@ const TOOL_GROUPS = {
     "write_file", "generate_excel", "merge_pdf", "split_pdf",
     "pdf_to_images", "images_to_pdf", "resize_image", "convert_image", "crop_image",
   ],
-  media: ["search_video", "extract_frame"],
+  media: ["search_video", "extract_frame", "transcribe_audio", "search_audio"],
   web: ["web_search", "download_url"],
   memory: ["memory_save", "memory_search", "memory_delete", "memory_forget"],
   code: ["run_python"],
@@ -471,15 +589,34 @@ const TOOL_GROUPS = {
   automation: ["set_reminder", "list_reminders", "cancel_reminder", "watch_folder", "unwatch_folder", "list_watched"],
 };
 
+// Per-chat intent memory: carry forward intent for short follow-ups (Claude Code pattern)
+const lastIntentCats = {}; // chatJid → Set of categories from last substantive message
+
 // Build filtered tools array based on user message intent
-function getToolsForIntent(message) {
+function getToolsForIntent(message, chatJid) {
   const cats = detectIntentCategories(message);
+  // For short follow-ups, merge with previous intent so tools carry over
+  // Claude Code always sends all tools; we approximate by carrying forward intent
+  if (chatJid && message.split(/\s+/).length <= 6) {
+    const prev = lastIntentCats[chatJid];
+    if (prev) for (const c of prev) cats.add(c);
+  }
+  // Action words in follow-ups always need files tools (move, create, organize)
+  if (/go ahead|do it|finish|start|proceed|execute|make it|confirm/i.test(message)) {
+    cats.add("files");
+    cats.add("write");
+  }
   const allowedNames = new Set(CORE_TOOLS);
   for (const cat of cats) {
     for (const name of (TOOL_GROUPS[cat] || [])) allowedNames.add(name);
   }
   // automation tools always available (reminders, watch)
   for (const name of TOOL_GROUPS.automation) allowedNames.add(name);
+
+  // Store intent for follow-ups (only for substantive messages)
+  if (chatJid && message.split(/\s+/).length > 3) {
+    lastIntentCats[chatJid] = cats;
+  }
 
   const filtered = tools[0].functionDeclarations.filter(fd => allowedNames.has(fd.name));
   console.log(`[Pinpoint] Tools: ${filtered.length}/${tools[0].functionDeclarations.length} (intents: ${[...cats].join(",")})`);
@@ -931,7 +1068,7 @@ const tools = [{
     },
     {
       name: "ocr",
-      description: "Extract text from an image or scanned PDF using OCR (Tesseract). Use this when you need the text as a string for processing. For just SEEING an image, use read_file instead (sends image visually). Pass folder for batch processing. After OCR, use index_file to make the text searchable.",
+      description: "Extract text from an image or scanned PDF using OCR. Use this when you need the text as a string for processing. For just SEEING an image, use read_file instead (sends image visually). Pass folder for batch processing. After OCR, use index_file to make the text searchable.",
       parameters: {
         type: "OBJECT",
         properties: {
@@ -944,24 +1081,6 @@ const tools = [{
             description: "Absolute path to folder — OCR ALL images and PDFs in it.",
           },
         },
-      },
-    },
-    {
-      name: "detect_objects",
-      description: "Detect non-human objects in an image and get bounding boxes (x_min, y_min, x_max, y_max). Use for: cars, dogs, plates, signs, logos, etc. Do NOT use for people/faces — use detect_faces + crop_face instead (InsightFace).",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          path: {
-            type: "STRING",
-            description: "Absolute path to the image file.",
-          },
-          object: {
-            type: "STRING",
-            description: "Object to detect (e.g. 'car', 'dog', 'text', 'plate').",
-          },
-        },
-        required: ["path", "object"],
       },
     },
     {
@@ -1146,6 +1265,17 @@ const tools = [{
       },
     },
     {
+      name: "image_metadata",
+      description: "Extract EXIF metadata from photos: date taken, camera model, GPS coordinates, lens, aperture, ISO, dimensions. Use for: 'when was this taken?', 'what camera?', 'where was this shot?', 'show timeline'. Pass folder for batch metadata of all images.",
+      parameters: {
+        type: "OBJECT",
+        properties: {
+          path: { type: "STRING", description: "Absolute path to image." },
+          folder: { type: "STRING", description: "Absolute path to folder — get metadata for ALL images." },
+        },
+      },
+    },
+    {
       name: "compress_files",
       description: "Zip files or folders into a .zip archive. Can include multiple files and entire folders.",
       parameters: {
@@ -1274,18 +1404,6 @@ const tools = [{
         required: ["query"],
       },
     },
-    // web_search (Jina) commented out — replaced by web_read (Segment 18U)
-    // {
-    //   name: "web_search",
-    //   description: "Search the web for real-time information. Use when user asks about current events, weather, sports, news, or anything not in local files. Returns top 5 results with titles, URLs, and content.",
-    //   parameters: {
-    //     type: "OBJECT",
-    //     properties: {
-    //       query: { type: "STRING", description: "Search query." },
-    //     },
-    //     required: ["query"],
-    //   },
-    // },
     {
       name: "web_search",
       description: "Search the web for real-world information. Use for news, weather, sports, people, products, prices, current events, comparisons — anything NOT in local files. Returns search results with titles, snippets, and URLs. The results are reliable and current — answer directly from them. Do NOT fall back to search_documents or search_facts for web queries. If you need more detail on a specific result, call again with that result's full URL.",
@@ -1301,7 +1419,7 @@ const tools = [{
     },
     {
       name: "search_images_visual",
-      description: "Search images in a folder by text description using AI vision embeddings (SigLIP2). Returns ranked list of images matching the query. First call embeds the folder (takes time), subsequent queries on same folder are instant (cached). Pass queries as array for batch search (multiple queries in one call). Use for: finding specific photos in a large folder, visual search, filtering images by content.",
+      description: "Search images in a folder by text description using AI vision. Returns ranked list of images matching the query. Results are RELIABLE — trust them for categorization, grouping, and answering without manually inspecting individual images. Do NOT call read_file/resize_image/ocr on photos after getting visual search results. First call may take time, subsequent queries on same folder are faster (cached). Pass queries as array for batch search (multiple queries in one call).",
       parameters: {
         type: "OBJECT",
         properties: {
@@ -1319,7 +1437,7 @@ const tools = [{
     },
     {
       name: "search_video",
-      description: "Search inside a video by text description using SigLIP2. Returns timestamps of matching frames. First call extracts+embeds frames (slow), repeat queries are instant (cached). After finding timestamps, use extract_frame to get the image — it will be auto-sent to the user.",
+      description: "Search inside a video by text description. Gemini analyzes the full video natively (up to 3h). Returns timestamps of matching moments. After finding timestamps, use extract_frame to get the image — it will be auto-sent to the user.",
       parameters: {
         type: "OBJECT",
         properties: {
@@ -1341,6 +1459,30 @@ const tools = [{
           seconds: { type: "NUMBER", description: "Timestamp in seconds to extract frame from." },
         },
         required: ["video_path", "seconds"],
+      },
+    },
+    {
+      name: "transcribe_audio",
+      description: "Transcribe an audio file to text using AI. Returns full transcript with timestamps. Supports: mp3, wav, flac, aac, ogg, wma, m4a, aiff. Up to 9.5 hours of audio.",
+      parameters: {
+        type: "OBJECT",
+        properties: {
+          path: { type: "STRING", description: "Absolute path to audio file." },
+        },
+        required: ["path"],
+      },
+    },
+    {
+      name: "search_audio",
+      description: "Search within an audio file for specific content (speech, sounds, topics). Returns timestamps of matching moments with relevance scores. Use for finding specific parts in podcasts, recordings, voice memos.",
+      parameters: {
+        type: "OBJECT",
+        properties: {
+          audio_path: { type: "STRING", description: "Absolute path to audio file." },
+          query: { type: "STRING", description: "What to find in the audio. E.g. 'discussion about pricing', 'laughter', 'someone saying hello'." },
+          limit: { type: "INTEGER", description: "Max results. Default 5." },
+        },
+        required: ["audio_path", "query"],
       },
     },
     {
@@ -1520,7 +1662,6 @@ const tempStore = new Map();
 let refCounter = 0;
 const REF_EXPIRE_MS = 30 * 60 * 1000; // 30 min safety net
 const REF_THRESHOLD = 2000; // Only store if JSON > 2000 chars
-const HISTORY_CAP = 500; // Cap old tool results in conversation history
 
 // Tools whose results should be stored as refs when large
 const REF_TOOLS = new Set([
@@ -1546,7 +1687,8 @@ function storeRef(data) {
 function resolveRef(key) {
   const entry = tempStore.get(key);
   if (!entry) return null;
-  tempStore.delete(key); // Delete after consumption
+  // Don't delete — refs may be used multiple times (e.g. retry, follow-up messages)
+  // Expiry timer handles cleanup
   return entry.data;
 }
 
@@ -1570,6 +1712,26 @@ function makeRefPreview(toolName, result, refKey) {
     return { _ref: refKey, total, showing: preview.length, preview, note: `${total} items stored. Use ${refKey} in subsequent tool calls to reference all items.` };
   }
 
+  // Handle multi-query search_images_visual: { "query1": { results: [...] }, "query2": { results: [...] } }
+  // Show category summary + grouping file path so Gemini can read it and batch_move
+  if (toolName === "search_images_visual") {
+    const queryKeys = Object.keys(result).filter(k => !k.startsWith("_") && result[k]?.results);
+    if (queryKeys.length > 1) {
+      const summary = {};
+      let totalFiles = 0;
+      for (const q of queryKeys) {
+        const files = result[q].results || [];
+        summary[q] = { count: files.length, top3: files.slice(0, 3).map(r => r.filename || r.path) };
+        totalFiles += files.length;
+      }
+      const groupFile = result._grouping_file || null;
+      return { _ref: refKey, categories: summary, total_files: totalFiles, grouping_file: groupFile,
+        note: groupFile
+          ? `Grouped ${totalFiles} files into ${queryKeys.length} categories. Full mapping saved at ${groupFile}. Read that file to get all paths, then batch_move per category.`
+          : `Grouped ${totalFiles} files into ${queryKeys.length} categories.` };
+    }
+  }
+
   // Handle object with results/matches/files array
   for (const arrayKey of ["entries", "results", "matches", "files", "images", "groups", "pages", "faces"]) {
     if (result[arrayKey] && Array.isArray(result[arrayKey]) && result[arrayKey].length > 0) {
@@ -1585,36 +1747,64 @@ function makeRefPreview(toolName, result, refKey) {
   return { _ref: refKey, note: `Large result stored. Use ${refKey} to reference it.`, summary: JSON.stringify(result).slice(0, 300) + "..." };
 }
 
+// Resolve a single @ref:N value to its stored data, extracting paths for sources/paths keys
+function _resolveOneRef(refKey, argName) {
+  const data = resolveRef(refKey);
+  if (!data) {
+    console.warn(`[TempStore] ${refKey} not found (expired)`);
+    return null;
+  }
+  // If the stored data is already an array, use it directly
+  if (Array.isArray(data)) {
+    console.log(`[TempStore] Resolved ${refKey} → ${data.length} items (array)`);
+    return data;
+  }
+  // If it's an object with a results/matches/files array, extract paths
+  for (const arrayKey of ["entries", "results", "matches", "files", "images", "groups", "pages"]) {
+    if (data[arrayKey] && Array.isArray(data[arrayKey])) {
+      let items;
+      if (argName === "sources" || argName === "paths") {
+        items = data[arrayKey].map(item => item.path || item.file || item);
+      } else {
+        items = data[arrayKey];
+      }
+      console.log(`[TempStore] Resolved ${refKey} → ${items.length} items (from .${arrayKey})`);
+      return items;
+    }
+  }
+  // No array found, return whole object
+  console.log(`[TempStore] Resolved ${refKey} → object`);
+  return data;
+}
+
 // Resolve @ref:N in tool args before execution
 function resolveRefsInArgs(args) {
   if (!args) return args;
   const resolved = { ...args };
   for (const [key, value] of Object.entries(resolved)) {
+    // Case 1: direct string ref — sources: "@ref:1"
     if (typeof value === "string" && value.startsWith("@ref:")) {
-      const data = resolveRef(value);
-      if (data) {
-        // If the stored data is an array, use it directly
-        if (Array.isArray(data)) {
-          resolved[key] = data;
-        } else {
-          // If it's an object with a results/matches/files array, extract the array
-          for (const arrayKey of ["entries", "results", "matches", "files", "images", "groups", "pages"]) {
-            if (data[arrayKey] && Array.isArray(data[arrayKey])) {
-              // For batch_move sources, extract just the paths
-              if (key === "sources" || key === "paths") {
-                resolved[key] = data[arrayKey].map(item => item.path || item.file || item);
-              } else {
-                resolved[key] = data[arrayKey];
-              }
-              break;
-            }
+      const result = _resolveOneRef(value, key);
+      if (result) resolved[key] = result;
+    }
+    // Case 2: array containing refs — sources: ["@ref:1"] or sources: ["@ref:1", "@ref:2"]
+    // This is the common case: Gemini puts refs inside arrays for batch_move sources
+    else if (Array.isArray(value)) {
+      const expanded = [];
+      for (const item of value) {
+        if (typeof item === "string" && item.startsWith("@ref:")) {
+          const result = _resolveOneRef(item, key);
+          if (result) {
+            // Flatten: if resolved to array, spread it into the parent array
+            if (Array.isArray(result)) expanded.push(...result);
+            else expanded.push(result);
           }
-          // If no array found, use the whole object
-          if (typeof resolved[key] === "string") resolved[key] = data;
+        } else {
+          expanded.push(item);
         }
-        console.log(`[TempStore] Resolved ${value} → ${Array.isArray(resolved[key]) ? resolved[key].length + " items" : "object"}`);
-      } else {
-        console.warn(`[TempStore] ${value} not found (expired or already consumed)`);
+      }
+      if (expanded.length !== value.length || expanded.some((v, i) => v !== value[i])) {
+        resolved[key] = expanded;
       }
     }
   }
@@ -1696,8 +1886,11 @@ function debounceMessage(chatJid, text, sock) {
 
 // --- API helpers ---
 
+const API_SECRET = process.env.API_SECRET || "";
+const _apiHeaders = API_SECRET ? { "X-API-Secret": API_SECRET } : {};
+
 async function apiGet(path) {
-  const resp = await fetch(`${API_URL}${path}`);
+  const resp = await fetch(`${API_URL}${path}`, { headers: _apiHeaders });
   if (!resp.ok) throw new Error(`API ${resp.status}: ${await resp.text()}`);
   return resp.json();
 }
@@ -1705,7 +1898,7 @@ async function apiGet(path) {
 async function apiPost(path, body) {
   const resp = await fetch(`${API_URL}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ..._apiHeaders },
     body: JSON.stringify(body),
   });
   if (!resp.ok) throw new Error(`API ${resp.status}: ${await resp.text()}`);
@@ -1713,14 +1906,14 @@ async function apiPost(path, body) {
 }
 
 async function apiDelete(path) {
-  const resp = await fetch(`${API_URL}${path}`, { method: "DELETE" });
+  const resp = await fetch(`${API_URL}${path}`, { method: "DELETE", headers: _apiHeaders });
   if (!resp.ok) throw new Error(`API ${resp.status}: ${await resp.text()}`);
   return resp.json();
 }
 
 async function apiPut(path, body) {
   const resp = await fetch(`${API_URL}${path}`, {
-    method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    method: "PUT", headers: { "Content-Type": "application/json", ..._apiHeaders }, body: JSON.stringify(body),
   });
   if (!resp.ok) throw new Error(`API ${resp.status}: ${await resp.text()}`);
   return resp.json();
@@ -1736,10 +1929,10 @@ function preValidate(name, args) {
 
   // Tools that need a valid file path
   const fileTools = ["read_file", "read_excel", "move_file", "copy_file", "delete_file",
-    "ocr", "caption_image", "detect_faces", "crop_face", "find_person", "find_person_by_face",
+    "ocr", "detect_faces", "crop_face", "find_person", "find_person_by_face",
     "resize_image", "convert_image", "crop_image", "merge_pdf", "split_pdf",
-    "pdf_to_images", "index_file", "compare_faces", "remember_face",
-    "query_image", "detect_objects", "point_object"];
+    "pdf_to_images", "index_file", "compare_faces", "remember_face", "transcribe_audio",
+    ];
   const pathKey = name === "move_file" || name === "copy_file" ? "source"
     : name === "find_person" || name === "find_person_by_face" ? "reference_image"
     : name === "compare_faces" ? "image_path_1"
@@ -1770,6 +1963,13 @@ function preValidate(name, args) {
     } catch (_) {}
   }
 
+  // Audio search needs valid audio_path
+  if (name === "search_audio" && args.audio_path) {
+    try {
+      if (!existsSync(args.audio_path)) return `Audio file not found: ${args.audio_path}. Check the path and try again.`;
+    } catch (_) {}
+  }
+
   // Empty query check
   if (name === "search_documents" && (!args.query || !args.query.trim())) {
     return "Search query cannot be empty.";
@@ -1777,6 +1977,67 @@ function preValidate(name, args) {
 
   return null; // All good
 }
+
+// --- Declarative tool routing table ---
+// Each entry: { m: method, p: path/fn, b: body mapper (POST only) }
+// Replaces 320-line switch for simple API-pass-through tools.
+const enc = encodeURIComponent;
+const TOOL_ROUTES = {
+  // --- GET routes ---
+  search_documents: { m: "GET", p: (a) => { let u = `/search?q=${enc(a.query || "")}&limit=${MAX_RESULTS}`; if (a.file_type) u += `&file_type=${enc(a.file_type)}`; if (a.folder) u += `&folder=${enc(a.folder)}`; return u; } },
+  read_document:    { m: "GET", p: (a) => `/document/${a.document_id}` },
+  list_files:       { m: "GET", p: (a) => { let u = `/list_files?folder=${enc(a.folder)}`; if (a.sort_by) u += `&sort_by=${enc(a.sort_by)}`; if (a.filter_ext) u += `&filter_ext=${enc(a.filter_ext)}`; if (a.filter_type) u += `&filter_type=${enc(a.filter_type)}`; if (a.name_contains) u += `&name_contains=${enc(a.name_contains)}`; if (a.recursive) u += `&recursive=true`; return u; } },
+  file_info:        { m: "GET", p: (a) => `/file_info?path=${enc(a.path)}` },
+  get_status:       { m: "GET", p: () => "/status" },
+  search_history:   { m: "GET", p: (a) => `/conversation/search?q=${enc(a.query || "")}&limit=10` },
+  search_facts:     { m: "GET", p: (a) => `/search-facts?q=${enc(a.query)}&limit=10` },
+  list_watched:     { m: "GET", p: () => "/watched" },
+  // --- Simple POST routes (tool args → API body) ---
+  read_excel:       { m: "POST", p: "/read_excel", b: (a) => ({ path: a.path, sheet_name: a.sheet_name || null, cell_range: a.cell_range || null }) },
+  calculate:        { m: "POST", p: "/calculate", b: (a) => ({ expression: a.expression }) },
+  grep_files:       { m: "POST", p: "/grep", b: (a) => ({ pattern: a.pattern, folder: a.folder, file_filter: a.file_filter }) },
+  batch_move:       { m: "POST", p: "/batch_move", b: (a) => ({ sources: a.sources || [], destination: a.destination, is_copy: a.is_copy || false }) },
+  move_file:        { m: "POST", p: "/move_file", b: (a) => ({ source: a.source, destination: a.destination, is_copy: a.copy || false }) },
+  copy_file:        { m: "POST", p: "/move_file", b: (a) => ({ source: a.source, destination: a.destination, is_copy: true }) },
+  create_folder:    { m: "POST", p: "/create_folder", b: (a) => ({ path: a.path }) },
+  delete_file:      { m: "POST", p: "/delete_file", b: (a) => ({ path: a.path }) },
+  read_file:        { m: "POST", p: "/read_file", b: (a) => ({ path: a.path }) },
+  detect_faces:     { m: "POST", p: "/detect-faces", b: (a) => ({ image_path: a.image_path, folder: a.folder }) },
+  crop_face:        { m: "POST", p: "/crop-face", b: (a) => ({ image_path: a.image_path, face_idx: a.face_idx }) },
+  find_person:      { m: "POST", p: "/find-person", b: (a) => ({ reference_image: a.reference_image, folder: a.folder }) },
+  find_person_by_face: { m: "POST", p: "/find-person-by-face", b: (a) => ({ reference_image: a.reference_image, face_idx: a.face_idx, folder: a.folder }) },
+  count_faces:      { m: "POST", p: "/count-faces", b: (a) => ({ image_path: a.image_path, paths: a.paths, folder: a.folder }) },
+  compare_faces:    { m: "POST", p: "/compare-faces", b: (a) => ({ image_path_1: a.image_path_1, face_idx_1: a.face_idx_1 || 0, image_path_2: a.image_path_2, face_idx_2: a.face_idx_2 || 0 }) },
+  remember_face:    { m: "POST", p: "/remember-face", b: (a) => ({ image_path: a.image_path, face_idx: a.face_idx || 0, name: a.name }) },
+  forget_face:      { m: "POST", p: "/forget-face", b: (a) => ({ name: a.name }) },
+  ocr:              { m: "POST", p: "/ocr", b: (a) => ({ path: a.path, folder: a.folder }) },
+  analyze_data:     { m: "POST", p: "/analyze-data", b: (a) => ({ path: a.path, operation: a.operation || "describe", columns: a.columns || null, query: a.query || null, sheet: a.sheet || null }) },
+  index_file:       { m: "POST", p: "/index-file", b: (a) => ({ path: a.path }) },
+  write_file:       { m: "POST", p: "/write-file", b: (a) => ({ path: a.path, content: a.content, append: a.append || false }) },
+  generate_excel:   { m: "POST", p: "/generate-excel", b: (a) => ({ path: a.path, data: a.data, sheet_name: a.sheet_name || "Sheet1" }) },
+  generate_chart:   { m: "POST", p: "/generate-chart", b: (a) => ({ data: a.data, chart_type: a.chart_type, title: a.title || "", xlabel: a.xlabel || "", ylabel: a.ylabel || "", output_path: a.output_path || null }) },
+  merge_pdf:        { m: "POST", p: "/merge-pdf", b: (a) => ({ paths: a.paths, output_path: a.output_path }) },
+  split_pdf:        { m: "POST", p: "/split-pdf", b: (a) => ({ path: a.path, pages: a.pages, output_path: a.output_path }) },
+  pdf_to_images:    { m: "POST", p: "/pdf-to-images", b: (a) => ({ path: a.path, pages: a.pages || null, dpi: a.dpi || 150, output_folder: a.output_folder || null }) },
+  images_to_pdf:    { m: "POST", p: "/images-to-pdf", b: (a) => ({ paths: a.paths, output_path: a.output_path }) },
+  resize_image:     { m: "POST", p: "/resize-image", b: (a) => ({ path: a.path, width: a.width || null, height: a.height || null, quality: a.quality || 85, output_path: a.output_path || null }) },
+  convert_image:    { m: "POST", p: "/convert-image", b: (a) => ({ path: a.path, format: a.format, output_path: a.output_path || null }) },
+  crop_image:       { m: "POST", p: "/crop-image", b: (a) => ({ path: a.path, x: a.x, y: a.y, width: a.width, height: a.height, output_path: a.output_path || null }) },
+  image_metadata:   { m: "POST", p: "/image-metadata", b: (a) => ({ path: a.path || null, folder: a.folder || null }) },
+  compress_files:   { m: "POST", p: "/compress-files", b: (a) => ({ paths: a.paths, output_path: a.output_path }) },
+  extract_archive:  { m: "POST", p: "/extract-archive", b: (a) => ({ path: a.path, output_path: a.output_path || null }) },
+  download_url:     { m: "POST", p: "/download-url", b: (a) => ({ url: a.url, save_path: a.save_path || null }) },
+  find_duplicates:  { m: "POST", p: "/find-duplicates", b: (a) => ({ folder: a.folder }) },
+  batch_rename:     { m: "POST", p: "/batch-rename", b: (a) => ({ folder: a.folder, pattern: a.pattern, replace: a.replace, dry_run: a.dry_run !== false }) },
+  run_python:       { m: "POST", p: "/run-python", b: (a) => ({ code: a.code, timeout: a.timeout || 30 }) },
+  search_video:     { m: "POST", p: "/search-video", b: (a) => ({ video_path: a.video_path, query: a.query, fps: a.fps || 1.0, limit: a.limit || 5 }) },
+  extract_frame:    { m: "POST", p: "/extract-frame", b: (a) => ({ video_path: a.video_path, seconds: a.seconds }) },
+  transcribe_audio: { m: "POST", p: "/transcribe-audio", b: (a) => ({ path: a.path }) },
+  search_audio:     { m: "POST", p: "/search-audio", b: (a) => ({ audio_path: a.audio_path, query: a.query, limit: a.limit || 5 }) },
+  extract_tables:   { m: "POST", p: (a) => { const p = new URLSearchParams({ path: a.path }); if (a.pages) p.set("pages", a.pages); return `/extract-tables?${p}`; }, b: () => ({}) },
+  watch_folder:     { m: "POST", p: (a) => `/watch?folder=${enc(a.folder)}`, b: () => ({}) },
+  unwatch_folder:   { m: "POST", p: (a) => `/unwatch?folder=${enc(a.folder)}`, b: () => ({}) },
+};
 
 async function executeTool(functionCall, sock, chatJid) {
   const { name } = functionCall;
@@ -1791,62 +2052,16 @@ async function executeTool(functionCall, sock, chatJid) {
   }
 
   try {
+    // --- Routing table dispatch (covers ~45 tools) ---
+    const route = TOOL_ROUTES[name];
+    if (route) {
+      const path = typeof route.p === "function" ? route.p(args) : route.p;
+      if (route.m === "GET") return await apiGet(path);
+      return await apiPost(path, route.b ? route.b(args) : args);
+    }
+
+    // --- Custom handlers (tools with side effects or complex logic) ---
     switch (name) {
-      case "search_documents": {
-        let url = `/search?q=${encodeURIComponent(args.query || "")}&limit=${MAX_RESULTS}`;
-        if (args.file_type) url += `&file_type=${encodeURIComponent(args.file_type)}`;
-        if (args.folder) url += `&folder=${encodeURIComponent(args.folder)}`;
-        return await apiGet(url);
-      }
-      case "read_document":
-        return await apiGet(`/document/${args.document_id}`);
-      case "read_excel":
-        return await apiPost("/read_excel", {
-          path: args.path,
-          sheet_name: args.sheet_name || null,
-          cell_range: args.cell_range || null,
-        });
-      case "calculate":
-        return await apiPost("/calculate", { expression: args.expression });
-      case "list_files": {
-        let url = `/list_files?folder=${encodeURIComponent(args.folder)}`;
-        if (args.sort_by) url += `&sort_by=${encodeURIComponent(args.sort_by)}`;
-        if (args.filter_ext) url += `&filter_ext=${encodeURIComponent(args.filter_ext)}`;
-        if (args.filter_type) url += `&filter_type=${encodeURIComponent(args.filter_type)}`;
-        if (args.name_contains) url += `&name_contains=${encodeURIComponent(args.name_contains)}`;
-        if (args.recursive) url += `&recursive=true`;
-        return await apiGet(url);
-      }
-      case "grep_files":
-        return await apiPost("/grep", {
-          pattern: args.pattern,
-          folder: args.folder,
-          file_filter: args.file_filter,
-        });
-      case "file_info":
-        return await apiGet(`/file_info?path=${encodeURIComponent(args.path)}`);
-      case "batch_move":
-        return await apiPost("/batch_move", {
-          sources: args.sources || [],
-          destination: args.destination,
-          is_copy: args.is_copy || false,
-        });
-      case "move_file":
-        return await apiPost("/move_file", {
-          source: args.source,
-          destination: args.destination,
-          is_copy: args.copy || false,
-        });
-      case "copy_file":
-        return await apiPost("/move_file", {
-          source: args.source,
-          destination: args.destination,
-          is_copy: true,
-        });
-      case "create_folder":
-        return await apiPost("/create_folder", { path: args.path });
-      case "delete_file":
-        return await apiPost("/delete_file", { path: args.path });
       case "send_file": {
         const filePath = args.path;
         const caption = args.caption || `${PREFIX} ${pathModule.basename(filePath)}`;
@@ -1857,148 +2072,91 @@ async function executeTool(functionCall, sock, chatJid) {
         }
         return { error: "File not found or too large to send" };
       }
-      case "read_file":
-        return await apiPost("/read_file", { path: args.path });
-      case "get_status":
-        return await apiGet("/status");
-      case "search_history":
-        return await apiGet(`/conversation/search?q=${encodeURIComponent(args.query || "")}&limit=10`);
-      case "detect_faces":
-        return await apiPost("/detect-faces", { image_path: args.image_path, folder: args.folder });
-      case "crop_face":
-        return await apiPost("/crop-face", { image_path: args.image_path, face_idx: args.face_idx });
-      case "find_person":
-        return await apiPost("/find-person", { reference_image: args.reference_image, folder: args.folder });
-      case "find_person_by_face":
-        return await apiPost("/find-person-by-face", {
-          reference_image: args.reference_image,
-          face_idx: args.face_idx,
-          folder: args.folder,
-        });
-      case "count_faces":
-        return await apiPost("/count-faces", { image_path: args.image_path, paths: args.paths, folder: args.folder });
-      case "compare_faces":
-        return await apiPost("/compare-faces", {
-          image_path_1: args.image_path_1,
-          face_idx_1: args.face_idx_1 || 0,
-          image_path_2: args.image_path_2,
-          face_idx_2: args.face_idx_2 || 0,
-        });
-      case "remember_face":
-        return await apiPost("/remember-face", {
-          image_path: args.image_path,
-          face_idx: args.face_idx || 0,
-          name: args.name,
-        });
-      case "forget_face":
-        return await apiPost("/forget-face", { name: args.name });
-      case "ocr":
-        return await apiPost("/ocr", { path: args.path, folder: args.folder });
-      case "detect_objects":
-        return await apiPost("/detect-objects", { path: args.path, object: args.object });
-      case "analyze_data":
-        return await apiPost("/analyze-data", {
-          path: args.path,
-          operation: args.operation || "describe",
-          columns: args.columns || null,
-          query: args.query || null,
-          sheet: args.sheet || null,
-        });
-      case "index_file":
-        return await apiPost("/index-file", { path: args.path });
-      case "write_file":
-        return await apiPost("/write-file", { path: args.path, content: args.content, append: args.append || false });
-      case "generate_excel":
-        return await apiPost("/generate-excel", { path: args.path, data: args.data, sheet_name: args.sheet_name || "Sheet1" });
-      case "generate_chart":
-        return await apiPost("/generate-chart", {
-          data: args.data, chart_type: args.chart_type, title: args.title || "",
-          xlabel: args.xlabel || "", ylabel: args.ylabel || "", output_path: args.output_path || null,
-        });
-      case "merge_pdf":
-        return await apiPost("/merge-pdf", { paths: args.paths, output_path: args.output_path });
-      case "split_pdf":
-        return await apiPost("/split-pdf", { path: args.path, pages: args.pages, output_path: args.output_path });
-      case "pdf_to_images":
-        return await apiPost("/pdf-to-images", { path: args.path, pages: args.pages || null, dpi: args.dpi || 150, output_folder: args.output_folder || null });
-      case "images_to_pdf":
-        return await apiPost("/images-to-pdf", { paths: args.paths, output_path: args.output_path });
-      case "resize_image":
-        return await apiPost("/resize-image", {
-          path: args.path, width: args.width || null, height: args.height || null,
-          quality: args.quality || 85, output_path: args.output_path || null,
-        });
-      case "convert_image":
-        return await apiPost("/convert-image", { path: args.path, format: args.format, output_path: args.output_path || null });
-      case "crop_image":
-        return await apiPost("/crop-image", { path: args.path, x: args.x, y: args.y, width: args.width, height: args.height, output_path: args.output_path || null });
-      case "compress_files":
-        return await apiPost("/compress-files", { paths: args.paths, output_path: args.output_path });
-      case "extract_archive":
-        return await apiPost("/extract-archive", { path: args.path, output_path: args.output_path || null });
-      case "download_url":
-        return await apiPost("/download-url", { url: args.url, save_path: args.save_path || null });
-      case "find_duplicates":
-        return await apiPost("/find-duplicates", { folder: args.folder });
-      case "batch_rename":
-        return await apiPost("/batch-rename", { folder: args.folder, pattern: args.pattern, replace: args.replace, dry_run: args.dry_run !== false });
-      case "run_python":
-        return await apiPost("/run-python", { code: args.code, timeout: args.timeout || 30 });
       case "search_images_visual": {
+        if (!args.folder) return { error: "folder is required. Pass the absolute path to the image folder." };
         const queries = args.queries || (args.query ? [args.query] : []);
         if (queries.length <= 1) {
           return await apiPost("/search-images-visual", { folder: args.folder, query: queries[0] || "", limit: args.limit || 10 });
         }
-        // Batch: first call caches embeddings, then run remaining in parallel
-        const firstResult = await apiPost("/search-images-visual", { folder: args.folder, query: queries[0], limit: args.limit || 10 });
+        // Multi-query = grouping mode: classify ALL images, no limit
+        const groupLimit = 9999;
+        const firstResult = await apiPost("/search-images-visual", { folder: args.folder, query: queries[0], limit: groupLimit });
+        if (firstResult.status === "embedding") return firstResult;
         const restPromises = queries.slice(1).map(q =>
-          apiPost("/search-images-visual", { folder: args.folder, query: q, limit: args.limit || 10 })
+          apiPost("/search-images-visual", { folder: args.folder, query: q, limit: groupLimit })
         );
         const restResults = await Promise.all(restPromises);
-        const results = { [queries[0]]: firstResult };
-        queries.slice(1).forEach((q, i) => { results[q] = restResults[i]; });
-        return results;
+        const allResults = { [queries[0]]: firstResult };
+        queries.slice(1).forEach((q, i) => { allResults[q] = restResults[i]; });
+
+        // Deduplicate: each image → best matching category only
+        const bestCategory = {};
+        for (const [q, r] of Object.entries(allResults)) {
+          if (!r?.results) continue;
+          for (const item of r.results) {
+            const p = item.path || item.filename;
+            const score = item.match_pct || 0;
+            if (!bestCategory[p] || score > bestCategory[p].score) {
+              bestCategory[p] = { query: q, score };
+            }
+          }
+        }
+        const catMap = {};
+        for (const [p, { query }] of Object.entries(bestCategory)) {
+          if (!catMap[query]) catMap[query] = [];
+          catMap[query].push(p);
+        }
+        const totalMapped = Object.values(catMap).reduce((sum, arr) => sum + arr.length, 0);
+
+        if (totalMapped > 0) {
+          const tmpDir = pathModule.join(os.tmpdir(), "pinpoint");
+          if (!existsSync(tmpDir)) mkdirSync(tmpDir, { recursive: true });
+          const mapFile = pathModule.join(tmpDir, `visual_group_${Date.now()}.json`);
+          writeFileSync(mapFile, JSON.stringify(catMap, null, 2));
+
+          const summary = {};
+          for (const [q, files] of Object.entries(catMap)) {
+            const refKey = storeRef(files);
+            summary[q] = { count: files.length, sources_ref: refKey, top3: files.slice(0, 3).map(f => pathModule.basename(f)) };
+          }
+          const catList = Object.entries(summary).map(([q, s]) => `${q}: ${s.count} files (${s.sources_ref})`).join(", ");
+          console.log(`[Visual] Classified ${totalMapped} images into ${Object.keys(catMap).length} categories → ${mapFile}`);
+          return {
+            total_classified: totalMapped,
+            categories: summary,
+            _grouping_file: mapFile,
+            _hint: `Classified ALL ${totalMapped} images into ${Object.keys(catMap).length} categories: ${catList}. To move: call batch_move({ sources: "<sources_ref>", destination: "<folder>" }) for each category. The sources_ref values are ready to use.`,
+          };
+        }
+        return allResults;
       }
-      case "search_video":
-        return await apiPost("/search-video", { video_path: args.video_path, query: args.query, fps: args.fps || 1.0, limit: args.limit || 5 });
-      case "extract_frame":
-        return await apiPost("/extract-frame", { video_path: args.video_path, seconds: args.seconds });
       case "web_search": {
-        // If url provided, read that URL directly; otherwise search Brave
-        const q = encodeURIComponent(args.query);
+        const q = enc(args.query);
         const webUrl = args.url || `https://search.brave.com/search?q=${q}`;
-        const result = await apiGet(`/web-read?url=${encodeURIComponent(webUrl)}${args.start ? `&start=${args.start}` : ""}`);
-        return result;
+        return await apiGet(`/web-read?url=${enc(webUrl)}${args.start ? `&start=${args.start}` : ""}`);
       }
       case "memory_save": {
         if (!memoryEnabled) return { error: "Memory is disabled. User can enable it with /memory on." };
         const res = await apiPost("/memory", { fact: args.fact, category: args.category || "general" });
-        // Refresh memory context after saving
         try { const ctx = await apiGet("/memory/context"); memoryContext = ctx.text || ""; } catch (_) {}
         return res;
       }
       case "memory_search": {
         if (!memoryEnabled) return { error: "Memory is disabled. User can enable it with /memory on." };
-        return await apiGet(`/memory/search?q=${encodeURIComponent(args.query)}&limit=10`);
+        return await apiGet(`/memory/search?q=${enc(args.query)}&limit=10`);
       }
       case "memory_delete": {
         if (!memoryEnabled) return { error: "Memory is disabled. User can enable it with /memory on." };
         const res = await apiDelete(`/memory/${args.id}`);
-        // Refresh memory context after deleting
         try { const ctx = await apiGet("/memory/context"); memoryContext = ctx.text || ""; } catch (_) {}
         return res;
       }
       case "memory_forget": {
         if (!memoryEnabled) return { error: "Memory is disabled. User can enable it with /memory on." };
         const res = await apiPost("/memory/forget", { description: args.description });
-        // Refresh memory context after forgetting
-        if (res.success) {
-          try { const ctx = await apiGet("/memory/context"); memoryContext = ctx.text || ""; } catch (_) {}
-        }
+        if (res.success) { try { const ctx = await apiGet("/memory/context"); memoryContext = ctx.text || ""; } catch (_) {} }
         return res;
       }
-      case "search_facts":
-        return await apiGet(`/search-facts?q=${encodeURIComponent(args.query)}&limit=10`);
       case "set_reminder": {
         const triggerAt = parseReminderTime(args.time);
         if (!triggerAt) return { error: `Could not parse time: "${args.time}". Use format like "5pm", "in 2 hours", or "2026-02-27T17:00:00".` };
@@ -2008,14 +2166,9 @@ async function executeTool(functionCall, sock, chatJid) {
           return { error: `Invalid repeat: "${repeat}". Use: daily, weekly, monthly, or weekdays.` };
         }
         const tz = USER_TZ;
-        // Persist to DB
-        const saved = await apiPost("/reminders", {
-          chat_jid: chatJid, message: args.message,
-          trigger_at: triggerAt.toISOString(), repeat,
-        });
-        const id = saved.id;
-        reminders.push({ id, chatJid, message: args.message, triggerAt: triggerAt.getTime(), repeat, createdAt: Date.now() });
-        const result = { success: true, id, message: args.message, trigger_at: triggerAt.toLocaleString("en-IN", { timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: true, day: "numeric", month: "short" }) };
+        const saved = await apiPost("/reminders", { chat_jid: chatJid, message: args.message, trigger_at: triggerAt.toISOString(), repeat });
+        reminders.push({ id: saved.id, chatJid, message: args.message, triggerAt: triggerAt.getTime(), repeat, createdAt: Date.now() });
+        const result = { success: true, id: saved.id, message: args.message, trigger_at: triggerAt.toLocaleString("en-IN", { timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: true, day: "numeric", month: "short" }) };
         if (repeat) result.repeat = repeat;
         return result;
       }
@@ -2026,8 +2179,7 @@ async function executeTool(functionCall, sock, chatJid) {
         return {
           count: pending.length,
           reminders: pending.map(r => ({
-            id: r.id, message: r.message,
-            repeat: r.repeat || null,
+            id: r.id, message: r.message, repeat: r.repeat || null,
             trigger_at: new Date(r.triggerAt).toLocaleString("en-IN", { timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: true, day: "numeric", month: "short" }),
           })),
         };
@@ -2036,23 +2188,8 @@ async function executeTool(functionCall, sock, chatJid) {
         const idx = reminders.findIndex(r => r.id === args.id);
         if (idx === -1) return { error: `Reminder #${args.id} not found.` };
         const removed = reminders.splice(idx, 1)[0];
-        // Delete from DB
         try { await apiDelete(`/reminders/${removed.id}`); } catch (_) {}
         return { success: true, cancelled: removed.message };
-      }
-      case "extract_tables": {
-        const params = new URLSearchParams({ path: args.path });
-        if (args.pages) params.set("pages", args.pages);
-        return await apiPost(`/extract-tables?${params.toString()}`, {});
-      }
-      case "watch_folder": {
-        return await apiPost(`/watch?folder=${encodeURIComponent(args.folder)}`, {});
-      }
-      case "unwatch_folder": {
-        return await apiPost(`/unwatch?folder=${encodeURIComponent(args.folder)}`, {});
-      }
-      case "list_watched": {
-        return await apiGet("/watched");
       }
       default:
         return { error: `Unknown tool: ${name}` };
@@ -2112,9 +2249,9 @@ function isSessionIdle(updatedAt) {
 }
 
 // --- Context compaction: summarize old messages instead of dropping them ---
-const COMPACT_THRESHOLD = 30; // Compact when total messages exceed this
-const COMPACT_KEEP = 10; // Keep this many recent messages after compacting
-const CONTENTS_COMPACT_THRESHOLD = 20; // Compact in-memory contents when entries exceed this (≈10 tool rounds)
+const COMPACT_THRESHOLD = 40; // Compact when total DB messages exceed this
+const COMPACT_KEEP = 15; // Keep this many recent messages after compacting
+const CONTENTS_COMPACT_THRESHOLD = 24; // Compact in-memory contents when entries exceed this (≈12 tool rounds, matches MAX_ROUNDS)
 
 async function compactHistory(sessionId) {
   try {
@@ -2127,14 +2264,15 @@ async function compactHistory(sessionId) {
     const toSummarize = msgs.slice(0, msgs.length - COMPACT_KEEP);
     const toKeep = msgs.slice(msgs.length - COMPACT_KEEP);
 
-    // Build a structured summary via Gemini (inspired by Gemini CLI)
-    let summaryInput = `Summarize this conversation into a structured snapshot. Be concise.
+    // Build a structured summary via Gemini (adapted from Claude Code compaction prompt)
+    let summaryInput = `Summarize this conversation into a structured snapshot that preserves all context needed to continue the task.
 
 Format:
-GOAL: What the user is trying to do (1 line)
-KNOWLEDGE: Key facts discovered (bullet points)
-FILES: Files created, modified, or moved (bullet points, skip if none)
-STATE: What's done and what's remaining (1-2 lines)
+USER REQUEST: What the user explicitly asked for (1-2 lines, include exact quotes if important)
+KEY FACTS: File paths, search results, data discovered (bullet points)
+ACTIONS TAKEN: What tools were called and what they did (bullet points)
+CURRENT TASK: What is being worked on RIGHT NOW (1 line — critical for follow-up messages like "okay go ahead")
+PENDING: What still needs to be done (bullet points)
 
 Conversation:
 `;
@@ -2172,7 +2310,8 @@ async function compactContents(contents, chatJid) {
   const toSummarize = contents.slice(0, contents.length - keepCount);
   const toKeep = contents.slice(contents.length - keepCount);
 
-  // Build a text summary of old turns (strip tool results to save tokens on the summary call)
+  // Build a text summary of old turns — strip tool results to bare minimum (saves tokens on summary call)
+  // Claude Code pattern: clear old tool results BEFORE summarization
   let summaryParts = [];
   for (const entry of toSummarize) {
     if (!entry?.parts) continue;
@@ -2182,21 +2321,35 @@ async function compactContents(contents, chatJid) {
       } else if (part.functionCall) {
         summaryParts.push(`tool: ${part.functionCall.name}(${JSON.stringify(part.functionCall.args || {}).slice(0, 100)})`);
       } else if (part.functionResponse) {
-        const res = JSON.stringify(part.functionResponse.response?.result || "").slice(0, 200);
-        summaryParts.push(`result: ${part.functionResponse.name} → ${res}`);
+        const r = part.functionResponse.response?.result;
+        const toolName = part.functionResponse.name;
+        let status;
+        if (r?.error) {
+          status = `error: ${String(r.error).slice(0, 60)}`;
+        } else if (MUTATING_TOOLS.has(toolName)) {
+          // Preserve action outcomes through compaction (OpenClaw: tool failures survive compaction)
+          status = summarizeToolResult(toolName, null, r) || "ok";
+        } else {
+          status = "ok";
+        }
+        summaryParts.push(`result: ${toolName} → ${status}`);
       }
     }
   }
 
-  const summaryInput = `Summarize this conversation into a structured snapshot. Be concise (under 500 chars).
+  // Inject action ledger into compaction input (OpenClaw: action outcomes survive compaction)
+  const ledgerForCompaction = chatJid ? getActionLedgerText(chatJid) : "";
+  const summaryInput = `Summarize this tool-calling session. Preserve all context needed to continue the current task.
 
 Format:
-GOAL: What the user is trying to do (1 line)
-KNOWLEDGE: Key facts, file paths, results discovered (bullet points)
-STATE: What's done and what's pending (1-2 lines)
+USER REQUEST: What the user asked for (1 line, quote key phrases)
+RESULTS: Key findings from tools — file paths, counts, search results (bullet points)
+ACTIONS TAKEN: What mutating actions were performed and their EXACT outcomes (moved_count, errors, etc.)
+CURRENT TASK: What is being worked on RIGHT NOW (1 line — critical)
+REMAINING: What still needs to be done to answer the user (1 line)
 
 Conversation:
-${summaryParts.join("\n")}`;
+${summaryParts.join("\n")}${ledgerForCompaction}`;
 
   try {
     const response = await llmGenerate({
@@ -2208,8 +2361,8 @@ ${summaryParts.join("\n")}`;
 
     // Replace contents array in-place: summary + kept entries
     contents.length = 0;
-    contents.push({ role: "user", parts: [{ text: `[Previous conversation context]\n${summary}` }] });
-    contents.push({ role: "model", parts: [{ text: "Understood. I have the context. Continuing." }] });
+    contents.push({ role: "user", parts: [{ text: `[Previous conversation context]\n${summary}\n\nContinue from where you left off. Do not ask the user to repeat — use the context above.` }] });
+    contents.push({ role: "model", parts: [{ text: "I have the full context. Continuing with the current task." }] });
     for (const entry of toKeep) contents.push(entry);
 
     console.log(`[Memory] Token compaction: ${toSummarize.length} entries → summary + ${toKeep.length} recent`);
@@ -2219,6 +2372,87 @@ ${summaryParts.join("\n")}`;
   } catch (err) {
     console.error("[Memory] Token compaction failed:", err.message);
     return false;
+  }
+}
+
+// --- Tool result summaries (Claude Code pattern: model trusts short summaries) ---
+function summarizeToolResult(name, args, result) {
+  if (!result) return null;
+  if (result.error) return `${name}: ERROR — ${String(result.error).slice(0, 80)}`;
+  switch (name) {
+    case "search_documents": {
+      const n = result.results?.length || result.total_items || 0;
+      return `search_documents: ${n} result(s) found`;
+    }
+    case "search_facts": {
+      const n = result.count || result.results?.length || 0;
+      return `search_facts: ${n} fact(s) found`;
+    }
+    case "search_images_visual": {
+      if (result._ref) return `search_images_visual: ${result.total_items || "multiple"} results (stored as ${result._ref})`;
+      const keys = Object.keys(result).filter(k => !k.startsWith("_"));
+      return `search_images_visual: results for ${keys.length} queries`;
+    }
+    case "list_files": {
+      const n = result.total || result.total_items || result.showing || 0;
+      return `list_files: ${n} item(s) in ${args?.folder || "folder"}`;
+    }
+    case "detect_faces": {
+      const n = result.images_processed || result.face_count || 0;
+      return result.images_processed ? `detect_faces: ${n} images processed` : `detect_faces: ${n} face(s) found`;
+    }
+    case "count_faces":
+      return `count_faces: ${result.images_processed ? result.images_processed + " images counted" : result.count + " face(s)"}`;
+    case "analyze_data": {
+      const op = args?.operation || "?";
+      return `analyze_data(${op}): ${result.shape ? result.shape[0] + " rows x " + result.shape[1] + " cols" : "done"}`;
+    }
+    case "find_person":
+    case "find_person_by_face": {
+      const n = result.count || result.matches?.length || 0;
+      return `${name}: ${n} matching photo(s)`;
+    }
+    case "read_file":
+      return `read_file: ${result.type || "text"} file loaded`;
+    case "find_duplicates": {
+      const n = result.groups?.length || result.total_items || 0;
+      return `find_duplicates: ${n} duplicate group(s)`;
+    }
+    case "batch_move": {
+      const moved = result.moved_count ?? 0;
+      const skipped = result.skipped_count ?? 0;
+      const errors = result.error_count ?? 0;
+      const action = result.action || "moved";
+      if (moved === 0) return `batch_move: WARNING — 0 files ${action}. ${skipped} skipped, ${errors} errors`;
+      return `batch_move: ${moved} ${action}, ${skipped} skipped, ${errors} errors → ${args?.destination || "dest"}`;
+    }
+    case "move_file":
+    case "copy_file": {
+      const action = result.action || (name === "copy_file" ? "copied" : "moved");
+      return `${name}: ${result.success ? action : "FAILED"} ${args?.source ? pathModule.basename(args.source) : "file"}`;
+    }
+    case "delete_file":
+      return `delete_file: ${result.success ? "deleted" : "FAILED"} ${args?.path ? pathModule.basename(args.path) : "file"}`;
+    case "write_file":
+      return `write_file: ${result.success ? "created" : "FAILED"} ${result.path ? pathModule.basename(result.path) : "file"}`;
+    case "create_folder":
+      return `create_folder: ${result.already_existed ? "already existed" : "created"} ${result.path || "folder"}`;
+    case "batch_rename": {
+      const n = result.renamed_count ?? result.renamed ?? 0;
+      return `batch_rename: ${n} renamed, ${result.error_count ?? 0} errors`;
+    }
+    case "search_video": {
+      const n = result.results?.length || 0;
+      return `search_video: ${n} matching moment(s) found`;
+    }
+    case "transcribe_audio":
+      return `transcribe_audio: ${result.text ? result.text.length + " chars transcribed" : "done"}`;
+    case "search_audio": {
+      const n = result.results?.length || 0;
+      return `search_audio: ${n} matching moment(s) found`;
+    }
+    default:
+      return `${name}: done`;
   }
 }
 
@@ -2241,6 +2475,8 @@ async function runGemini(userMessage, sock, chatJid, opts = {}) {
   if (history.updated_at && isSessionIdle(history.updated_at)) {
     const deleted = await resetSession(chatJid);
     delete sessionCosts[chatJid];
+    delete lastIntentCats[chatJid];
+    delete actionLedger[chatJid];
     if (deleted > 0) console.log(`[Memory] Auto-reset session (idle ${IDLE_TIMEOUT_MS / 60000} min), cleared ${deleted} messages`);
     history.messages = [];
   }
@@ -2266,10 +2502,14 @@ async function runGemini(userMessage, sock, chatJid, opts = {}) {
   contents.push({ role: "user", parts: userParts });
 
   const config = {
-    systemInstruction: getSystemPrompt(userMessage),
+    systemInstruction: getSystemPrompt(userMessage, chatJid),
+    thinkingConfig: { thinkingLevel: "low" },
   };
   let activeTools = null;
-  if (!opts.noTools) activeTools = getToolsForIntent(userMessage);
+  if (!opts.noTools) {
+    // getToolsForIntent handles follow-up intent carry-forward via lastIntentCats
+    activeTools = getToolsForIntent(userMessage, chatJid);
+  }
 
   const toolCache = new Map(); // Dedup: cache tool results within this turn
   const toolLog = []; // Track tool calls for conversation context
@@ -2277,14 +2517,15 @@ async function runGemini(userMessage, sock, chatJid, opts = {}) {
   let notifiedUser = false; // Track if we sent "working on it" message
   const toolStartTime = Date.now(); // For elapsed time logging
 
+  // Snapshot token counts at start of this message (for per-message budget)
+  const sc0 = sessionCosts[chatJid];
+  const msgStartTokens = { input: sc0?.input || 0, output: sc0?.output || 0 };
+
   // Loop detection: track consecutive identical tool calls (from Gemini CLI + OpenCode)
   const LOOP_THRESHOLD = 3; // Same exact call N times → stop (OpenCode uses 3)
-  const MAX_ROUNDS = 25; // Max rounds per prompt
+  const MAX_ROUNDS = 12; // Max rounds per prompt (Claude Code uses 1-20 depending on task)
   let lastCallHash = null;
   let lastCallCount = 0;
-  // Semantic loop: disabled — caused false positives on multi-step workflows (analyze_data columns→shape→sort)
-  // const toolResourceCounts = {}; // "tool:resource" → count
-  // const SEMANTIC_LOOP_THRESHOLD = 4; // Same tool+resource 4 times total → stop
   let didTokenCompact = false; // Only compact once per runGemini call
 
   for (let round = 0; round < MAX_ROUNDS; round++) {
@@ -2294,25 +2535,45 @@ async function runGemini(userMessage, sock, chatJid, opts = {}) {
       return { text: "Request stopped.", toolLog };
     }
 
-    // Layer 2: Cap old tool results — 20/80 split (from Gemini CLI)
-    // Keep first 20% + last 80% of cap. End has errors/results/counts.
+    // Cost-based circuit breaker: per-message budget (not cumulative session)
+    const MESSAGE_BUDGET_USD = 0.10;
+    const sc = sessionCosts[chatJid];
+    if (sc && round > 0) {
+      const msgCost = ((sc.input - msgStartTokens.input) * TOKEN_COST_INPUT +
+                       (sc.output - msgStartTokens.output) * TOKEN_COST_OUTPUT);
+      if (msgCost >= MESSAGE_BUDGET_USD) {
+        console.warn(`[${LLM_TAG}] Budget exceeded ($${msgCost.toFixed(4)} >= $${MESSAGE_BUDGET_USD}) after ${round} rounds`);
+        return { text: `I've used my token budget for this request. Here's what I found so far — let me know if you need more.`, toolLog };
+      }
+    }
+
+    // Microcompact: clear old tool results, keep last N (Claude Code pattern)
+    // Never clear: expensive search results + mutating action results (accountability — OpenClaw pattern)
     if (round > 0) {
-      const currentBoundary = contents.length - 2;
-      for (let i = 0; i < currentBoundary; i++) {
+      const KEEP_LAST = 5;
+      const PRESERVE_TOOLS = new Set(["search_images_visual", "search_documents", "detect_faces"]);
+      let toolResultCount = 0;
+      for (let i = contents.length - 1; i >= 0; i--) {
         const entry = contents[i];
         if (!entry?.parts) continue;
         for (const part of entry.parts) {
-          if (part.functionResponse?.response?.result) {
-            const resultStr = JSON.stringify(part.functionResponse.response.result);
-            if (resultStr.length > HISTORY_CAP) {
-              const headLen = Math.round(HISTORY_CAP * 0.2); // first 20%
-              const tailLen = HISTORY_CAP - headLen; // last 80%
-              part.functionResponse.response.result = {
-                _truncated: true,
-                head: resultStr.slice(0, headLen),
-                tail: resultStr.slice(-tailLen),
-                _note: `[truncated, was ${resultStr.length} chars]`,
-              };
+          if (part.functionResponse?.response?.result) toolResultCount++;
+        }
+      }
+      if (toolResultCount > KEEP_LAST) {
+        let clearCount = toolResultCount - KEEP_LAST;
+        for (let i = 0; i < contents.length && clearCount > 0; i++) {
+          const entry = contents[i];
+          if (!entry?.parts) continue;
+          for (const part of entry.parts) {
+            if (part.functionResponse?.response?.result && clearCount > 0) {
+              const toolName = part.functionResponse?.name;
+              // Never clear expensive search/visual results
+              if (PRESERVE_TOOLS.has(toolName)) continue;
+              // Never clear mutating tool results — accountability (OpenClaw: action outcomes persist)
+              if (MUTATING_TOOLS.has(toolName)) continue;
+              part.functionResponse.response.result = "[Result cleared]";
+              clearCount--;
             }
           }
         }
@@ -2352,7 +2613,8 @@ async function runGemini(userMessage, sock, chatJid, opts = {}) {
 
       // Execute each tool call
       const elapsed = Math.round((Date.now() - toolStartTime) / 1000);
-      const tokenInfo = roundTokens ? `, ${formatTokens(roundTokens.input)} in / ${formatTokens(roundTokens.output)} out` : "";
+      const thinkInfo = roundTokens?.thinking ? `, ${formatTokens(roundTokens.thinking)} think` : "";
+      const tokenInfo = roundTokens ? `, ${formatTokens(roundTokens.input)} in / ${formatTokens(roundTokens.output)} out${thinkInfo}` : "";
       console.log(`[${LLM_TAG}] Round ${round + 1}, ${response.functionCalls.length} tool(s), ${elapsed}s elapsed${tokenInfo}`);
       const functionResponses = [];
       const imageParts = []; // For read_file images — Gemini sees them visually
@@ -2376,27 +2638,48 @@ async function runGemini(userMessage, sock, chatJid, opts = {}) {
           lastCallCount = 1;
         }
 
-        // Semantic loop: disabled — exact-match detector (threshold 3) + tool descriptions are sufficient
-        // const resource = fc.args?.folder || fc.args?.path || fc.args?.image_path || "";
-        // if (resource) {
-        //   const resourceKey = `${fc.name}:${resource}`;
-        //   toolResourceCounts[resourceKey] = (toolResourceCounts[resourceKey] || 0) + 1;
-        //   if (toolResourceCounts[resourceKey] >= SEMANTIC_LOOP_THRESHOLD) {
-        //     console.warn(`[${LLM_TAG}] Semantic loop: ${fc.name} on ${resource} called ${toolResourceCounts[resourceKey]}x`);
-        //     functionResponses.push({ functionResponse: { name: fc.name,
-        //       response: { result: { error: `Called ${fc.name} on same path too many times.` } } } });
-        //     continue;
-        //   }
-        // }
-
-        // Dedup: skip if exact same tool+args already called this turn
+        // Dedup: skip if same tool+args already called, or same-folder list_files
         let result;
+        // Smart dedup: list_files on same folder = same result (sort/limit/recursive don't matter)
+        const folderKey = fc.name === "list_files" && fc.args?.folder ? `list_files:${fc.args.folder}` : null;
         if (toolCache.has(callHash)) {
           result = toolCache.get(callHash);
           console.log(`[${LLM_TAG}] Dedup skip: ${fc.name} (cached)`);
+        } else if (folderKey && toolCache.has(folderKey)) {
+          result = toolCache.get(folderKey);
+          console.log(`[${LLM_TAG}] Dedup skip: ${fc.name} (same folder already listed)`);
         } else {
           result = await executeTool(fc, sock, chatJid);
           toolCache.set(callHash, result);
+          if (folderKey) toolCache.set(folderKey, result); // Smart dedup for same-folder
+        }
+
+        // Post-tool error guidance: help Gemini recover instead of retrying blindly
+        if (result?.error && !result._hint) {
+          const err = String(result.error).toLowerCase();
+          if (err.includes("not found") || err.includes("no such") || err.includes("does not exist")) {
+            result._hint = "Path not found. Try list_files on the parent folder to check what exists.";
+          } else if (err.includes("permission") || err.includes("access denied") || err.includes("read-only")) {
+            result._hint = "Permission denied. File may be in use or read-only.";
+          } else if (err.includes("no images") || err.includes("no results") || err.includes("no match")) {
+            result._hint = "No matches. Try broader search terms or a different folder.";
+          }
+        }
+
+        // Action Ledger: record every mutating tool's REAL outcome (OpenClaw pattern)
+        // This gets injected into every subsequent LLM call as "## Actions Taken"
+        if (MUTATING_TOOLS.has(fc.name)) {
+          recordAction(chatJid, fc.name, fc.args, result);
+          // Independent result verification (isToolResultError — OpenClaw 4-layer check)
+          // Detect "success but nothing done" — the root cause of Gemini lying
+          if (!result?.error) {
+            if (fc.name === "batch_move" && (result?.moved_count ?? 0) === 0) {
+              result._warning = `⚠️ 0 files were actually ${result?.action || "moved"}. ${result?.skipped_count || 0} skipped, ${result?.error_count || 0} errors. Tell the user NO files were moved.`;
+              console.log(`[Trust] batch_move: 0 files moved (${result?.skipped_count || 0} skipped) → ${fc.args?.destination}`);
+            } else if (fc.name === "batch_rename" && (result?.renamed_count ?? result?.renamed ?? 0) === 0) {
+              result._warning = `⚠️ 0 files were actually renamed. Tell the user no files were renamed.`;
+            }
+          }
         }
 
         // Tail tool calls: auto-send generated files to user without LLM round-trip
@@ -2445,9 +2728,9 @@ async function runGemini(userMessage, sock, chatJid, opts = {}) {
           }
         }
 
-        // Track tool calls for conversation memory context
-        const argsShort = JSON.stringify(fc.args || {}).slice(0, 100);
-        toolLog.push(`${fc.name}(${argsShort})`);
+        // Track tool calls + results for conversation memory context
+        const summary = summarizeToolResult(fc.name, fc.args, result);
+        toolLog.push(summary || `${fc.name}: done`);
 
         // If read_file returned an image, include as inlineData so Gemini SEES it (capped)
         if (fc.name === "read_file" && result.type === "image" && result.data && inlineImageCount < MAX_INLINE_IMAGES) {
@@ -2484,11 +2767,31 @@ async function runGemini(userMessage, sock, chatJid, opts = {}) {
       // Send tool results back to Gemini (with images if any)
       const parts = [...functionResponses, ...imageParts];
 
-      // Round-based efficiency nudges (from SkillRL/ReCall research)
-      if (round === 7) {
-        parts.push({ text: "[System: You've used 8 tool rounds. Be efficient — only call more tools if truly needed, otherwise answer now.]" });
-      } else if (round === 15) {
-        parts.push({ text: "[System: 16 rounds used. Give your best answer with the information you have. Do not call more tools unless absolutely critical.]" });
+      // Inject tool result summaries (Claude Code pattern: model trusts summaries, doesn't re-verify raw data)
+      const summaries = response.functionCalls.map(fc => {
+        const r = toolCache.get(fc.name + ":" + JSON.stringify(fc.args || {}));
+        return summarizeToolResult(fc.name, fc.args, r);
+      }).filter(Boolean);
+      if (summaries.length > 0) {
+        parts.push({ text: `[Tool summaries: ${summaries.join(". ")}]` });
+      }
+
+      // Loop hard-break: if loop was detected, force model to answer next round
+      if (lastCallCount >= LOOP_THRESHOLD) {
+        parts.push({ text: "[System: LOOP DETECTED. You've called the same tool multiple times with identical args. STOP calling tools. Answer with what you have NOW.]" });
+        // Send the error results back, then set round to max-1 so next iteration exits
+        contents.push({ role: "user", parts });
+        round = MAX_ROUNDS - 2; // Next round will be the last — forces text response
+        continue;
+      }
+
+      // Round-based efficiency nudges (adapted from Claude Code patterns)
+      if (round === 3) {
+        parts.push({ text: "[System: Go straight to the point. Try the simplest approach first without going in circles. Do not overdo it. If you have search results, answer now.]" });
+      } else if (round === 6) {
+        parts.push({ text: "[System: You've used 7 rounds. Do what was asked, nothing more. Answer with what you have NOW. Do not call more tools.]" });
+      } else if (round === 9) {
+        parts.push({ text: "[System: 10 rounds used. STOP calling tools. Give your answer immediately.]" });
       }
 
       contents.push({ role: "user", parts });
@@ -2504,7 +2807,7 @@ async function runGemini(userMessage, sock, chatJid, opts = {}) {
         if (finishReason === "MALFORMED_FUNCTION_CALL" && opts.noTools && round === 0 && !opts.inlineImage) {
           console.log(`[${LLM_TAG}] MALFORMED_FUNCTION_CALL in no-tools mode — retrying with tools`);
           opts.noTools = false;
-          activeTools = getToolsForIntent(userMessage);
+          activeTools = getToolsForIntent(userMessage, chatJid);
           continue; // retry this round
         }
       }
@@ -3007,11 +3310,6 @@ async function handleMessage(sock, msg) {
     || (myLid && chatNumber && myLid === chatNumber)
   );
 
-  // Debug: log JID matching (remove after confirming)
-  if (!isGroup && !isSelfChat) {
-    console.log(`[Debug] chatJid=${chatJid} myNumber=${myNumber} myLid=${myLid} fromMe=${key.fromMe}`);
-  }
-
   if (!isSelfChat && !isAllowedUser(chatJid)) {
     if (!isGroup) console.log(`[Pinpoint] Ignored message from: ${chatJid} (not allowed). To allow: /allow ${chatJid.split("@")[0]}`);
     return;
@@ -3129,6 +3427,8 @@ async function handleMessage(sock, msg) {
   if (cmdLower === "/new" || cmdLower === "/reset") {
     const deleted = await resetSession(chatJid);
     delete sessionCosts[chatJid];
+    delete lastIntentCats[chatJid];
+    delete actionLedger[chatJid];
     const reply = `${PREFIX} Conversation reset. Fresh start! (cleared ${deleted} messages)`;
     await sock.sendMessage(chatJid, { text: reply });
     rememberSent(reply);
@@ -3247,14 +3547,19 @@ stop — Cancel current request`;
     let result;
     try {
       if (process.env.GEMINI_API_KEY) {
-        // Simple messages (greetings, thanks, short replies) don't need tools
-        const isSimple = /^(hi|hello|hey|thanks|thank you|ok|okay|yes|no|bye|good morning|good night|gm|gn|hm+|lol|haha|cool|nice|great|awesome|sure|nope|yep|yea|ya|fine|alright|amazing|wow|perfect|got it|oh|damn|omg|hehe|bruh|exactly|right|correct|wrong|good|bad|done|hmm|ah|whoa|dope|sick|sweet|beautiful|wonderful|brilliant|excellent|fantastic|superb|impressive|neat|solid|lit|fire|legit|bet|word|ooh|aah|yay|woah|geez|omw|ty|thx|np|gg|kk|ikr|imo|fyi|asap|🔥|💯|👏|😍|🤩|🥳|💪|🎉|✅|🙌|👌|😭|🤣|😎|💀|🫡|👍|🙏|❤️|😂|😊)\s*[.!?]*$/i.test(userMsg.trim());
+        // Simple messages: only skip tools for greetings/reactions with NO active conversation
+        // Confirmations ("yes", "ok", "go ahead") WITH recent context are NOT simple — they need tools
+        // Claude Code pattern: never strip tools when there's active context
+        const isGreeting = /^(hi|hello|hey|good morning|good night|gm|gn|bye)\s*[.!?]*$/i.test(userMsg.trim());
+        const isReaction = /^(thanks|thank you|lol|haha|cool|nice|great|awesome|amazing|wow|perfect|oh|damn|omg|hehe|bruh|whoa|dope|sick|sweet|beautiful|wonderful|brilliant|excellent|fantastic|superb|impressive|neat|solid|lit|fire|legit|bet|word|ooh|aah|yay|woah|geez|ty|thx|np|gg|kk|ikr|imo|fyi|asap|🔥|💯|👏|😍|🤩|🥳|💪|🎉|✅|🙌|👌|😭|🤣|😎|💀|🫡|👍|🙏|❤️|😂|😊)\s*[.!?]*$/i.test(userMsg.trim());
+        const hasContext = lastIntentCats[chatJid] && lastIntentCats[chatJid].size > 0;
+        const isSimple = isGreeting || (isReaction && !hasContext);
         const noTools = isSimple;
         // Re-inject last image only if recent (< 2 min TTL) — prevents stale image re-injection
         const prevImg = lastImage.get(chatJid);
         const imgAge = prevImg ? Date.now() - (prevImg.ts || 0) : Infinity;
         const inlineImage = (prevImg && imgAge < 120000) ? prevImg : null;
-        // Prepend image path so Gemini knows where it is (for tools like crop_image, detect_objects)
+        // Prepend image path so Gemini knows where it is (for tools like crop_image)
         let geminiMsg = userMsg;
         if (inlineImage && prevImg.path) {
           geminiMsg = `[Image: ${pathModule.basename(prevImg.path)} at ${prevImg.path}]\n${userMsg}`;

@@ -15,4 +15,4 @@ Cannot identify specific people — use face search (find_person, detect_faces) 
 - Use queries array for batch search — more efficient than multiple single calls
 - Works best with descriptive queries: "bride and groom", "flowers", "people dancing"
 - For people identification, use face search instead
-- After finding images, can send_file to share or caption_image for detailed descriptions
+- After finding images, can send_file to share or read_file to see them

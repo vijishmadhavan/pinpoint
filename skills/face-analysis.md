@@ -5,7 +5,7 @@ Face geometry: count, locate, match, compare faces. Age, gender, head pose.
 Persistent face memory: remember and auto-recognize known people.
 
 ## What InsightFace cannot do
-Cannot describe scenes, clothing, activities, objects, or context. For that use caption_image (Moondream).
+Cannot describe scenes, clothing, activities, objects, or context. For that use read_file (Gemini sees images inline).
 
 ## Tools
 - **detect_faces(image_path)** → Full face analysis. Returns per face: bounding box, confidence, estimated age, gender (M/F), head pose (pitch/yaw/roll). Auto-recognizes known faces (adds `name` field if matched). Cached — repeat calls instant.

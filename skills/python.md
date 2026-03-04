@@ -4,7 +4,7 @@
 Run any Python code. Batch processing, custom logic, file manipulation, image processing, data transforms.
 
 ## Cannot do
-Cannot call Pinpoint API tools directly. Cannot access GPU models (Moondream, InsightFace). For those use the dedicated tools.
+Cannot call Pinpoint API tools directly. Cannot access GPU models (InsightFace). For those use the dedicated tools.
 
 ## Tools
 - **run_python(code, timeout?)** → Execute Python code. Returns stdout + list of created files. Timeout default 30s, max 120s. Working dir: /tmp/pinpoint_python/.
