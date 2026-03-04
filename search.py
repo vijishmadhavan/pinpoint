@@ -10,7 +10,7 @@ import os
 import re
 import sqlite3
 
-from database import init_db, cache_get, cache_set, DB_PATH
+from database import DB_PATH, cache_get, cache_set, init_db
 
 
 def build_fts5_query(user_query: str) -> str:
@@ -100,6 +100,7 @@ def _get_gemini():
     global _gemini_client
     if _gemini_client is None:
         from google import genai
+
         api_key = os.environ.get("GEMINI_API_KEY")
         if not api_key:
             return None
@@ -125,6 +126,7 @@ def expand_query(query: str, conn: sqlite3.Connection) -> list[str]:
         return []
 
     from google.genai import types
+
     _expand_schema = {
         "type": "OBJECT",
         "properties": {"queries": {"type": "ARRAY", "items": {"type": "STRING"}}},
@@ -132,6 +134,7 @@ def expand_query(query: str, conn: sqlite3.Connection) -> list[str]:
     }
     try:
         from extractors import gemini_call_with_retry
+
         response = gemini_call_with_retry(
             client,
             model=os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite-preview"),
@@ -158,8 +161,9 @@ def _has_chunks(conn: sqlite3.Connection) -> bool:
     return row["n"] > 0 if row else False
 
 
-def _fts5_search(conn: sqlite3.Connection, fts5_query: str, limit: int,
-                 file_type: str = None, folder: str = None) -> list[dict]:
+def _fts5_search(
+    conn: sqlite3.Connection, fts5_query: str, limit: int, file_type: str = None, folder: str = None
+) -> list[dict]:
     """Run FTS5 search. Searches chunks_fts if chunks exist, else documents_fts."""
     if not fts5_query:
         return []
@@ -177,7 +181,8 @@ def _fts5_search(conn: sqlite3.Connection, fts5_query: str, limit: int,
     # Try chunk-level search first (more precise)
     try:
         if _has_chunks(conn):
-            rows = conn.execute(f"""
+            rows = conn.execute(
+                f"""
                 SELECT d.id, d.path, d.file_type, d.title, d.page_count,
                        bm25(chunks_fts, 10.0, 10.0, 1.0) as raw_score,
                        ch.text, ch.chunk_num
@@ -189,7 +194,9 @@ def _fts5_search(conn: sqlite3.Connection, fts5_query: str, limit: int,
                 {where_extra}
                 ORDER BY raw_score
                 LIMIT ?
-            """, params).fetchall()
+            """,
+                params,
+            ).fetchall()
             if rows:
                 return [dict(row) for row in rows]
     except sqlite3.OperationalError:
@@ -197,7 +204,8 @@ def _fts5_search(conn: sqlite3.Connection, fts5_query: str, limit: int,
 
     # Fallback: document-level search
     try:
-        rows = conn.execute(f"""
+        rows = conn.execute(
+            f"""
             SELECT d.id, d.path, d.file_type, d.title, d.page_count,
                    bm25(documents_fts, 10.0, 10.0, 1.0) as raw_score,
                    c.text, -1 as chunk_num
@@ -209,7 +217,9 @@ def _fts5_search(conn: sqlite3.Connection, fts5_query: str, limit: int,
             {where_extra}
             ORDER BY raw_score
             LIMIT ?
-        """, params).fetchall()
+        """,
+            params,
+        ).fetchall()
     except sqlite3.OperationalError:
         return []
 
@@ -238,8 +248,7 @@ def _rrf_fusion(result_lists: list[tuple[float, list[dict]]], k: int = 60) -> li
     return sorted_docs
 
 
-def search(query: str, db_path: str = DB_PATH, limit: int = 20,
-           file_type: str = None, folder: str = None) -> dict:
+def search(query: str, db_path: str = DB_PATH, limit: int = 20, file_type: str = None, folder: str = None) -> dict:
     """
     Search indexed documents using FTS5 + BM25.
 
@@ -276,17 +285,19 @@ def search(query: str, db_path: str = DB_PATH, limit: int = 20,
         chunk_num = row.get("chunk_num", -1)
         # For chunks, use more text as snippet (chunks are already small ~500 words)
         snippet_len = 500 if chunk_num >= 0 else 200
-        probe_results.append({
-            "id": row["id"],
-            "path": row["path"],
-            "file_type": row["file_type"],
-            "title": row["title"],
-            "score": round(score, 4),
-            "raw_score": round(row["raw_score"], 4),
-            "snippet": _snippet(row["text"], query_terms, max_len=snippet_len),
-            "page_count": row["page_count"],
-            "chunk_num": chunk_num,
-        })
+        probe_results.append(
+            {
+                "id": row["id"],
+                "path": row["path"],
+                "file_type": row["file_type"],
+                "title": row["title"],
+                "score": round(score, 4),
+                "raw_score": round(row["raw_score"], 4),
+                "snippet": _snippet(row["text"], query_terms, max_len=snippet_len),
+                "page_count": row["page_count"],
+                "chunk_num": chunk_num,
+            }
+        )
 
     # Step 2: Strong signal detection — skip expansion if clear winner
     strong_signal = False
@@ -336,16 +347,18 @@ def search(query: str, db_path: str = DB_PATH, limit: int = 20,
             row = item["row"]
             chunk_num = row.get("chunk_num", -1)
             snippet_len = 500 if chunk_num >= 0 else 200
-            results.append({
-                "id": row["id"],
-                "path": row["path"],
-                "file_type": row["file_type"],
-                "title": row["title"],
-                "score": round(item["rrf_score"], 4),
-                "snippet": _snippet(row["text"], query_terms, max_len=snippet_len),
-                "page_count": row["page_count"],
-                "chunk_num": chunk_num,
-            })
+            results.append(
+                {
+                    "id": row["id"],
+                    "path": row["path"],
+                    "file_type": row["file_type"],
+                    "title": row["title"],
+                    "score": round(item["rrf_score"], 4),
+                    "snippet": _snippet(row["text"], query_terms, max_len=snippet_len),
+                    "page_count": row["page_count"],
+                    "chunk_num": chunk_num,
+                }
+            )
     else:
         results = probe_results[:limit]
 

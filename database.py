@@ -9,15 +9,14 @@ Soft delete for removed files, llm_cache for Gemini responses.
 import hashlib
 import os
 import sqlite3
-from datetime import datetime, timezone
-
+from datetime import UTC, datetime
 
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pinpoint.db")
 
 
 def _now() -> str:
     """ISO 8601 UTC timestamp."""
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def content_hash(text: str) -> str:
@@ -204,9 +203,7 @@ def init_db(db_path: str = DB_PATH) -> sqlite3.Connection:
 
     # FTS5 virtual table — CREATE VIRTUAL TABLE doesn't support IF NOT EXISTS
     # Check if it already exists first
-    row = conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='documents_fts'"
-    ).fetchone()
+    row = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='documents_fts'").fetchone()
     if not row:
         conn.execute("""
             CREATE VIRTUAL TABLE documents_fts USING fts5(
@@ -265,9 +262,7 @@ def init_db(db_path: str = DB_PATH) -> sqlite3.Connection:
     """)
 
     # Chunks FTS5 virtual table (Segment 18P)
-    row = conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='chunks_fts'"
-    ).fetchone()
+    row = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='chunks_fts'").fetchone()
     if not row:
         conn.execute("""
             CREATE VIRTUAL TABLE chunks_fts USING fts5(
@@ -298,9 +293,7 @@ def init_db(db_path: str = DB_PATH) -> sqlite3.Connection:
     """)
 
     # Memories FTS5 virtual table (Segment 18Y: replaces LIKE with BM25)
-    row = conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='memories_fts'"
-    ).fetchone()
+    row = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='memories_fts'").fetchone()
     if not row:
         conn.execute("""
             CREATE VIRTUAL TABLE memories_fts USING fts5(
@@ -346,8 +339,7 @@ def _extract_title(path: str, text: str) -> str:
     return os.path.splitext(os.path.basename(path))[0]
 
 
-def upsert_document(conn: sqlite3.Connection, path: str, text: str,
-                     file_type: str, page_count: int = 0) -> str:
+def upsert_document(conn: sqlite3.Connection, path: str, text: str, file_type: str, page_count: int = 0) -> str:
     """
     Insert or update a document. Returns the content hash.
 
@@ -363,15 +355,10 @@ def upsert_document(conn: sqlite3.Connection, path: str, text: str,
     file_size = os.path.getsize(abs_path) if os.path.exists(abs_path) else 0
 
     # Ensure content exists
-    conn.execute(
-        "INSERT OR IGNORE INTO content(hash, text, created_at) VALUES (?, ?, ?)",
-        (h, text, now)
-    )
+    conn.execute("INSERT OR IGNORE INTO content(hash, text, created_at) VALUES (?, ?, ?)", (h, text, now))
 
     # Check if document already exists
-    row = conn.execute(
-        "SELECT id, hash, active FROM documents WHERE path = ?", (abs_path,)
-    ).fetchone()
+    row = conn.execute("SELECT id, hash, active FROM documents WHERE path = ?", (abs_path,)).fetchone()
 
     if row is None:
         # New document
@@ -379,14 +366,14 @@ def upsert_document(conn: sqlite3.Connection, path: str, text: str,
             """INSERT INTO documents(path, title, hash, file_type, page_count,
                file_size, active, created_at, modified_at)
                VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)""",
-            (abs_path, title, h, file_type, page_count, file_size, now, now)
+            (abs_path, title, h, file_type, page_count, file_size, now, now),
         )
     elif row["hash"] != h or row["active"] == 0:
         # Content changed or was soft-deleted — update
         conn.execute(
             """UPDATE documents SET title=?, hash=?, file_type=?, page_count=?,
                file_size=?, active=1, modified_at=? WHERE id=?""",
-            (title, h, file_type, page_count, file_size, now, row["id"])
+            (title, h, file_type, page_count, file_size, now, row["id"]),
         )
     # else: same hash, still active → skip
 
@@ -399,17 +386,12 @@ def soft_delete_missing(conn: sqlite3.Connection, indexed_paths: set[str]) -> in
     Soft-delete documents whose files no longer exist on disk.
     Returns count of deactivated documents.
     """
-    rows = conn.execute(
-        "SELECT id, path FROM documents WHERE active = 1"
-    ).fetchall()
+    rows = conn.execute("SELECT id, path FROM documents WHERE active = 1").fetchall()
 
     count = 0
     for row in rows:
         if row["path"] not in indexed_paths:
-            conn.execute(
-                "UPDATE documents SET active = 0, modified_at = ? WHERE id = ?",
-                (_now(), row["id"])
-            )
+            conn.execute("UPDATE documents SET active = 0, modified_at = ? WHERE id = ?", (_now(), row["id"]))
             count += 1
 
     if count > 0:
@@ -430,14 +412,10 @@ def cleanup_orphaned_content(conn: sqlite3.Connection) -> int:
 
 def get_stats(conn: sqlite3.Connection) -> dict:
     """Return indexing statistics."""
-    total = conn.execute(
-        "SELECT COUNT(*) as n FROM documents WHERE active = 1"
-    ).fetchone()["n"]
+    total = conn.execute("SELECT COUNT(*) as n FROM documents WHERE active = 1").fetchone()["n"]
 
     by_type = {}
-    rows = conn.execute(
-        "SELECT file_type, COUNT(*) as n FROM documents WHERE active = 1 GROUP BY file_type"
-    ).fetchall()
+    rows = conn.execute("SELECT file_type, COUNT(*) as n FROM documents WHERE active = 1 GROUP BY file_type").fetchall()
     for row in rows:
         by_type[row["file_type"]] = row["n"]
 
@@ -455,11 +433,13 @@ def get_stats(conn: sqlite3.Connection) -> dict:
 # Lazy-loaded chunker instance
 _chunker = None
 
+
 def _get_chunker():
     """Load Chonkie RecursiveChunker once."""
     global _chunker
     if _chunker is None:
         from chonkie import RecursiveChunker
+
         # ~500 words ≈ ~2500 chars. Use character tokenizer (zero deps, fastest).
         _chunker = RecursiveChunker(tokenizer="character", chunk_size=2500)
     return _chunker
@@ -484,7 +464,7 @@ def chunk_document(conn: sqlite3.Connection, document_id: int, text: str) -> int
     if len(text) < 3000:
         conn.execute(
             "INSERT INTO chunks(document_id, chunk_num, text, start_index, end_index) VALUES (?, 0, ?, 0, ?)",
-            (document_id, text, len(text))
+            (document_id, text, len(text)),
         )
         conn.commit()
         return 1
@@ -496,7 +476,7 @@ def chunk_document(conn: sqlite3.Connection, document_id: int, text: str) -> int
     for i, chunk in enumerate(chunks):
         conn.execute(
             "INSERT INTO chunks(document_id, chunk_num, text, start_index, end_index) VALUES (?, ?, ?, ?, ?)",
-            (document_id, i, chunk.text, chunk.start_index, chunk.end_index)
+            (document_id, i, chunk.text, chunk.start_index, chunk.end_index),
         )
 
     conn.commit()
@@ -505,24 +485,21 @@ def chunk_document(conn: sqlite3.Connection, document_id: int, text: str) -> int
 
 # --- LLM cache operations ---
 
+
 def cache_get(conn: sqlite3.Connection, key: str) -> str | None:
     """Get cached LLM response. Returns None if not found."""
     h = content_hash(key)
-    row = conn.execute(
-        "SELECT result FROM llm_cache WHERE hash = ?", (h,)
-    ).fetchone()
+    row = conn.execute("SELECT result FROM llm_cache WHERE hash = ?", (h,)).fetchone()
     return row["result"] if row else None
 
 
 def cache_set(conn: sqlite3.Connection, key: str, result: str) -> None:
     """Store LLM response in cache. LRU trim at 1000 entries (1% chance per write)."""
     import random
+
     h = content_hash(key)
     now = _now()
-    conn.execute(
-        "INSERT OR REPLACE INTO llm_cache(hash, result, created_at) VALUES (?, ?, ?)",
-        (h, result, now)
-    )
+    conn.execute("INSERT OR REPLACE INTO llm_cache(hash, result, created_at) VALUES (?, ?, ?)", (h, result, now))
     # 1% chance: trim to newest 1000 entries
     if random.random() < 0.01:
         conn.execute("""
@@ -535,7 +512,6 @@ def cache_set(conn: sqlite3.Connection, key: str, result: str) -> None:
 
 # --- Quick test ---
 if __name__ == "__main__":
-    import sys
     import tempfile
 
     print("=== Pinpoint Database Test ===\n")
@@ -549,22 +525,22 @@ if __name__ == "__main__":
     print(f"[OK] Database created: {test_db}")
 
     # Check tables exist
-    tables = [r["name"] for r in conn.execute(
-        "SELECT name FROM sqlite_master WHERE type IN ('table', 'trigger') ORDER BY name"
-    ).fetchall()]
+    tables = [
+        r["name"]
+        for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type IN ('table', 'trigger') ORDER BY name"
+        ).fetchall()
+    ]
     print(f"[OK] Tables/triggers: {tables}")
 
     # Check FTS5 tokenizer
-    row = conn.execute(
-        "SELECT sql FROM sqlite_master WHERE name='documents_fts'"
-    ).fetchone()
+    row = conn.execute("SELECT sql FROM sqlite_master WHERE name='documents_fts'").fetchone()
     assert "porter unicode61" in row["sql"], "FTS5 tokenizer not set!"
     print("[OK] FTS5 with porter unicode61 tokenizer")
 
     # Test upsert — use a real file (this script itself)
     this_file = os.path.abspath(__file__)
-    h = upsert_document(conn, this_file, "Test document about invoices and receipts.",
-                        "txt", 0)
+    h = upsert_document(conn, this_file, "Test document about invoices and receipts.", "txt", 0)
     print(f"[OK] Inserted document, hash: {h[:16]}...")
 
     # Test FTS search
@@ -575,27 +551,25 @@ if __name__ == "__main__":
     print(f"[OK] FTS search 'invoice' → {len(results)} result (porter stemming works!)")
 
     # Test dedup: same content, different path
-    h2 = upsert_document(conn, this_file, "Test document about invoices and receipts.",
-                         "txt", 0)
+    h2 = upsert_document(conn, this_file, "Test document about invoices and receipts.", "txt", 0)
     assert h == h2, "Hash should be same for same content"
     content_count = conn.execute("SELECT COUNT(*) as n FROM content").fetchone()["n"]
     assert content_count == 1, f"Expected 1 content row (dedup), got {content_count}"
-    print(f"[OK] Content dedup works (1 content row for same text)")
+    print("[OK] Content dedup works (1 content row for same text)")
 
     # Test content change detection
-    h3 = upsert_document(conn, this_file, "Updated content with new text.",
-                         "txt", 0)
+    h3 = upsert_document(conn, this_file, "Updated content with new text.", "txt", 0)
     assert h3 != h, "Hash should differ for different content"
     doc = conn.execute("SELECT hash FROM documents WHERE path = ?", (this_file,)).fetchone()
     assert doc["hash"] == h3, "Document hash should be updated"
-    print(f"[OK] Content change detection works (hash updated)")
+    print("[OK] Content change detection works (hash updated)")
 
     # Test FTS after update — should find new content
     results = conn.execute(
         "SELECT * FROM documents_fts WHERE documents_fts MATCH 'updated'",
     ).fetchall()
     assert len(results) == 1, f"Expected 1 FTS result for 'updated', got {len(results)}"
-    print(f"[OK] FTS synced after content update")
+    print("[OK] FTS synced after content update")
 
     # Test soft delete
     soft_delete_missing(conn, set())  # no paths → everything gets soft-deleted
@@ -606,13 +580,13 @@ if __name__ == "__main__":
         "SELECT * FROM documents_fts WHERE documents_fts MATCH 'updated'",
     ).fetchall()
     assert len(results) == 0, f"Expected 0 FTS results after soft delete, got {len(results)}"
-    print(f"[OK] Soft delete works (active=0, removed from FTS)")
+    print("[OK] Soft delete works (active=0, removed from FTS)")
 
     # Test reactivation
     h4 = upsert_document(conn, this_file, "Reactivated document.", "txt", 0)
     doc = conn.execute("SELECT active FROM documents WHERE path = ?", (this_file,)).fetchone()
     assert doc["active"] == 1, "Document should be reactivated"
-    print(f"[OK] Reactivation works (soft-deleted → active=1)")
+    print("[OK] Reactivation works (soft-deleted → active=1)")
 
     # Test orphan cleanup
     soft_delete_missing(conn, set())
@@ -628,9 +602,9 @@ if __name__ == "__main__":
     cache_set(conn, "test query", '{"expanded": ["test", "testing"]}')
     cached = cache_get(conn, "test query")
     assert cached == '{"expanded": ["test", "testing"]}', "Cache miss!"
-    print(f"[OK] LLM cache works")
+    print("[OK] LLM cache works")
 
     # Cleanup
     conn.close()
     os.remove(test_db)
-    print(f"\n=== All tests passed! ===")
+    print("\n=== All tests passed! ===")

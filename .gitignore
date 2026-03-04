@@ -46,3 +46,6 @@ claude-code/
 
 # Logs
 pinpoint.log
+
+# Old monolith backup
+api_old.py

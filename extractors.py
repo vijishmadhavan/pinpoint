@@ -21,6 +21,7 @@ OCR_DPI = int(os.environ.get("OCR_DPI", "200"))
 _HAS_TESSERACT = False
 try:
     import pytesseract
+
     pytesseract.get_tesseract_version()
     _HAS_TESSERACT = True
 except Exception:
@@ -33,17 +34,28 @@ _MIN_TEXT_PER_PAGE = 50
 
 # Script → Tesseract lang mapping for common scripts
 _SCRIPT_TO_LANG = {
-    "Latin": "eng", "Devanagari": "hin", "Malayalam": "mal",
-    "Tamil": "tam", "Telugu": "tel", "Kannada": "kan",
-    "Bengali": "ben", "Gujarati": "guj", "Gurmukhi": "pan",
-    "Arabic": "ara", "Cyrillic": "rus", "Han": "chi_sim",
-    "Hangul": "kor", "Japanese": "jpn", "Thai": "tha",
+    "Latin": "eng",
+    "Devanagari": "hin",
+    "Malayalam": "mal",
+    "Tamil": "tam",
+    "Telugu": "tel",
+    "Kannada": "kan",
+    "Bengali": "ben",
+    "Gujarati": "guj",
+    "Gurmukhi": "pan",
+    "Arabic": "ara",
+    "Cyrillic": "rus",
+    "Han": "chi_sim",
+    "Hangul": "kor",
+    "Japanese": "jpn",
+    "Thai": "tha",
 }
 
 
 def _detect_tesseract_lang(img) -> str:
     """Detect script from image and return best Tesseract lang code."""
     import pytesseract
+
     try:
         osd = pytesseract.image_to_osd(img)
         for line in osd.split("\n"):
@@ -58,6 +70,7 @@ def _detect_tesseract_lang(img) -> str:
 def _ocr_tesseract(images: list) -> str:
     """OCR a list of PIL images using Tesseract with auto language detection."""
     import pytesseract
+
     texts = []
     for img in images:
         lang = _detect_tesseract_lang(img)
@@ -73,8 +86,10 @@ def _ocr_gemini(images: list) -> str:
     client = _get_gemini()
     if not client:
         return ""
-    from google.genai import types
     import io
+
+    from google.genai import types
+
     texts = []
     for img in images:
         try:
@@ -83,10 +98,16 @@ def _ocr_gemini(images: list) -> str:
             response = gemini_call_with_retry(
                 client,
                 model=os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite-preview"),
-                contents=[types.Content(parts=[
-                    types.Part.from_bytes(data=buf.getvalue(), mime_type="image/jpeg"),
-                    types.Part.from_text(text="Extract ALL text from this image exactly as written. Preserve formatting and line breaks. Return ONLY the extracted text."),
-                ])],
+                contents=[
+                    types.Content(
+                        parts=[
+                            types.Part.from_bytes(data=buf.getvalue(), mime_type="image/jpeg"),
+                            types.Part.from_text(
+                                text="Extract ALL text from this image exactly as written. Preserve formatting and line breaks. Return ONLY the extracted text."
+                            ),
+                        ]
+                    )
+                ],
                 config=types.GenerateContentConfig(
                     media_resolution=types.MediaResolution.MEDIA_RESOLUTION_LOW,
                 ),
@@ -102,6 +123,7 @@ def _ocr_gemini(images: list) -> str:
 def _preprocess_image(img, max_dim=MAX_IMAGE_DIM):
     """Resize image if larger than max_dim. Returns new image (original untouched)."""
     from PIL import Image
+
     w, h = img.size
     if max(w, h) <= max_dim:
         return img
@@ -133,6 +155,7 @@ def extract_pdf(path: str) -> dict | None:
         return None
 
     import fitz
+
     try:
         doc = fitz.open(path)
         if doc.is_encrypted:
@@ -151,6 +174,7 @@ def extract_pdf(path: str) -> dict | None:
         try:
             import fitz as fitz_render
             from PIL import Image
+
             doc_render = fitz_render.open(path)
             total_pages = len(doc_render)
             _PAGE_BATCH = 20  # process 20 pages at a time (~200MB RAM max vs 2GB+ for 200 pages)
@@ -162,7 +186,9 @@ def extract_pdf(path: str) -> dict | None:
                     pix = doc_render[page_num].get_pixmap(dpi=OCR_DPI)
                     img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
                     images.append(img)
-                batch_text = _ocr_gemini(images) if _get_gemini() else (_ocr_tesseract(images) if _HAS_TESSERACT else "")
+                batch_text = (
+                    _ocr_gemini(images) if _get_gemini() else (_ocr_tesseract(images) if _HAS_TESSERACT else "")
+                )
                 if batch_text.strip():
                     all_texts.append(batch_text.strip())
                 del images  # free batch memory before next batch
@@ -175,6 +201,7 @@ def extract_pdf(path: str) -> dict | None:
         # Digital PDF → PyMuPDF4LLM (instant, CPU)
         try:
             import pymupdf4llm
+
             text = pymupdf4llm.to_markdown(path)
         except Exception as e:
             print(f"[SKIP] PyMuPDF4LLM failed: {path} — {e}")
@@ -195,6 +222,7 @@ def _extract_excel_all_sheets(path: str) -> str | None:
     """Extract ALL sheets from an Excel file as markdown tables (capped per sheet)."""
     try:
         import openpyxl
+
         wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
         parts = []
         for sheet_name in wb.sheetnames:
@@ -216,7 +244,7 @@ def _extract_excel_all_sheets(path: str) -> str | None:
             lines.append("| " + " | ".join(["---"] * len(rows[0])) + " |")
             for row in rows[1:]:
                 padded = row + [""] * (len(rows[0]) - len(row))
-                lines.append("| " + " | ".join(padded[:len(rows[0])]) + " |")
+                lines.append("| " + " | ".join(padded[: len(rows[0])]) + " |")
             parts.append("\n".join(lines))
         wb.close()
         return "\n\n".join(parts) if parts else None
@@ -241,6 +269,7 @@ def extract_office(path: str) -> dict | None:
             # Fallback to MarkItDown
             try:
                 from markitdown import MarkItDown
+
                 md = MarkItDown(enable_plugins=False)
                 result = md.convert(path)
                 text = result.text_content
@@ -257,6 +286,7 @@ def extract_office(path: str) -> dict | None:
     # Non-Excel office docs: use MarkItDown
     try:
         from markitdown import MarkItDown
+
         md = MarkItDown(enable_plugins=False)
         result = md.convert(path)
         text = result.text_content
@@ -283,6 +313,7 @@ def _get_gemini():
     global _gemini_client
     if _gemini_client is None:
         from google import genai
+
         api_key = os.environ.get("GEMINI_API_KEY")
         if not api_key:
             return None
@@ -322,6 +353,7 @@ def extract_image(path: str) -> dict | None:
 
     try:
         import io
+
         from PIL import Image
 
         img = Image.open(path).convert("RGB")
@@ -330,14 +362,19 @@ def extract_image(path: str) -> dict | None:
         img.save(buf, format="JPEG", quality=80)
 
         from google.genai import types
+
         response = gemini_call_with_retry(
             client,
             model=os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite-preview"),
             contents=[
-                types.Content(parts=[
-                    types.Part.from_bytes(data=buf.getvalue(), mime_type="image/jpeg"),
-                    types.Part.from_text(text="Describe this image in 1-2 sentences. Be specific about objects, people, text, and scene."),
-                ]),
+                types.Content(
+                    parts=[
+                        types.Part.from_bytes(data=buf.getvalue(), mime_type="image/jpeg"),
+                        types.Part.from_text(
+                            text="Describe this image in 1-2 sentences. Be specific about objects, people, text, and scene."
+                        ),
+                    ]
+                ),
             ],
             config=types.GenerateContentConfig(
                 media_resolution=types.MediaResolution.MEDIA_RESOLUTION_LOW,
@@ -378,7 +415,7 @@ def extract_text(path: str) -> dict | None:
 
     for encoding in ("utf-8", "latin-1", "cp1252"):
         try:
-            with open(path, "r", encoding=encoding) as f:
+            with open(path, encoding=encoding) as f:
                 text = f.read()
             break
         except UnicodeDecodeError:
@@ -428,7 +465,7 @@ if __name__ == "__main__":
             print(f"Pages:       {result['page_count']}")
             print(f"File type:   {result['file_type']}")
             print(f"Text length: {len(result['text'])} chars")
-            print(f"--- First 1000 chars ---")
+            print("--- First 1000 chars ---")
             print(result["text"][:1000])
         else:
             print("Failed to extract.")

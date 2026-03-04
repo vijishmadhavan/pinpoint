@@ -7,12 +7,10 @@ Hash-based change detection: skip unchanged files (instant re-scan).
 
 import os
 import time
+from datetime import UTC
 
-from extractors import (
-    extract, OFFICE_EXTENSIONS, IMAGE_EXTENSIONS, TEXT_EXTENSIONS
-)
-from database import init_db, upsert_document, chunk_document, soft_delete_missing, get_stats, content_hash
-
+from database import chunk_document, get_stats, init_db, soft_delete_missing, upsert_document
+from extractors import IMAGE_EXTENSIONS, OFFICE_EXTENSIONS, TEXT_EXTENSIONS, extract
 
 SUPPORTED_EXTENSIONS = {".pdf"} | OFFICE_EXTENSIONS | IMAGE_EXTENSIONS | TEXT_EXTENSIONS
 
@@ -41,6 +39,7 @@ def index_folder(folder: str, db_path: str | None = None, progress_callback=None
     Returns stats dict with counts and timing.
     """
     from database import DB_PATH
+
     db_path = db_path or DB_PATH
 
     folder = os.path.abspath(folder)
@@ -68,8 +67,7 @@ def index_folder(folder: str, db_path: str | None = None, progress_callback=None
         # But we can't hash the *extracted* text without extracting first.
         # Instead, check if path exists in DB and file hasn't been modified.
         row = conn.execute(
-            "SELECT hash, modified_at FROM documents WHERE path = ? AND active = 1",
-            (abs_path,)
+            "SELECT hash, modified_at FROM documents WHERE path = ? AND active = 1", (abs_path,)
         ).fetchone()
 
         if row is not None:
@@ -78,9 +76,10 @@ def index_folder(folder: str, db_path: str | None = None, progress_callback=None
             db_mtime = row["modified_at"]
             # If file hasn't been modified since indexing, skip
             try:
-                from datetime import datetime, timezone
+                from datetime import datetime
+
                 db_dt = datetime.fromisoformat(db_mtime)
-                file_dt = datetime.fromtimestamp(file_mtime, tz=timezone.utc)
+                file_dt = datetime.fromtimestamp(file_mtime, tz=UTC)
                 if file_dt <= db_dt:
                     skipped += 1
                     if progress_callback:
@@ -105,10 +104,7 @@ def index_folder(folder: str, db_path: str | None = None, progress_callback=None
         elapsed = time.time() - t0
 
         # Store in DB
-        upsert_document(
-            conn, path, result["text"],
-            result["file_type"], result.get("page_count", 0)
-        )
+        upsert_document(conn, path, result["text"], result["file_type"], result.get("page_count", 0))
 
         # Chunk for section-level search (Segment 18P)
         doc_row = conn.execute("SELECT id FROM documents WHERE path = ?", (os.path.abspath(path),)).fetchone()
@@ -137,8 +133,7 @@ def index_folder(folder: str, db_path: str | None = None, progress_callback=None
 
     print(f"\n[Indexer] Done in {elapsed_total:.1f}s")
     print(f"  Indexed: {indexed}, Skipped (unchanged): {skipped}, Failed: {failed}")
-    print(f"  Total in DB: {stats['total_documents']} documents, "
-          f"{stats['unique_content']} unique content")
+    print(f"  Total in DB: {stats['total_documents']} documents, {stats['unique_content']} unique content")
     print(f"  By type: {stats['by_type']}")
 
     return {

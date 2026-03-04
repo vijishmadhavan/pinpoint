@@ -12,15 +12,14 @@ Scoring rubric:
 HTML report: thumbnail gallery (base64 tiny JPEGs), click opens original.
 """
 
+import html as html_mod
 import io
 import json
 import os
 import shutil
-import sqlite3
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from pathlib import Path
 
 from database import DB_PATH, get_db
 from extractors import IMAGE_EXTENSIONS, _get_gemini, _preprocess_image, gemini_call_with_retry
@@ -28,6 +27,7 @@ from extractors import IMAGE_EXTENSIONS, _get_gemini, _preprocess_image, gemini_
 # --- SQLite cache ---
 
 _db_lock = threading.Lock()
+
 
 def _init_table(conn):
     conn.execute("""
@@ -51,18 +51,18 @@ def _init_table(conn):
     """)
     conn.commit()
 
+
 def _get_conn():
     conn = get_db(DB_PATH)
     _init_table(conn)
     return conn
 
+
 _gemini_call_with_retry = gemini_call_with_retry  # alias for backward compat
 
 
 def _cached_score(conn, path, mtime):
-    row = conn.execute(
-        "SELECT * FROM photo_scores WHERE path = ? AND mtime = ?", (path, mtime)
-    ).fetchone()
+    row = conn.execute("SELECT * FROM photo_scores WHERE path = ? AND mtime = ?", (path, mtime)).fetchone()
     if row:
         return dict(row)
     return None
@@ -82,13 +82,27 @@ Be strict: most casual photos score 40-60. Only exceptional shots score 80+."""
 _SCORE_SCHEMA = {
     "type": "OBJECT",
     "properties": {
-        "sharpness": {"type": "INTEGER"}, "exposure": {"type": "INTEGER"},
-        "composition": {"type": "INTEGER"}, "quality": {"type": "INTEGER"},
-        "emotion": {"type": "INTEGER"}, "interest": {"type": "INTEGER"},
-        "keeper": {"type": "INTEGER"}, "total": {"type": "INTEGER"},
+        "sharpness": {"type": "INTEGER"},
+        "exposure": {"type": "INTEGER"},
+        "composition": {"type": "INTEGER"},
+        "quality": {"type": "INTEGER"},
+        "emotion": {"type": "INTEGER"},
+        "interest": {"type": "INTEGER"},
+        "keeper": {"type": "INTEGER"},
+        "total": {"type": "INTEGER"},
         "reasoning": {"type": "STRING"},
     },
-    "required": ["sharpness", "exposure", "composition", "quality", "emotion", "interest", "keeper", "total", "reasoning"],
+    "required": [
+        "sharpness",
+        "exposure",
+        "composition",
+        "quality",
+        "emotion",
+        "interest",
+        "keeper",
+        "total",
+        "reasoning",
+    ],
 }
 
 
@@ -119,8 +133,8 @@ def score_photo(path: str) -> dict:
         return {"error": "GEMINI_API_KEY not set"}
 
     try:
-        from PIL import Image
         from google.genai import types
+        from PIL import Image
 
         img = Image.open(path).convert("RGB")
         img = _preprocess_image(img, 384)
@@ -129,11 +143,16 @@ def score_photo(path: str) -> dict:
 
         model = os.environ.get("GEMINI_MODEL_LITE", os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite-preview"))
         response = _gemini_call_with_retry(
-            client, model,
-            contents=[types.Content(parts=[
-                types.Part.from_bytes(data=buf.getvalue(), mime_type="image/jpeg"),
-                types.Part.from_text(text=_SCORE_PROMPT),
-            ])],
+            client,
+            model,
+            contents=[
+                types.Content(
+                    parts=[
+                        types.Part.from_bytes(data=buf.getvalue(), mime_type="image/jpeg"),
+                        types.Part.from_text(text=_SCORE_PROMPT),
+                    ]
+                )
+            ],
             config=types.GenerateContentConfig(
                 media_resolution=types.MediaResolution.MEDIA_RESOLUTION_LOW,
                 response_mime_type="application/json",
@@ -144,8 +163,15 @@ def score_photo(path: str) -> dict:
         scores = json.loads(response.text)
 
         # Clamp sub-scores to valid ranges
-        fields = {"sharpness": 15, "exposure": 15, "composition": 10, "quality": 10,
-                  "emotion": 20, "interest": 15, "keeper": 15}
+        fields = {
+            "sharpness": 15,
+            "exposure": 15,
+            "composition": 10,
+            "quality": 10,
+            "emotion": 20,
+            "interest": 15,
+            "keeper": 15,
+        }
         for f, mx in fields.items():
             scores[f] = max(0, min(mx, int(scores.get(f, 0))))
         scores["total"] = sum(scores[f] for f in fields)
@@ -154,13 +180,26 @@ def score_photo(path: str) -> dict:
         # Save to cache
         with _db_lock:
             conn = _get_conn()
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT OR REPLACE INTO photo_scores
                 (path, mtime, sharpness, exposure, composition, quality, emotion, interest, keeper, total, reasoning, scored_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
-            """, (path, mtime, scores["sharpness"], scores["exposure"], scores["composition"],
-                  scores["quality"], scores["emotion"], scores["interest"], scores["keeper"],
-                  scores["total"], scores["reasoning"]))
+            """,
+                (
+                    path,
+                    mtime,
+                    scores["sharpness"],
+                    scores["exposure"],
+                    scores["composition"],
+                    scores["quality"],
+                    scores["emotion"],
+                    scores["interest"],
+                    scores["keeper"],
+                    scores["total"],
+                    scores["reasoning"],
+                ),
+            )
             conn.commit()
 
         scores["path"] = path
@@ -182,11 +221,13 @@ def _make_thumbnail_b64(path, size=160):
     """Create a tiny JPEG thumbnail as base64 for the HTML report."""
     try:
         from PIL import Image
+
         img = Image.open(path).convert("RGB")
         img.thumbnail((size, size), Image.LANCZOS)
         buf = io.BytesIO()
         img.save(buf, format="JPEG", quality=60)
         import base64
+
         return base64.b64encode(buf.getvalue()).decode("ascii")
     except Exception:
         return None
@@ -218,20 +259,23 @@ def _generate_html_report(folder, scored_photos, kept_paths, rejected_paths, rej
         status_label = "KEPT" if is_kept else "REJECTED"
         color = "#2d7" if is_kept else "#e55"
 
-        rows.append(f"""<div class="card {status_class}" onclick="window.open('file:///{original_path.replace(chr(92), '/')}')">
-  <img src="data:image/jpeg;base64,{thumb}" alt="{os.path.basename(s['path'])}">
-  <div class="score" style="background:{color}">{s['total']}</div>
+        esc_name = html_mod.escape(os.path.basename(s["path"]))
+        esc_reason = html_mod.escape(s.get("reasoning", ""))
+        esc_file_url = html_mod.escape(original_path.replace(chr(92), "/"))
+        rows.append(f"""<div class="card {status_class}" onclick="window.open('file:///{esc_file_url}')">
+  <img src="data:image/jpeg;base64,{thumb}" alt="{esc_name}">
+  <div class="score" style="background:{color}">{s["total"]}</div>
   <div class="info">
-    <b>{os.path.basename(s['path'])}</b>
+    <b>{esc_name}</b>
     <span class="badge" style="color:{color}">{status_label}</span>
-    <div class="breakdown">S{s.get('sharpness',0)} E{s.get('exposure',0)} C{s.get('composition',0)} Q{s.get('quality',0)} | Em{s.get('emotion',0)} I{s.get('interest',0)} K{s.get('keeper',0)}</div>
-    <div class="reason">{s.get('reasoning','')}</div>
+    <div class="breakdown">S{s.get("sharpness", 0)} E{s.get("exposure", 0)} C{s.get("composition", 0)} Q{s.get("quality", 0)} | Em{s.get("emotion", 0)} I{s.get("interest", 0)} K{s.get("keeper", 0)}</div>
+    <div class="reason">{esc_reason}</div>
   </div>
 </div>""")
 
     html = f"""<!DOCTYPE html>
 <html><head><meta charset="utf-8">
-<title>Pinpoint Photo Cull — {os.path.basename(folder)}</title>
+<title>Pinpoint Photo Cull — {html_mod.escape(os.path.basename(folder))}</title>
 <style>
 *{{margin:0;padding:0;box-sizing:border-box}}
 body{{font-family:system-ui,-apple-system,sans-serif;background:#1a1a2e;color:#eee;padding:20px}}
@@ -263,7 +307,7 @@ h1{{font-size:1.4em;margin-bottom:4px}}
   <button onclick="filterCards('rejected',this)">Rejected</button>
 </div>
 <div class="grid">
-{''.join(rows)}
+{"".join(rows)}
 </div>
 <script>
 function filterCards(f,btn){{
@@ -407,7 +451,9 @@ def cull_photos(folder: str, keep_pct: int = 80, rejects_folder: str = None) -> 
         progress["rejected"] = moved
         progress["threshold"] = threshold
         progress["avg_kept"] = round(sum(s["total"] for s in kept) / max(len(kept), 1), 1)
-        progress["avg_rejected"] = round(sum(s["total"] for s in rejected) / max(len(rejected), 1), 1) if rejected else 0
+        progress["avg_rejected"] = (
+            round(sum(s["total"] for s in rejected) / max(len(rejected), 1), 1) if rejected else 0
+        )
         progress["rejects_folder"] = rejects_folder
         progress["report_path"] = report_path
         progress["elapsed_seconds"] = round(time.time() - start, 1)
@@ -435,7 +481,11 @@ def get_cull_status(folder: str, cancel: bool = False) -> dict:
 
     if cancel and progress["status"] not in ("done", "cancelled", "error"):
         progress["stop"] = True
-        return {"status": "cancelling", "folder": folder, "_hint": "Cancellation requested. Check status again shortly."}
+        return {
+            "status": "cancelling",
+            "folder": folder,
+            "_hint": "Cancellation requested. Check status again shortly.",
+        }
 
     result = dict(progress)
     if result["status"] == "done":
@@ -482,13 +532,9 @@ def _cached_classification(conn, path, mtime):
 
 def _get_indexed_caption(conn, path):
     """Check if this photo is already indexed in documents DB → return caption if so."""
-    row = conn.execute(
-        "SELECT hash FROM documents WHERE path = ? AND active = 1", (path,)
-    ).fetchone()
+    row = conn.execute("SELECT hash FROM documents WHERE path = ? AND active = 1", (path,)).fetchone()
     if row:
-        content_row = conn.execute(
-            "SELECT text FROM content WHERE hash = ?", (row["hash"],)
-        ).fetchone()
+        content_row = conn.execute("SELECT text FROM content WHERE hash = ?", (row["hash"],)).fetchone()
         if content_row and content_row["text"]:
             return content_row["text"]
     return None
@@ -518,16 +564,22 @@ def _classify_photo(path, categories, categories_lower):
         return {"error": "GEMINI_API_KEY not set", "path": abs_path}
 
     from google.genai import types
+
     cat_list = "\n".join(f"- {c}" for c in categories)
     model = os.environ.get("GEMINI_MODEL_LITE", os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite-preview"))
-    single_schema = {"type": "OBJECT", "properties": {"category": {"type": "STRING", "enum": list(categories)}}, "required": ["category"]}
+    single_schema = {
+        "type": "OBJECT",
+        "properties": {"category": {"type": "STRING", "enum": list(categories)}},
+        "required": ["category"],
+    }
 
     # 2b. If caption exists → text-only Gemini call (much cheaper than vision)
     if caption:
         try:
-            prompt = f"Photo description: \"{caption}\"\n\nClassify into EXACTLY ONE of:\n{cat_list}"
+            prompt = f'Photo description: "{caption}"\n\nClassify into EXACTLY ONE of:\n{cat_list}'
             response = _gemini_call_with_retry(
-                client, model,
+                client,
+                model,
                 contents=[types.Content(parts=[types.Part.from_text(text=prompt)])],
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
@@ -553,11 +605,16 @@ def _classify_photo(path, categories, categories_lower):
         prompt = _CLASSIFY_PROMPT_TEMPLATE.format(categories=cat_list)
 
         response = _gemini_call_with_retry(
-            client, model,
-            contents=[types.Content(parts=[
-                types.Part.from_bytes(data=buf.getvalue(), mime_type="image/jpeg"),
-                types.Part.from_text(text=prompt),
-            ])],
+            client,
+            model,
+            contents=[
+                types.Content(
+                    parts=[
+                        types.Part.from_bytes(data=buf.getvalue(), mime_type="image/jpeg"),
+                        types.Part.from_text(text=prompt),
+                    ]
+                )
+            ],
             config=types.GenerateContentConfig(
                 media_resolution=types.MediaResolution.MEDIA_RESOLUTION_LOW,
                 response_mime_type="application/json",
@@ -588,11 +645,14 @@ def _save_classification(abs_path, mtime, category):
     """Save a single classification to DB cache."""
     with _db_lock:
         conn = _get_conn()
-        conn.execute("""
+        conn.execute(
+            """
             INSERT OR REPLACE INTO photo_classifications
             (path, mtime, category, classified_at)
             VALUES (?, ?, ?, datetime('now'))
-        """, (abs_path, mtime, category))
+        """,
+            (abs_path, mtime, category),
+        )
         conn.commit()
 
 
@@ -678,7 +738,8 @@ def _classify_batch_vision(items, categories, categories_lower, cached_content=N
 
     try:
         response = _gemini_call_with_retry(
-            client, model,
+            client,
+            model,
             contents=[types.Content(parts=parts)],
             config=config,
         )
@@ -725,7 +786,7 @@ def _classify_batch_captions(items, categories, categories_lower, cached_content
     lines = []
     for abs_path, mtime, caption in items:
         fname = os.path.basename(abs_path)
-        lines.append(f"- {fname}: \"{caption[:200]}\"")
+        lines.append(f'- {fname}: "{caption[:200]}"')
 
     if cached_content:
         prompt = f"Photo descriptions:\n{''.join(chr(10) + l for l in lines)}"
@@ -744,7 +805,8 @@ def _classify_batch_captions(items, categories, categories_lower, cached_content
 
     try:
         response = _gemini_call_with_retry(
-            client, model,
+            client,
+            model,
             contents=[types.Content(parts=[types.Part.from_text(text=prompt)])],
             config=config,
         )
@@ -817,12 +879,15 @@ def suggest_categories(folder: str) -> dict:
             # 30%+ indexed — suggest from captions (text-only, much cheaper)
             sample_captions = captions[:30]
             caption_text = "\n".join(f"- {c[:150]}" for c in sample_captions)
-            parts = [types.Part.from_text(text=
-                f"These are descriptions of photos in a folder:\n{caption_text}\n\n{_SUGGEST_PROMPT}"
-            )]
+            parts = [
+                types.Part.from_text(
+                    text=f"These are descriptions of photos in a folder:\n{caption_text}\n\n{_SUGGEST_PROMPT}"
+                )
+            ]
         else:
             # Not enough indexed — sample actual images (vision call)
             from PIL import Image
+
             sample_count = min(20, len(images))
             step = max(1, len(images) // sample_count)
             samples = [images[i] for i in range(0, len(images), step)][:sample_count]
@@ -838,7 +903,8 @@ def suggest_categories(folder: str) -> dict:
 
         model = os.environ.get("GEMINI_MODEL_LITE", os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite-preview"))
         response = _gemini_call_with_retry(
-            client, model,
+            client,
+            model,
             contents=[types.Content(parts=parts)],
             config=types.GenerateContentConfig(
                 media_resolution=types.MediaResolution.MEDIA_RESOLUTION_LOW,
@@ -912,8 +978,11 @@ def group_photos(folder: str, categories: list, uncategorized_folder: str = None
             client = _get_gemini()
             if client:
                 from google.genai import types
+
                 cat_list = "\n".join(f"- {c}" for c in categories)
-                model = os.environ.get("GEMINI_MODEL_LITE", os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite-preview"))
+                model = os.environ.get(
+                    "GEMINI_MODEL_LITE", os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite-preview")
+                )
                 cache = client.caches.create(
                     model=model,
                     config=types.CreateCachedContentConfig(
@@ -930,7 +999,7 @@ def group_photos(folder: str, categories: list, uncategorized_folder: str = None
         # Phase 1: Check cache + gather captions for all images
         cached_items = []
         caption_items = []  # (abs_path, mtime, caption)
-        vision_items = []   # (abs_path, mtime)
+        vision_items = []  # (abs_path, mtime)
 
         with _db_lock:
             conn = _get_conn()
@@ -961,7 +1030,9 @@ def group_photos(folder: str, categories: list, uncategorized_folder: str = None
 
         classified.extend(cached_items)
         if cached_items:
-            print(f"[Group] {len(cached_items)} from cache, {len(caption_items)} with captions, {len(vision_items)} need vision")
+            print(
+                f"[Group] {len(cached_items)} from cache, {len(caption_items)} with captions, {len(vision_items)} need vision"
+            )
 
         def _cleanup_cache():
             if gemini_cache_name:
@@ -980,7 +1051,7 @@ def group_photos(folder: str, categories: list, uncategorized_folder: str = None
                 progress["elapsed_seconds"] = round(time.time() - start, 1)
                 _cleanup_cache()
                 return
-            batch = caption_items[i:i + _CAPTION_BATCH_SIZE]
+            batch = caption_items[i : i + _CAPTION_BATCH_SIZE]
             results = _classify_batch_captions(batch, categories, categories_lower, cached_content=gemini_cache_name)
             for r in results:
                 if "error" in r:
@@ -995,9 +1066,14 @@ def group_photos(folder: str, categories: list, uncategorized_folder: str = None
             progress["eta_seconds"] = round(remaining / max(rate, 0.01))
 
         # Phase 3: Batch-classify remaining via vision (5 images per call, concurrent)
-        vision_batches = [vision_items[i:i + _VISION_BATCH_SIZE] for i in range(0, len(vision_items), _VISION_BATCH_SIZE)]
+        vision_batches = [
+            vision_items[i : i + _VISION_BATCH_SIZE] for i in range(0, len(vision_items), _VISION_BATCH_SIZE)
+        ]
         with ThreadPoolExecutor(max_workers=4) as pool:
-            futures = {pool.submit(_classify_batch_vision, batch, categories, categories_lower, gemini_cache_name): batch for batch in vision_batches}
+            futures = {
+                pool.submit(_classify_batch_vision, batch, categories, categories_lower, gemini_cache_name): batch
+                for batch in vision_batches
+            }
             for future in as_completed(futures):
                 if progress.get("stop"):
                     pool.shutdown(wait=False, cancel_futures=True)
@@ -1101,21 +1177,24 @@ def _generate_group_report(folder, classified, categories, group_counts):
             thumb = _make_thumbnail_b64(display_path)
             if not thumb:
                 continue
-            cards.append(f"""<div class="card" onclick="window.open('file:///{display_path.replace(chr(92), '/')}')">
-  <img src="data:image/jpeg;base64,{thumb}" alt="{os.path.basename(item['path'])}">
-  <div class="info"><b>{os.path.basename(item['path'])}</b></div>
+            esc_name = html_mod.escape(os.path.basename(item["path"]))
+            esc_url = html_mod.escape(display_path.replace(chr(92), "/"))
+            cards.append(f"""<div class="card" onclick="window.open('file:///{esc_url}')">
+  <img src="data:image/jpeg;base64,{thumb}" alt="{esc_name}">
+  <div class="info"><b>{esc_name}</b></div>
 </div>""")
 
         count = group_counts.get(cat, len(items))
+        esc_cat = html_mod.escape(cat)
         sections.append(f"""<div class="group">
-  <h2>{cat} ({count})</h2>
-  <div class="grid">{''.join(cards)}</div>
+  <h2>{esc_cat} ({count})</h2>
+  <div class="grid">{"".join(cards)}</div>
 </div>""")
 
-    counts_summary = ', '.join(f'<b>{cat}</b> ({group_counts.get(cat, 0)})' for cat in group_counts)
+    counts_summary = ", ".join(f"<b>{html_mod.escape(cat)}</b> ({group_counts.get(cat, 0)})" for cat in group_counts)
     html = f"""<!DOCTYPE html>
 <html><head><meta charset="utf-8">
-<title>Pinpoint Photo Groups — {os.path.basename(folder)}</title>
+<title>Pinpoint Photo Groups — {html_mod.escape(os.path.basename(folder))}</title>
 <style>
 *{{margin:0;padding:0;box-sizing:border-box}}
 body{{font-family:system-ui,-apple-system,sans-serif;background:#1a1a2e;color:#eee;padding:20px}}
@@ -1131,9 +1210,9 @@ h2{{font-size:1.1em;margin:16px 0 8px;color:#7ec8e3}}
 .info b{{font-size:.75em;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
 .group{{margin-bottom:24px}}
 </style></head><body>
-<h1>Photo Groups — {os.path.basename(folder)}</h1>
+<h1>Photo Groups — {html_mod.escape(os.path.basename(folder))}</h1>
 <div class="stats">{len(classified)} photos → {len(groups)} groups: {counts_summary}</div>
-{''.join(sections)}
+{"".join(sections)}
 </body></html>"""
 
     report_path = os.path.join(folder, "_group_report.html")
@@ -1152,14 +1231,17 @@ def get_group_status(folder: str, cancel: bool = False) -> dict:
 
     if cancel and progress["status"] not in ("done", "cancelled", "error"):
         progress["stop"] = True
-        return {"status": "cancelling", "folder": folder, "_hint": "Cancellation requested. Check status again shortly."}
+        return {
+            "status": "cancelling",
+            "folder": folder,
+            "_hint": "Cancellation requested. Check status again shortly.",
+        }
 
     result = dict(progress)
     if result["status"] == "done":
         counts_str = ", ".join(f"{k}: {v}" for k, v in result.get("group_counts", {}).items())
         result["_hint"] = (
-            f"Done! {result['moved']} photos grouped. {counts_str}. "
-            f"Report: {result.get('report_path', 'N/A')}"
+            f"Done! {result['moved']} photos grouped. {counts_str}. Report: {result.get('report_path', 'N/A')}"
         )
     elif result["status"] == "classifying":
         pct = round(result["classified"] / max(result["total"], 1) * 100)

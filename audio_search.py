@@ -4,15 +4,20 @@ Transcribe audio files and search within audio by text query.
 Gemini supports up to 9.5 hours of audio at 32 tokens/sec.
 """
 
+import json
 import os
 import time
-import json
 
 AUDIO_EXTS = {".mp3", ".wav", ".flac", ".aac", ".ogg", ".wma", ".m4a", ".aiff"}
 AUDIO_MIME = {
-    ".mp3": "audio/mpeg", ".wav": "audio/wav", ".flac": "audio/flac",
-    ".aac": "audio/aac", ".ogg": "audio/ogg", ".wma": "audio/x-ms-wma",
-    ".m4a": "audio/mp4", ".aiff": "audio/aiff",
+    ".mp3": "audio/mpeg",
+    ".wav": "audio/wav",
+    ".flac": "audio/flac",
+    ".aac": "audio/aac",
+    ".ogg": "audio/ogg",
+    ".wma": "audio/x-ms-wma",
+    ".m4a": "audio/mp4",
+    ".aiff": "audio/aiff",
 }
 
 
@@ -45,8 +50,9 @@ def _get_audio_part(client, audio_path: str):
 
 def transcribe_audio(audio_path: str) -> dict:
     """Transcribe an audio file to text using Gemini."""
-    from extractors import _get_gemini
     from google.genai import types
+
+    from extractors import _get_gemini
 
     client = _get_gemini()
     if not client:
@@ -71,6 +77,7 @@ def transcribe_audio(audio_path: str) -> dict:
             "Format: [MM:SS] transcribed text"
         )
         from extractors import gemini_call_with_retry
+
         resp = gemini_call_with_retry(
             client,
             model=model,
@@ -93,8 +100,9 @@ def transcribe_audio(audio_path: str) -> dict:
 
 def search_audio(audio_path: str, query: str, limit: int = 5) -> dict:
     """Search within an audio file for specific content using Gemini."""
-    from extractors import _get_gemini
     from google.genai import types
+
+    from extractors import _get_gemini
 
     client = _get_gemini()
     if not client:
@@ -137,6 +145,7 @@ def search_audio(audio_path: str, query: str, limit: int = 5) -> dict:
             f"Use HH:MM:SS for audio over 1 hour. Sort by relevance (highest first)."
         )
         from extractors import gemini_call_with_retry
+
         resp = gemini_call_with_retry(
             client,
             model=model,

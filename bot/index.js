@@ -53,11 +53,27 @@ const DEBOUNCE_MS = 1500; // Combine rapid messages within 1.5s
 // Log to file so we can check what happened (tee stdout → file)
 const logFile = pathModule.join(__dirname, "..", "pinpoint.log");
 const logStream = require("fs").createWriteStream(logFile, { flags: "a" });
-const origLog = console.log, origWarn = console.warn, origErr = console.error;
-function _ts() { return new Date().toISOString().slice(11, 19); }
-console.log = (...a) => { const s = a.map(String).join(" "); origLog(s); logStream.write(`${_ts()} ${s}\n`); };
-console.warn = (...a) => { const s = a.map(String).join(" "); origWarn(s); logStream.write(`${_ts()} WARN ${s}\n`); };
-console.error = (...a) => { const s = a.map(String).join(" "); origErr(s); logStream.write(`${_ts()} ERR ${s}\n`); };
+const origLog = console.log,
+  origWarn = console.warn,
+  origErr = console.error;
+function _ts() {
+  return new Date().toISOString().slice(11, 19);
+}
+console.log = (...a) => {
+  const s = a.map(String).join(" ");
+  origLog(s);
+  logStream.write(`${_ts()} ${s}\n`);
+};
+console.warn = (...a) => {
+  const s = a.map(String).join(" ");
+  origWarn(s);
+  logStream.write(`${_ts()} WARN ${s}\n`);
+};
+console.error = (...a) => {
+  const s = a.map(String).join(" ");
+  origErr(s);
+  logStream.write(`${_ts()} ERR ${s}\n`);
+};
 
 // Processing lock: prevent concurrent Gemini calls per chat (causes context loss)
 const activeRequests = new Map(); // chatJid → { msg, startTime, id }
@@ -74,18 +90,34 @@ const allowedSessions = new Map(); // chatJid → last activity timestamp (activ
 
 // Cost tracking: per-session token usage (OpenCode-inspired)
 const sessionCosts = {}; // chatJid → { input, output, rounds, started }
-const TOKEN_COST_INPUT = 0.25 / 1_000_000;   // gemini-3.1-flash-lite-preview $/token (input)
-const TOKEN_COST_OUTPUT = 1.50 / 1_000_000;   // gemini-3.1-flash-lite-preview $/token (output, includes thinking)
+const TOKEN_COST_INPUT = 0.25 / 1_000_000; // gemini-3.1-flash-lite-preview $/token (input)
+const TOKEN_COST_OUTPUT = 1.5 / 1_000_000; // gemini-3.1-flash-lite-preview $/token (output, includes thinking)
 
 // --- Action Ledger: structural truth enforcement (OpenClaw-inspired) ---
 // Tracks every mutating tool call + real outcome. Injected into every LLM call.
 // The LLM sees "## Actions Taken" with exact counts — cannot invent outcomes.
 const actionLedger = {}; // chatJid → [{ tool, summary, outcome, ts }]
 const MUTATING_TOOLS = new Set([
-  "batch_move", "move_file", "copy_file", "delete_file", "write_file",
-  "batch_rename", "create_folder", "generate_excel", "merge_pdf", "split_pdf",
-  "resize_image", "convert_image", "crop_image", "compress_files", "extract_archive",
-  "images_to_pdf", "pdf_to_images", "download_url", "cull_photos", "group_photos",
+  "batch_move",
+  "move_file",
+  "copy_file",
+  "delete_file",
+  "write_file",
+  "batch_rename",
+  "create_folder",
+  "generate_excel",
+  "merge_pdf",
+  "split_pdf",
+  "resize_image",
+  "convert_image",
+  "crop_image",
+  "compress_files",
+  "extract_archive",
+  "images_to_pdf",
+  "pdf_to_images",
+  "download_url",
+  "cull_photos",
+  "group_photos",
 ]);
 
 function recordAction(chatJid, toolName, args, result) {
@@ -150,8 +182,10 @@ function recordAction(chatJid, toolName, args, result) {
 function getActionLedgerText(chatJid) {
   const entries = actionLedger[chatJid];
   if (!entries || entries.length === 0) return "";
-  return "\n\n## Actions Taken This Session\nThese are the ACTUAL outcomes of every action you performed. Report ONLY these results.\n" +
-    entries.map(e => `- ${e.summary}`).join("\n");
+  return (
+    "\n\n## Actions Taken This Session\nThese are the ACTUAL outcomes of every action you performed. Report ONLY these results.\n" +
+    entries.map((e) => `- ${e.summary}`).join("\n")
+  );
 }
 
 function trackTokens(chatJid, response) {
@@ -165,7 +199,11 @@ function trackTokens(chatJid, response) {
   s.output += usage.candidatesTokenCount || 0;
   s.thinking += usage.thoughtsTokenCount || 0;
   s.rounds++;
-  return { input: usage.promptTokenCount || 0, output: usage.candidatesTokenCount || 0, thinking: usage.thoughtsTokenCount || 0 };
+  return {
+    input: usage.promptTokenCount || 0,
+    output: usage.candidatesTokenCount || 0,
+    thinking: usage.thoughtsTokenCount || 0,
+  };
 }
 
 function formatTokens(n) {
@@ -177,7 +215,7 @@ function formatTokens(n) {
 function getCostSummary(chatJid) {
   const s = sessionCosts[chatJid];
   if (!s || s.rounds === 0) return "No token usage in this session.";
-  const cost = (s.input * TOKEN_COST_INPUT + s.output * TOKEN_COST_OUTPUT);
+  const cost = s.input * TOKEN_COST_INPUT + s.output * TOKEN_COST_OUTPUT;
   const elapsed = Math.round((Date.now() - s.started) / 60000);
   const thinkStr = s.thinking ? `, thinking: ${formatTokens(s.thinking)}` : "";
   return `*Session tokens:* ${formatTokens(s.input + s.output)} (input: ${formatTokens(s.input)}, output: ${formatTokens(s.output)}${thinkStr})\n*Rounds:* ${s.rounds}\n*Estimated cost:* $${cost.toFixed(4)}\n*Duration:* ${elapsed} min`;
@@ -192,8 +230,8 @@ async function loadAllowedUsers() {
   try {
     const setting = await apiGet("/setting?key=allowed_users");
     if (setting.value) {
-      const numbers = setting.value.split(",").filter(n => n.trim());
-      numbers.forEach(n => allowedUsers.add(n.trim()));
+      const numbers = setting.value.split(",").filter((n) => n.trim());
+      numbers.forEach((n) => allowedUsers.add(n.trim()));
     }
   } catch (_) {}
 }
@@ -208,17 +246,28 @@ const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".bmp", ".webp"]);
 
 // Mime type → extension (for received files without filename)
 const MIME_TO_EXT = {
-  "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp",
-  "image/bmp": ".bmp", "image/gif": ".gif", "image/tiff": ".tiff",
-  "video/mp4": ".mp4", "video/mkv": ".mkv", "video/avi": ".avi",
-  "video/quicktime": ".mov", "video/webm": ".webm",
-  "audio/mpeg": ".mp3", "audio/ogg": ".ogg", "audio/wav": ".wav",
-  "audio/mp4": ".m4a", "audio/aac": ".aac",
+  "image/jpeg": ".jpg",
+  "image/png": ".png",
+  "image/webp": ".webp",
+  "image/bmp": ".bmp",
+  "image/gif": ".gif",
+  "image/tiff": ".tiff",
+  "video/mp4": ".mp4",
+  "video/mkv": ".mkv",
+  "video/avi": ".avi",
+  "video/quicktime": ".mov",
+  "video/webm": ".webm",
+  "audio/mpeg": ".mp3",
+  "audio/ogg": ".ogg",
+  "audio/wav": ".wav",
+  "audio/mp4": ".m4a",
+  "audio/aac": ".aac",
   "application/pdf": ".pdf",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": ".xlsx",
   "application/vnd.openxmlformats-officedocument.presentationml.presentation": ".pptx",
-  "text/plain": ".txt", "text/csv": ".csv",
+  "text/plain": ".txt",
+  "text/csv": ".csv",
 };
 
 // --- Detect system paths dynamically (never hardcode!) ---
@@ -259,7 +308,7 @@ function geminiToolsToOllama(geminiTools) {
   // Gemini: [{ functionDeclarations: [{ name, description, parameters: { type: "OBJECT", properties, required } }] }]
   // Ollama: [{ type: "function", function: { name, description, parameters: { type: "object", ... } } }]
   if (!geminiTools?.[0]?.functionDeclarations) return [];
-  return geminiTools[0].functionDeclarations.map(fd => ({
+  return geminiTools[0].functionDeclarations.map((fd) => ({
     type: "function",
     function: {
       name: fd.name,
@@ -293,14 +342,17 @@ function geminiContentsToOllama(contents, systemInstruction) {
     const role = entry.role === "model" ? "assistant" : "user";
 
     // Check for function calls (model response with tool calls)
-    const funcCalls = entry.parts.filter(p => p.functionCall);
+    const funcCalls = entry.parts.filter((p) => p.functionCall);
     if (funcCalls.length > 0) {
       // Text part if any
-      const textParts = entry.parts.filter(p => p.text).map(p => p.text).join("\n");
+      const textParts = entry.parts
+        .filter((p) => p.text)
+        .map((p) => p.text)
+        .join("\n");
       messages.push({
         role: "assistant",
         content: textParts || "",
-        tool_calls: funcCalls.map(p => ({
+        tool_calls: funcCalls.map((p) => ({
           id: `call_${p.functionCall.name}_${Date.now()}`,
           type: "function",
           function: { name: p.functionCall.name, arguments: p.functionCall.args || {} },
@@ -310,7 +362,7 @@ function geminiContentsToOllama(contents, systemInstruction) {
     }
 
     // Check for function responses (tool results)
-    const funcResponses = entry.parts.filter(p => p.functionResponse);
+    const funcResponses = entry.parts.filter((p) => p.functionResponse);
     if (funcResponses.length > 0) {
       for (const p of funcResponses) {
         messages.push({
@@ -319,7 +371,7 @@ function geminiContentsToOllama(contents, systemInstruction) {
         });
       }
       // Also include any text nudges (round-based efficiency hints)
-      const textNudges = entry.parts.filter(p => p.text);
+      const textNudges = entry.parts.filter((p) => p.text);
       for (const p of textNudges) {
         messages.push({ role: "system", content: p.text });
       }
@@ -327,8 +379,11 @@ function geminiContentsToOllama(contents, systemInstruction) {
     }
 
     // Regular text + images (Ollama uses "images" array with base64 data)
-    const text = entry.parts.filter(p => p.text).map(p => p.text).join("\n");
-    const images = entry.parts.filter(p => p.inlineData).map(p => p.inlineData.data);
+    const text = entry.parts
+      .filter((p) => p.text)
+      .map((p) => p.text)
+      .join("\n");
+    const images = entry.parts.filter((p) => p.inlineData).map((p) => p.inlineData.data);
     if (text || images.length > 0) {
       const msg = { role, content: text || "" };
       if (images.length > 0) msg.images = images;
@@ -359,7 +414,7 @@ async function ollamaGenerate(contents, config, toolsDefs) {
   const msg = data.message || {};
 
   // Translate Ollama response → Gemini response shape
-  const functionCalls = (msg.tool_calls || []).map(tc => ({
+  const functionCalls = (msg.tool_calls || []).map((tc) => ({
     name: tc.function.name,
     args: typeof tc.function.arguments === "string" ? JSON.parse(tc.function.arguments) : tc.function.arguments,
   }));
@@ -378,16 +433,18 @@ async function ollamaGenerate(contents, config, toolsDefs) {
   return {
     text: visibleText,
     functionCalls: functionCalls.length > 0 ? functionCalls : null,
-    candidates: [{
-      content: {
-        role: "model",
-        parts: [
-          ...(visibleText ? [{ text: visibleText }] : []),
-          ...functionCalls.map(fc => ({ functionCall: { name: fc.name, args: fc.args } })),
-        ],
+    candidates: [
+      {
+        content: {
+          role: "model",
+          parts: [
+            ...(visibleText ? [{ text: visibleText }] : []),
+            ...functionCalls.map((fc) => ({ functionCall: { name: fc.name, args: fc.args } })),
+          ],
+        },
+        finishReason: functionCalls.length > 0 ? "TOOL_CALLS" : "STOP",
       },
-      finishReason: functionCalls.length > 0 ? "TOOL_CALLS" : "STOP",
-    }],
+    ],
     usageMetadata: {
       promptTokenCount: data.prompt_eval_count || 0,
       candidatesTokenCount: data.eval_count || 0,
@@ -407,12 +464,16 @@ async function llmGenerate({ model, contents, config, tools: toolsDefs }) {
       return await ai.models.generateContent({ model, contents, config: { ...config, tools: toolsDefs } });
     } catch (err) {
       const msg = String(err.message || err);
-      const isTransient = msg.includes("429") || msg.includes("503") || msg.includes("500")
-        || msg.includes("RESOURCE_EXHAUSTED") || msg.includes("Internal error");
+      const isTransient =
+        msg.includes("429") ||
+        msg.includes("503") ||
+        msg.includes("500") ||
+        msg.includes("RESOURCE_EXHAUSTED") ||
+        msg.includes("Internal error");
       if (isTransient && attempt < maxRetries) {
         const wait = 2 ** (attempt + 1) * 1000; // 2s, 4s
         console.warn(`[Gemini] Transient error (${msg.slice(0, 60)}), retry in ${wait / 1000}s...`);
-        await new Promise(r => setTimeout(r, wait));
+        await new Promise((r) => setTimeout(r, wait));
         continue;
       }
       throw err;
@@ -428,7 +489,14 @@ const GENERAL_SKILL_FILES = ["batch-awareness.md", "common-mistakes.md", "core-r
 
 // Task-specific skills: injected based on user intent detection
 const SKILL_CATEGORIES = {
-  image: ["face-analysis.md", "image-analysis.md", "image-tools.md", "visual-search.md", "photo-cull.md", "photo-group.md"],
+  image: [
+    "face-analysis.md",
+    "image-analysis.md",
+    "image-tools.md",
+    "visual-search.md",
+    "photo-cull.md",
+    "photo-group.md",
+  ],
   search: ["search.md"],
   data: ["data-analysis.md"],
   files: ["file-tools.md", "smart-ops.md", "archive-tools.md"],
@@ -441,7 +509,8 @@ const SKILL_CATEGORIES = {
 
 // Intent detection keywords → categories
 const INTENT_KEYWORDS = {
-  image: /photo|image|picture|jpg|png|face|person|selfie|detect|object|bounding|visual|heic|camera|screenshot|exif|metadata|gps|lens|aperture|iso|when.*taken|shot.*with|cull|score.*photo|rate.*photo|best.*photo|reject|keeper|group.*photo|segregat|categoriz|classify/i,
+  image:
+    /photo|image|picture|jpg|png|face|person|selfie|detect|object|bounding|visual|heic|camera|screenshot|exif|metadata|gps|lens|aperture|iso|when.*taken|shot.*with|cull|score.*photo|rate.*photo|best.*photo|reject|keeper|group.*photo|segregat|categoriz|classify/i,
   search: /find|search|where|which|document|file.*contain|look.*for|indexed/i,
   data: /excel|csv|spreadsheet|column|row|data|analyze|chart|graph|pandas|filter|sort/i,
   files: /move|copy|rename|delete|duplicate|folder|list|organize|clean.*up|batch|zip|unzip|compress|extract|archive/i,
@@ -452,7 +521,7 @@ const INTENT_KEYWORDS = {
   code: /python|code|script|run|execute|program/i,
 };
 
-const _skillCache = {};  // filename → content
+const _skillCache = {}; // filename → content
 function _loadSkill(filename) {
   if (!_skillCache[filename]) {
     try {
@@ -467,15 +536,19 @@ function _loadSkill(filename) {
 // Preload all skills at startup
 try {
   const { readdirSync } = require("fs");
-  const allFiles = readdirSync(SKILLS_DIR).filter(f => f.endsWith(".md")).sort();
+  const allFiles = readdirSync(SKILLS_DIR)
+    .filter((f) => f.endsWith(".md"))
+    .sort();
   for (const file of allFiles) _loadSkill(file);
-  console.log(`[Pinpoint] Loaded ${allFiles.length} skills: ${allFiles.map(f => f.replace(".md", "")).join(", ")}`);
+  console.log(`[Pinpoint] Loaded ${allFiles.length} skills: ${allFiles.map((f) => f.replace(".md", "")).join(", ")}`);
 } catch (err) {
   console.log("[Pinpoint] No skills loaded:", err.message);
 }
 
 // Build general skills content (always included)
-const generalSkillsContent = GENERAL_SKILL_FILES.map(f => _loadSkill(f)).filter(Boolean).join("\n\n");
+const generalSkillsContent = GENERAL_SKILL_FILES.map((f) => _loadSkill(f))
+  .filter(Boolean)
+  .join("\n\n");
 
 // Detect user intent → return relevant skill categories
 function detectIntentCategories(message) {
@@ -493,11 +566,14 @@ function getTaskSkills(message) {
   const cats = detectIntentCategories(message);
   const files = new Set();
   for (const cat of cats) {
-    for (const f of (SKILL_CATEGORIES[cat] || [])) files.add(f);
+    for (const f of SKILL_CATEGORIES[cat] || []) files.add(f);
   }
   // Don't duplicate general skills
   for (const f of GENERAL_SKILL_FILES) files.delete(f);
-  return [...files].map(f => _loadSkill(f)).filter(Boolean).join("\n\n");
+  return [...files]
+    .map((f) => _loadSkill(f))
+    .filter(Boolean)
+    .join("\n\n");
 }
 
 const SYSTEM_PROMPT_BASE = `You are Pinpoint, a local file assistant with full power over the user's files.
@@ -575,27 +651,59 @@ function getSystemPrompt(userMessage = "", chatJid = "") {
 // --- Tool grouping: map each tool to intent categories (mirrors SKILL_CATEGORIES) ---
 // Core tools are always included. Category tools added based on user message intent.
 const CORE_TOOLS = new Set([
-  "search_documents", "search_facts", "read_document", "read_file",
-  "list_files", "send_file", "get_status", "calculate",
+  "search_documents",
+  "search_facts",
+  "read_document",
+  "read_file",
+  "list_files",
+  "send_file",
+  "get_status",
+  "calculate",
 ]);
 const TOOL_GROUPS = {
   search: ["search_history", "grep_files", "index_file"],
   image: [
-    "detect_faces", "crop_face", "find_person", "find_person_by_face",
-    "count_faces", "compare_faces", "remember_face", "forget_face",
-    "search_images_visual", "ocr", "image_metadata",
-    "score_photo", "cull_photos", "cull_status",
-    "suggest_categories", "group_photos", "group_status",
+    "detect_faces",
+    "crop_face",
+    "find_person",
+    "find_person_by_face",
+    "count_faces",
+    "compare_faces",
+    "remember_face",
+    "forget_face",
+    "search_images_visual",
+    "ocr",
+    "image_metadata",
+    "score_photo",
+    "cull_photos",
+    "cull_status",
+    "suggest_categories",
+    "group_photos",
+    "group_status",
   ],
   data: ["analyze_data", "read_excel", "generate_chart", "extract_tables"],
   files: [
-    "file_info", "move_file", "copy_file", "batch_move",
-    "create_folder", "delete_file", "find_duplicates", "batch_rename",
-    "compress_files", "extract_archive",
+    "file_info",
+    "move_file",
+    "copy_file",
+    "batch_move",
+    "create_folder",
+    "delete_file",
+    "find_duplicates",
+    "batch_rename",
+    "compress_files",
+    "extract_archive",
   ],
   write: [
-    "write_file", "generate_excel", "merge_pdf", "split_pdf",
-    "pdf_to_images", "images_to_pdf", "resize_image", "convert_image", "crop_image",
+    "write_file",
+    "generate_excel",
+    "merge_pdf",
+    "split_pdf",
+    "pdf_to_images",
+    "images_to_pdf",
+    "resize_image",
+    "convert_image",
+    "crop_image",
   ],
   media: ["search_video", "extract_frame", "transcribe_audio", "search_audio"],
   web: ["web_search", "download_url"],
@@ -624,7 +732,7 @@ function getToolsForIntent(message, chatJid) {
   }
   const allowedNames = new Set(CORE_TOOLS);
   for (const cat of cats) {
-    for (const name of (TOOL_GROUPS[cat] || [])) allowedNames.add(name);
+    for (const name of TOOL_GROUPS[cat] || []) allowedNames.add(name);
   }
   // automation tools always available (reminders, watch)
   for (const name of TOOL_GROUPS.automation) allowedNames.add(name);
@@ -634,1020 +742,1137 @@ function getToolsForIntent(message, chatJid) {
     lastIntentCats[chatJid] = cats;
   }
 
-  const filtered = tools[0].functionDeclarations.filter(fd => allowedNames.has(fd.name));
-  console.log(`[Pinpoint] Tools: ${filtered.length}/${tools[0].functionDeclarations.length} (intents: ${[...cats].join(",")})`);
+  const filtered = tools[0].functionDeclarations.filter((fd) => allowedNames.has(fd.name));
+  console.log(
+    `[Pinpoint] Tools: ${filtered.length}/${tools[0].functionDeclarations.length} (intents: ${[...cats].join(",")})`,
+  );
   return [{ functionDeclarations: filtered }];
 }
 
 // --- Tool declarations for Gemini ---
-const tools = [{
-  functionDeclarations: [
-    {
-      name: "search_documents",
-      description: "Search indexed documents by keywords. Returns the exact matching section/paragraph (not just filenames). PREFERRED way to answer questions about document content — always try this FIRST before read_document or read_file. Also searches indexed IMAGE CAPTIONS — use file_type='image' to find photos by description (free, instant). If the file is not indexed yet, use index_file first, then search. Can filter by file type and folder.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          query: {
-            type: "STRING",
-            description: "Search keywords extracted from the user's message.",
+const tools = [
+  {
+    functionDeclarations: [
+      {
+        name: "search_documents",
+        description:
+          "Search indexed documents by keywords. Returns the exact matching section/paragraph (not just filenames). PREFERRED way to answer questions about document content — always try this FIRST before read_document or read_file. Also searches indexed IMAGE CAPTIONS — use file_type='image' to find photos by description (free, instant). If the file is not indexed yet, use index_file first, then search. Can filter by file type and folder.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            query: {
+              type: "STRING",
+              description: "Search keywords extracted from the user's message.",
+            },
+            file_type: {
+              type: "STRING",
+              description: "Filter by type: pdf, docx, xlsx, pptx, txt, csv, image, epub. Optional.",
+            },
+            folder: {
+              type: "STRING",
+              description: "Only search within this folder path. Optional.",
+            },
           },
-          file_type: {
-            type: "STRING",
-            description: "Filter by type: pdf, docx, xlsx, pptx, txt, csv, image, epub. Optional.",
-          },
-          folder: {
-            type: "STRING",
-            description: "Only search within this folder path. Optional.",
-          },
-        },
-        required: ["query"],
-      },
-    },
-    {
-      name: "read_document",
-      description: "Read the full text of a document by its ID. Use ONLY when search_documents snippet isn't detailed enough and you need broader context — like summarizing an entire document, comparing two full documents, or translating. For specific questions (what does clause 7 say, what's the depreciation amount), search_documents already returns the exact section.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          document_id: {
-            type: "INTEGER",
-            description: "The document ID from search results.",
-          },
-        },
-        required: ["document_id"],
-      },
-    },
-    {
-      name: "read_excel",
-      description: "Read specific cells or ranges from an Excel (.xlsx) file. Use when the user asks about specific cells, rows, columns, or ranges. For general search, use search_documents instead.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          path: {
-            type: "STRING",
-            description: "Absolute path to the .xlsx file.",
-          },
-          sheet_name: {
-            type: "STRING",
-            description: "Sheet name. Optional — defaults to first sheet.",
-          },
-          cell_range: {
-            type: "STRING",
-            description: "Excel range like 'A1:D10', 'B5', 'A:A'. Optional — defaults to first 20 rows.",
-          },
-        },
-        required: ["path"],
-      },
-    },
-    {
-      name: "calculate",
-      description: "Evaluate a mathematical expression. Supports +, -, *, /, **, %, parentheses, and functions like round(), abs(), min(), max(), sum(), sqrt(). Use for any arithmetic: sums, averages, percentages, conversions.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          expression: {
-            type: "STRING",
-            description: "Math expression like '45230 * 0.18' or '(12000 + 8500 + 23000) / 3'.",
-          },
-        },
-        required: ["expression"],
-      },
-    },
-    {
-      name: "list_files",
-      description: "List files and folders in a directory. WORKFLOW: 1) Use sort_by='size' to find large files. 2) Use name_contains to search by filename. 3) Use recursive=true to search in subfolders. 4) Use filter_ext or filter_type to narrow by type. The response includes a 'largest' field when sorted by size. Do NOT call repeatedly with different params — if you can't find a file in the first result, try name_contains or recursive.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          folder: {
-            type: "STRING",
-            description: "Folder path to list.",
-          },
-          sort_by: {
-            type: "STRING",
-            description: "Sort order: 'name' (default), 'date' (newest first), 'size' (largest first).",
-          },
-          filter_ext: {
-            type: "STRING",
-            description: "Filter by single extension like '.pdf', '.xlsx'. Optional.",
-          },
-          filter_type: {
-            type: "STRING",
-            description: "Filter by category: 'image', 'document', 'spreadsheet', 'presentation', 'video', 'audio', 'archive'. Optional.",
-          },
-          name_contains: {
-            type: "STRING",
-            description: "Search by filename containing this text (case-insensitive). E.g. 'invoice' finds 'Invoice_2024.pdf'.",
-          },
-          recursive: {
-            type: "BOOLEAN",
-            description: "Search subdirectories recursively. Default false. Use when file might be in a subfolder.",
-          },
-        },
-        required: ["folder"],
-      },
-    },
-    {
-      name: "grep_files",
-      description: "Search INSIDE files for text content. Finds files containing a pattern and shows matching lines. Use when you need to find which file contains specific text (a name, phone number, keyword). Works on any text file — no indexing needed.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          pattern: {
-            type: "STRING",
-            description: "Text pattern to search for inside files (case-insensitive).",
-          },
-          folder: {
-            type: "STRING",
-            description: "Folder to search in.",
-          },
-          file_filter: {
-            type: "STRING",
-            description: "Filter by file pattern, e.g. '*.txt', '*.csv', '*.log'. Optional.",
-          },
-        },
-        required: ["pattern", "folder"],
-      },
-    },
-    {
-      name: "file_info",
-      description: "Get detailed information about a file or folder: size, creation date, modification date, file type, and whether it's indexed in Pinpoint's database.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          path: {
-            type: "STRING",
-            description: "File or folder path.",
-          },
-        },
-        required: ["path"],
-      },
-    },
-    {
-      name: "move_file",
-      description: "Move, copy, or rename a single file. For moving multiple files, use batch_move instead.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          source: {
-            type: "STRING",
-            description: "Source file path.",
-          },
-          destination: {
-            type: "STRING",
-            description: "Destination path (file path or folder).",
-          },
-          copy: {
-            type: "BOOLEAN",
-            description: "If true, copy instead of move. Default: false.",
-          },
-        },
-        required: ["source", "destination"],
-      },
-    },
-    {
-      name: "copy_file",
-      description: "Copy a file or folder to a new location.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          source: { type: "STRING", description: "Source file or folder path." },
-          destination: { type: "STRING", description: "Destination path." },
-        },
-        required: ["source", "destination"],
-      },
-    },
-    {
-      name: "batch_move",
-      description: "Move or copy multiple files to a destination folder in one call. Much faster than calling move_file repeatedly. Creates destination folder if needed.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          sources: {
-            type: "ARRAY",
-            items: { type: "STRING" },
-            description: "List of source file paths to move/copy.",
-          },
-          destination: {
-            type: "STRING",
-            description: "Destination folder path. All files will be moved/copied here.",
-          },
-          is_copy: {
-            type: "BOOLEAN",
-            description: "If true, copy files instead of moving. Default: false (move).",
-          },
-        },
-        required: ["sources", "destination"],
-      },
-    },
-    {
-      name: "create_folder",
-      description: "Create a new folder (directory). Creates parent folders too if they don't exist.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          path: {
-            type: "STRING",
-            description: "Folder path to create.",
-          },
-        },
-        required: ["path"],
-      },
-    },
-    {
-      name: "delete_file",
-      description: "Delete a file. SAFETY: ALWAYS ask the user for explicit confirmation before deleting. Never delete without user approval. Cannot delete folders.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          path: {
-            type: "STRING",
-            description: "File path to delete.",
-          },
-        },
-        required: ["path"],
-      },
-    },
-    {
-      name: "send_file",
-      description: "Send a file to the user on WhatsApp. ONLY use this when the user explicitly asks to receive/send/share a file. Never send files automatically. Max 16MB for images, 100MB for documents. If too large, use resize_image or compress_files first.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          path: {
-            type: "STRING",
-            description: "Absolute path of the file to send.",
-          },
-          caption: {
-            type: "STRING",
-            description: "Short caption for the file. Optional.",
-          },
-        },
-        required: ["path"],
-      },
-    },
-    {
-      name: "get_status",
-      description: "Get indexing statistics: total files indexed, count by file type, database size.",
-      parameters: {
-        type: "OBJECT",
-        properties: {},
-      },
-    },
-    {
-      name: "read_file",
-      description: "Read a file from disk. For images: you SEE the image visually. If the user sent a photo, it is already visible to you — do NOT call read_file on it again. For documents (PDF, DOCX, TXT): prefer index_file + search_documents for searching. For Excel: use analyze_data instead.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          path: {
-            type: "STRING",
-            description: "Absolute path to the file to read.",
-          },
-        },
-        required: ["path"],
-      },
-    },
-    {
-      name: "search_history",
-      description: "Search past conversation messages from previous sessions. Use when the user refers to something discussed earlier that's not in the current conversation, like 'that file from yesterday' or 'what did I search for last time?'.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          query: {
-            type: "STRING",
-            description: "Keywords to search for in past conversations.",
-          },
-        },
-        required: ["query"],
-      },
-    },
-    {
-      name: "detect_faces",
-      description: "Detect and analyze faces in an image or all images in a folder. Returns face count, bounding boxes, confidence, age, gender, head pose. Pass folder for batch processing (one call instead of many).",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          image_path: {
-            type: "STRING",
-            description: "Absolute path to a single image file.",
-          },
-          folder: {
-            type: "STRING",
-            description: "Absolute path to folder — processes ALL images in it.",
-          },
+          required: ["query"],
         },
       },
-    },
-    {
-      name: "crop_face",
-      description: "Crop a specific face from an image and save it as a separate file. Use this when detect_faces found multiple faces and you need to show them to the user so they can pick which person to search for. Returns the path to the cropped face image which you can send via send_file.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          image_path: {
-            type: "STRING",
-            description: "Absolute path to the original image.",
+      {
+        name: "read_document",
+        description:
+          "Read the full text of a document by its ID. Use ONLY when search_documents snippet isn't detailed enough and you need broader context — like summarizing an entire document, comparing two full documents, or translating. For specific questions (what does clause 7 say, what's the depreciation amount), search_documents already returns the exact section.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            document_id: {
+              type: "INTEGER",
+              description: "The document ID from search results.",
+            },
           },
-          face_idx: {
-            type: "INTEGER",
-            description: "Index of the face to crop (from detect_faces result).",
-          },
+          required: ["document_id"],
         },
-        required: ["image_path", "face_idx"],
       },
-    },
-    {
-      name: "find_person",
-      description: "Find all photos of a specific person in a folder. The reference image should contain exactly ONE face. If the reference has multiple faces, first use detect_faces + crop_face to let the user pick, then use find_person_by_face instead. Scans all images in the folder and returns matching photos sorted by similarity. First scan may take a while (caches results for instant repeat searches).",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          reference_image: {
-            type: "STRING",
-            description: "Path to the reference image containing the person's face.",
+      {
+        name: "read_excel",
+        description:
+          "Read specific cells or ranges from an Excel (.xlsx) file. Use when the user asks about specific cells, rows, columns, or ranges. For general search, use search_documents instead.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            path: {
+              type: "STRING",
+              description: "Absolute path to the .xlsx file.",
+            },
+            sheet_name: {
+              type: "STRING",
+              description: "Sheet name. Optional — defaults to first sheet.",
+            },
+            cell_range: {
+              type: "STRING",
+              description: "Excel range like 'A1:D10', 'B5', 'A:A'. Optional — defaults to first 20 rows.",
+            },
           },
-          folder: {
-            type: "STRING",
-            description: "Absolute path to the folder to search in.",
-          },
+          required: ["path"],
         },
-        required: ["reference_image", "folder"],
       },
-    },
-    {
-      name: "find_person_by_face",
-      description: "Find all photos of a specific person using a face index from a multi-face reference image. Use this when the reference image has multiple faces and the user has picked which face to search for (via detect_faces + crop_face). The face_idx comes from detect_faces.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          reference_image: {
-            type: "STRING",
-            description: "Path to the reference image.",
+      {
+        name: "calculate",
+        description:
+          "Evaluate a mathematical expression. Supports +, -, *, /, **, %, parentheses, and functions like round(), abs(), min(), max(), sum(), sqrt(). Use for any arithmetic: sums, averages, percentages, conversions.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            expression: {
+              type: "STRING",
+              description: "Math expression like '45230 * 0.18' or '(12000 + 8500 + 23000) / 3'.",
+            },
           },
-          face_idx: {
-            type: "INTEGER",
-            description: "Index of the chosen face (from detect_faces).",
-          },
-          folder: {
-            type: "STRING",
-            description: "Absolute path to the folder to search in.",
-          },
+          required: ["expression"],
         },
-        required: ["reference_image", "face_idx", "folder"],
       },
-    },
-    {
-      name: "count_faces",
-      description: "Count faces in an image, a list of images, or all images in a folder. Returns face count, age/gender breakdown. Use paths array to batch multiple specific images in ONE call instead of calling per-image.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          image_path: {
-            type: "STRING",
-            description: "Absolute path to a single image file.",
+      {
+        name: "list_files",
+        description:
+          "List files and folders in a directory. WORKFLOW: 1) Use sort_by='size' to find large files. 2) Use name_contains to search by filename. 3) Use recursive=true to search in subfolders. 4) Use filter_ext or filter_type to narrow by type. The response includes a 'largest' field when sorted by size. Do NOT call repeatedly with different params — if you can't find a file in the first result, try name_contains or recursive.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            folder: {
+              type: "STRING",
+              description: "Folder path to list.",
+            },
+            sort_by: {
+              type: "STRING",
+              description: "Sort order: 'name' (default), 'date' (newest first), 'size' (largest first).",
+            },
+            filter_ext: {
+              type: "STRING",
+              description: "Filter by single extension like '.pdf', '.xlsx'. Optional.",
+            },
+            filter_type: {
+              type: "STRING",
+              description:
+                "Filter by category: 'image', 'document', 'spreadsheet', 'presentation', 'video', 'audio', 'archive'. Optional.",
+            },
+            name_contains: {
+              type: "STRING",
+              description:
+                "Search by filename containing this text (case-insensitive). E.g. 'invoice' finds 'Invoice_2024.pdf'.",
+            },
+            recursive: {
+              type: "BOOLEAN",
+              description: "Search subdirectories recursively. Default false. Use when file might be in a subfolder.",
+            },
           },
-          paths: {
-            type: "ARRAY",
-            items: { type: "STRING" },
-            description: "Array of image paths to count faces in batch. Use this instead of calling count_faces per-image.",
+          required: ["folder"],
+        },
+      },
+      {
+        name: "grep_files",
+        description:
+          "Search INSIDE files for text content. Finds files containing a pattern and shows matching lines. Use when you need to find which file contains specific text (a name, phone number, keyword). Works on any text file — no indexing needed.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            pattern: {
+              type: "STRING",
+              description: "Text pattern to search for inside files (case-insensitive).",
+            },
+            folder: {
+              type: "STRING",
+              description: "Folder to search in.",
+            },
+            file_filter: {
+              type: "STRING",
+              description: "Filter by file pattern, e.g. '*.txt', '*.csv', '*.log'. Optional.",
+            },
           },
-          folder: {
-            type: "STRING",
-            description: "Absolute path to folder — counts faces in ALL images in folder.",
+          required: ["pattern", "folder"],
+        },
+      },
+      {
+        name: "file_info",
+        description:
+          "Get detailed information about a file or folder: size, creation date, modification date, file type, and whether it's indexed in Pinpoint's database.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            path: {
+              type: "STRING",
+              description: "File or folder path.",
+            },
+          },
+          required: ["path"],
+        },
+      },
+      {
+        name: "move_file",
+        description: "Move, copy, or rename a single file. For moving multiple files, use batch_move instead.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            source: {
+              type: "STRING",
+              description: "Source file path.",
+            },
+            destination: {
+              type: "STRING",
+              description: "Destination path (file path or folder).",
+            },
+            copy: {
+              type: "BOOLEAN",
+              description: "If true, copy instead of move. Default: false.",
+            },
+          },
+          required: ["source", "destination"],
+        },
+      },
+      {
+        name: "copy_file",
+        description: "Copy a file or folder to a new location.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            source: { type: "STRING", description: "Source file or folder path." },
+            destination: { type: "STRING", description: "Destination path." },
+          },
+          required: ["source", "destination"],
+        },
+      },
+      {
+        name: "batch_move",
+        description:
+          "Move or copy multiple files to a destination folder in one call. Much faster than calling move_file repeatedly. Creates destination folder if needed.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            sources: {
+              type: "ARRAY",
+              items: { type: "STRING" },
+              description: "List of source file paths to move/copy.",
+            },
+            destination: {
+              type: "STRING",
+              description: "Destination folder path. All files will be moved/copied here.",
+            },
+            is_copy: {
+              type: "BOOLEAN",
+              description: "If true, copy files instead of moving. Default: false (move).",
+            },
+          },
+          required: ["sources", "destination"],
+        },
+      },
+      {
+        name: "create_folder",
+        description: "Create a new folder (directory). Creates parent folders too if they don't exist.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            path: {
+              type: "STRING",
+              description: "Folder path to create.",
+            },
+          },
+          required: ["path"],
+        },
+      },
+      {
+        name: "delete_file",
+        description:
+          "Delete a file. SAFETY: ALWAYS ask the user for explicit confirmation before deleting. Never delete without user approval. Cannot delete folders.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            path: {
+              type: "STRING",
+              description: "File path to delete.",
+            },
+          },
+          required: ["path"],
+        },
+      },
+      {
+        name: "send_file",
+        description:
+          "Send a file to the user on WhatsApp. ONLY use this when the user explicitly asks to receive/send/share a file. Never send files automatically. Max 16MB for images, 100MB for documents. If too large, use resize_image or compress_files first.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            path: {
+              type: "STRING",
+              description: "Absolute path of the file to send.",
+            },
+            caption: {
+              type: "STRING",
+              description: "Short caption for the file. Optional.",
+            },
+          },
+          required: ["path"],
+        },
+      },
+      {
+        name: "get_status",
+        description: "Get indexing statistics: total files indexed, count by file type, database size.",
+        parameters: {
+          type: "OBJECT",
+          properties: {},
+        },
+      },
+      {
+        name: "read_file",
+        description:
+          "Read a file from disk. For images: you SEE the image visually. If the user sent a photo, it is already visible to you — do NOT call read_file on it again. For documents (PDF, DOCX, TXT): prefer index_file + search_documents for searching. For Excel: use analyze_data instead.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            path: {
+              type: "STRING",
+              description: "Absolute path to the file to read.",
+            },
+          },
+          required: ["path"],
+        },
+      },
+      {
+        name: "search_history",
+        description:
+          "Search past conversation messages from previous sessions. Use when the user refers to something discussed earlier that's not in the current conversation, like 'that file from yesterday' or 'what did I search for last time?'.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            query: {
+              type: "STRING",
+              description: "Keywords to search for in past conversations.",
+            },
+          },
+          required: ["query"],
+        },
+      },
+      {
+        name: "detect_faces",
+        description:
+          "Detect and analyze faces in an image or all images in a folder. Returns face count, bounding boxes, confidence, age, gender, head pose. Pass folder for batch processing (one call instead of many).",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            image_path: {
+              type: "STRING",
+              description: "Absolute path to a single image file.",
+            },
+            folder: {
+              type: "STRING",
+              description: "Absolute path to folder — processes ALL images in it.",
+            },
           },
         },
       },
-    },
-    {
-      name: "compare_faces",
-      description: "Compare two specific faces from two images to check if they are the same person. Returns similarity score (0-1) and confidence level. Use when user asks 'is this the same person?' or wants to verify identity across photos.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          image_path_1: {
-            type: "STRING",
-            description: "Path to the first image.",
+      {
+        name: "crop_face",
+        description:
+          "Crop a specific face from an image and save it as a separate file. Use this when detect_faces found multiple faces and you need to show them to the user so they can pick which person to search for. Returns the path to the cropped face image which you can send via send_file.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            image_path: {
+              type: "STRING",
+              description: "Absolute path to the original image.",
+            },
+            face_idx: {
+              type: "INTEGER",
+              description: "Index of the face to crop (from detect_faces result).",
+            },
           },
-          face_idx_1: {
-            type: "INTEGER",
-            description: "Face index in first image (default 0 for first/only face).",
-          },
-          image_path_2: {
-            type: "STRING",
-            description: "Path to the second image.",
-          },
-          face_idx_2: {
-            type: "INTEGER",
-            description: "Face index in second image (default 0 for first/only face).",
-          },
-        },
-        required: ["image_path_1", "image_path_2"],
-      },
-    },
-    {
-      name: "remember_face",
-      description: "Save a face for future recognition. After this, detect_faces will auto-identify this person in any photo. One person can have multiple saved faces (different angles improve accuracy). Use detect_faces first to get face_idx.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          image_path: {
-            type: "STRING",
-            description: "Absolute path to the image containing the face.",
-          },
-          face_idx: {
-            type: "INTEGER",
-            description: "Index of the face to save (from detect_faces result). Default 0 for single-face images.",
-          },
-          name: {
-            type: "STRING",
-            description: "Name to associate with this face (e.g. 'Sharika', 'Dad').",
-          },
-        },
-        required: ["image_path", "name"],
-      },
-    },
-    {
-      name: "forget_face",
-      description: "Delete all saved face data for a person. After this, they will no longer be auto-recognized by detect_faces.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          name: {
-            type: "STRING",
-            description: "Name of the person to forget (case-insensitive).",
-          },
-        },
-        required: ["name"],
-      },
-    },
-    {
-      name: "ocr",
-      description: "Extract text from an image or scanned PDF using OCR. Use this when you need the text as a string for processing. For just SEEING an image, use read_file instead (sends image visually). Pass folder for batch processing. After OCR, use index_file to make the text searchable.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          path: {
-            type: "STRING",
-            description: "Absolute path to a single image or PDF file.",
-          },
-          folder: {
-            type: "STRING",
-            description: "Absolute path to folder — OCR ALL images and PDFs in it.",
-          },
+          required: ["image_path", "face_idx"],
         },
       },
-    },
-    {
-      name: "analyze_data",
-      description: "Run pandas data analysis on CSV or Excel files. WORKFLOW: 1) FIRST call with operation='columns' to see all sheets, column names, types, and sample values. 2) Use operation='search' with query to find values across ALL sheets — auto-normalizes phone/ID formats (strips dashes, parens). 3) Use filter/groupby/sort when you know the exact column name. Operations: columns (schema+sheets), search (grep-like across all cells), describe, head, filter, value_counts, groupby, corr, sort, unique, shape, eval. For phone/ID lookups ALWAYS use search — it normalizes automatically. File is cached after first load (instant repeat calls).",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          path: {
-            type: "STRING",
-            description: "Absolute path to CSV or Excel file.",
+      {
+        name: "find_person",
+        description:
+          "Find all photos of a specific person in a folder. The reference image should contain exactly ONE face. If the reference has multiple faces, first use detect_faces + crop_face to let the user pick, then use find_person_by_face instead. Scans all images in the folder and returns matching photos sorted by similarity. First scan may take a while (caches results for instant repeat searches).",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            reference_image: {
+              type: "STRING",
+              description: "Path to the reference image containing the person's face.",
+            },
+            folder: {
+              type: "STRING",
+              description: "Absolute path to the folder to search in.",
+            },
           },
-          operation: {
-            type: "STRING",
-            description: "Operation: columns (FIRST — see sheets+types), search (find values across all sheets), describe, head, filter, value_counts, groupby, corr, sort, unique, shape, eval.",
+          required: ["reference_image", "folder"],
+        },
+      },
+      {
+        name: "find_person_by_face",
+        description:
+          "Find all photos of a specific person using a face index from a multi-face reference image. Use this when the reference image has multiple faces and the user has picked which face to search for (via detect_faces + crop_face). The face_idx comes from detect_faces.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            reference_image: {
+              type: "STRING",
+              description: "Path to the reference image.",
+            },
+            face_idx: {
+              type: "INTEGER",
+              description: "Index of the chosen face (from detect_faces).",
+            },
+            folder: {
+              type: "STRING",
+              description: "Absolute path to the folder to search in.",
+            },
           },
-          columns: {
-            type: "STRING",
-            description: "Column name(s). For groupby use 'group_col:agg_col'. For sort prefix with '-' for descending.",
-          },
-          query: {
-            type: "STRING",
-            description: "For search: value to find (e.g. '9208896630' — auto-normalizes phone formats). For filter: pandas query like 'amount > 1000'. For eval: expression like 'df.groupby(\"Cat\")[[\"Price\"]].sum()'.",
-          },
-          sheet: {
-            type: "STRING",
-            description: "Sheet name for Excel files. Omit to use first sheet (or search ALL sheets with operation='search').",
+          required: ["reference_image", "face_idx", "folder"],
+        },
+      },
+      {
+        name: "count_faces",
+        description:
+          "Count faces in an image, a list of images, or all images in a folder. Returns face count, age/gender breakdown. Use paths array to batch multiple specific images in ONE call instead of calling per-image.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            image_path: {
+              type: "STRING",
+              description: "Absolute path to a single image file.",
+            },
+            paths: {
+              type: "ARRAY",
+              items: { type: "STRING" },
+              description:
+                "Array of image paths to count faces in batch. Use this instead of calling count_faces per-image.",
+            },
+            folder: {
+              type: "STRING",
+              description: "Absolute path to folder — counts faces in ALL images in folder.",
+            },
           },
         },
-        required: ["path", "operation"],
       },
-    },
-    {
-      name: "index_file",
-      description: "Index a single file into the search database. Extracts text, chunks it into sections, and makes it searchable. Use this BEFORE search_documents when the file hasn't been indexed yet. After indexing, use search_documents to find specific sections within the file.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          path: {
-            type: "STRING",
-            description: "Absolute path to the file to index.",
+      {
+        name: "compare_faces",
+        description:
+          "Compare two specific faces from two images to check if they are the same person. Returns similarity score (0-1) and confidence level. Use when user asks 'is this the same person?' or wants to verify identity across photos.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            image_path_1: {
+              type: "STRING",
+              description: "Path to the first image.",
+            },
+            face_idx_1: {
+              type: "INTEGER",
+              description: "Face index in first image (default 0 for first/only face).",
+            },
+            image_path_2: {
+              type: "STRING",
+              description: "Path to the second image.",
+            },
+            face_idx_2: {
+              type: "INTEGER",
+              description: "Face index in second image (default 0 for first/only face).",
+            },
+          },
+          required: ["image_path_1", "image_path_2"],
+        },
+      },
+      {
+        name: "remember_face",
+        description:
+          "Save a face for future recognition. After this, detect_faces will auto-identify this person in any photo. One person can have multiple saved faces (different angles improve accuracy). Use detect_faces first to get face_idx.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            image_path: {
+              type: "STRING",
+              description: "Absolute path to the image containing the face.",
+            },
+            face_idx: {
+              type: "INTEGER",
+              description: "Index of the face to save (from detect_faces result). Default 0 for single-face images.",
+            },
+            name: {
+              type: "STRING",
+              description: "Name to associate with this face (e.g. 'Sharika', 'Dad').",
+            },
+          },
+          required: ["image_path", "name"],
+        },
+      },
+      {
+        name: "forget_face",
+        description:
+          "Delete all saved face data for a person. After this, they will no longer be auto-recognized by detect_faces.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            name: {
+              type: "STRING",
+              description: "Name of the person to forget (case-insensitive).",
+            },
+          },
+          required: ["name"],
+        },
+      },
+      {
+        name: "ocr",
+        description:
+          "Extract text from an image or scanned PDF using OCR. Use this when you need the text as a string for processing. For just SEEING an image, use read_file instead (sends image visually). Pass folder for batch processing. After OCR, use index_file to make the text searchable.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            path: {
+              type: "STRING",
+              description: "Absolute path to a single image or PDF file.",
+            },
+            folder: {
+              type: "STRING",
+              description: "Absolute path to folder — OCR ALL images and PDFs in it.",
+            },
           },
         },
-        required: ["path"],
       },
-    },
-    {
-      name: "write_file",
-      description: "Create or write a text file. Can append to existing files. Use for creating notes, reports, summaries, text exports.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          path: { type: "STRING", description: "Absolute path for the file." },
-          content: { type: "STRING", description: "Text content to write." },
-          append: { type: "BOOLEAN", description: "If true, append to existing file. Default: false." },
-        },
-        required: ["path", "content"],
-      },
-    },
-    {
-      name: "generate_excel",
-      description: "Create an Excel file from data. Use for expense reports, data exports, aggregated results.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          path: { type: "STRING", description: "Output path for .xlsx file." },
-          data: { type: "ARRAY", description: "List of row objects (e.g. [{\"name\":\"A\",\"amount\":100}]).", items: { type: "OBJECT" } },
-          sheet_name: { type: "STRING", description: "Sheet name. Default: Sheet1." },
-        },
-        required: ["path", "data"],
-      },
-    },
-    {
-      name: "generate_chart",
-      description: "Create a chart image (bar, line, pie, scatter, hist) from data using matplotlib. Returns image path — send via send_file.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          data: { type: "OBJECT", description: "Chart data: {\"labels\": [...], \"values\": [...]}." },
-          chart_type: { type: "STRING", description: "Chart type: bar, line, pie, scatter, hist." },
-          title: { type: "STRING", description: "Chart title." },
-          xlabel: { type: "STRING", description: "X-axis label." },
-          ylabel: { type: "STRING", description: "Y-axis label." },
-          output_path: { type: "STRING", description: "Output image path. Optional." },
-        },
-        required: ["data", "chart_type"],
-      },
-    },
-    {
-      name: "merge_pdf",
-      description: "Combine multiple PDFs into one file. Use for merging invoices, reports, certificates.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          paths: { type: "ARRAY", description: "List of PDF file paths to merge.", items: { type: "STRING" } },
-          output_path: { type: "STRING", description: "Output path for merged PDF." },
-        },
-        required: ["paths", "output_path"],
-      },
-    },
-    {
-      name: "split_pdf",
-      description: "Extract specific pages from a PDF. Page format: '1-5', '3,7,10', '1-3,5,8-10'.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          path: { type: "STRING", description: "Source PDF path." },
-          pages: { type: "STRING", description: "Pages to extract: '1-5', '3,7', '1-3,5,8-10'." },
-          output_path: { type: "STRING", description: "Output path for extracted PDF." },
-        },
-        required: ["path", "pages", "output_path"],
-      },
-    },
-    {
-      name: "pdf_to_images",
-      description: "Render PDF pages as PNG images. Returns list of image paths. Use to send PDF pages via WhatsApp.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          path: { type: "STRING", description: "PDF file path." },
-          pages: { type: "STRING", description: "Pages to render: '1-5', '3,7'. Omit for all pages." },
-          dpi: { type: "INTEGER", description: "Resolution. Default 150." },
-          output_folder: { type: "STRING", description: "Folder for output images. Default: same folder as PDF." },
-        },
-        required: ["path"],
-      },
-    },
-    {
-      name: "images_to_pdf",
-      description: "Combine multiple images into a single PDF. Supports jpg, png, webp, bmp.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          paths: { type: "ARRAY", items: { type: "STRING" }, description: "Array of image paths to combine." },
-          output_path: { type: "STRING", description: "Output PDF path." },
-        },
-        required: ["paths", "output_path"],
-      },
-    },
-    {
-      name: "resize_image",
-      description: "Resize or compress an image. Set width OR height to keep aspect ratio, or both for exact size.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          path: { type: "STRING", description: "Image path." },
-          width: { type: "INTEGER", description: "Target width in pixels." },
-          height: { type: "INTEGER", description: "Target height in pixels." },
-          quality: { type: "INTEGER", description: "JPEG quality 1-100. Default 85." },
-          output_path: { type: "STRING", description: "Output path. If omitted, overwrites original." },
-        },
-        required: ["path"],
-      },
-    },
-    {
-      name: "convert_image",
-      description: "Convert image format. Supports: jpg, png, webp, bmp. Handles HEIC (iPhone photos) to JPG.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          path: { type: "STRING", description: "Source image path." },
-          format: { type: "STRING", description: "Target format: jpg, png, webp, bmp." },
-          output_path: { type: "STRING", description: "Output path. Optional — defaults to same name with new extension." },
-        },
-        required: ["path", "format"],
-      },
-    },
-    {
-      name: "crop_image",
-      description: "Crop an image to specified rectangle. Coordinates in pixels. Use file_info or read_file first to know image dimensions before cropping.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          path: { type: "STRING", description: "Image path." },
-          x: { type: "INTEGER", description: "Left edge (pixels from left)." },
-          y: { type: "INTEGER", description: "Top edge (pixels from top)." },
-          width: { type: "INTEGER", description: "Crop width in pixels." },
-          height: { type: "INTEGER", description: "Crop height in pixels." },
-          output_path: { type: "STRING", description: "Output path. Optional." },
-        },
-        required: ["path", "x", "y", "width", "height"],
-      },
-    },
-    {
-      name: "image_metadata",
-      description: "Extract EXIF metadata from photos: date taken, camera model, GPS coordinates, lens, aperture, ISO, dimensions. Use for: 'when was this taken?', 'what camera?', 'where was this shot?', 'show timeline'. Pass folder for batch metadata of all images.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          path: { type: "STRING", description: "Absolute path to image." },
-          folder: { type: "STRING", description: "Absolute path to folder — get metadata for ALL images." },
-        },
-      },
-    },
-    {
-      name: "compress_files",
-      description: "Zip files or folders into a .zip archive. Can include multiple files and entire folders.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          paths: { type: "ARRAY", description: "List of file/folder paths to zip.", items: { type: "STRING" } },
-          output_path: { type: "STRING", description: "Output .zip file path." },
-        },
-        required: ["paths", "output_path"],
-      },
-    },
-    {
-      name: "extract_archive",
-      description: "Extract a zip archive. If no output_path, extracts to folder with same name.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          path: { type: "STRING", description: "Path to .zip file." },
-          output_path: { type: "STRING", description: "Folder to extract into. Optional." },
-        },
-        required: ["path"],
-      },
-    },
-    {
-      name: "download_url",
-      description: "Download a file from a URL. Saves to Downloads/Pinpoint/ by default. Use when user shares a link.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          url: { type: "STRING", description: "URL to download." },
-          save_path: { type: "STRING", description: "Where to save. Optional." },
-        },
-        required: ["url"],
-      },
-    },
-    {
-      name: "find_duplicates",
-      description: "Find duplicate files in a folder by content hash. Returns groups of identical files for cleanup.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          folder: { type: "STRING", description: "Folder path to scan." },
-        },
-        required: ["folder"],
-      },
-    },
-    {
-      name: "batch_rename",
-      description: "Rename files matching a regex pattern. ALWAYS call with dry_run=true first to preview changes, show the user, and only execute with dry_run=false after confirmation.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          folder: { type: "STRING", description: "Folder containing files to rename." },
-          pattern: { type: "STRING", description: "Regex pattern to match in filenames." },
-          replace: { type: "STRING", description: "Replacement string." },
-          dry_run: { type: "BOOLEAN", description: "Preview only (default true). Set false to execute after user confirms." },
-        },
-        required: ["folder", "pattern", "replace"],
-      },
-    },
-    {
-      name: "run_python",
-      description: "Execute Python code. Use for any custom operation: image manipulation, data processing, file operations, calculations, generating files. Pre-loaded: PIL, pandas, numpy, matplotlib, os, json. Working dir: /tmp/pinpoint_python/. Print results to stdout.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          code: { type: "STRING", description: "Python code to execute. Use print() for output. Save files to WORK_DIR." },
-          timeout: { type: "INTEGER", description: "Max execution time in seconds. Default 30, max 120." },
-        },
-        required: ["code"],
-      },
-    },
-    {
-      name: "memory_save",
-      description: "Save a fact to persistent memory. Persists across sessions and restarts. Smart dedup: skips duplicates, merges related facts, handles contradictions. Only works when memory is enabled.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          fact: { type: "STRING", description: "The fact to remember. Keep it short and factual." },
-          category: { type: "STRING", description: "Category: people, places, preferences, professional, health, plans, general. Default: general." },
-        },
-        required: ["fact"],
-      },
-    },
-    {
-      name: "memory_search",
-      description: "Search persistent memories by keyword. Use to recall personal facts about the user before saying 'I don't know'. Only works when memory is enabled.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          query: { type: "STRING", description: "Search keywords. E.g. 'mom', 'trip', 'preference'." },
-        },
-        required: ["query"],
-      },
-    },
-    {
-      name: "memory_delete",
-      description: "Delete a memory by ID. Use when user asks to forget something and you have the ID.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          id: { type: "INTEGER", description: "Memory ID to delete (from memory_search results)." },
-        },
-        required: ["id"],
-      },
-    },
-    {
-      name: "memory_forget",
-      description: "Forget a memory by description — no ID needed. Searches memories for best match and deletes it. Use when user says 'forget that I like dark mode' or 'remove the thing about Mumbai'. Preferred over memory_delete when you don't have the ID.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          description: { type: "STRING", description: "Natural language description of what to forget. E.g. 'dark mode preference', 'living in Mumbai'." },
-        },
-        required: ["description"],
-      },
-    },
-    {
-      name: "search_facts",
-      description: "Search extracted facts from indexed documents. Facts are key details (names, dates, amounts, topics) auto-extracted at index time. Use for quick factual lookups like 'who is the electrician?' or 'what was the invoice amount?'. Falls back to search_documents for full-text search if facts don't have enough detail.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          query: { type: "STRING", description: "Search keywords for facts. E.g. 'electrician', 'invoice amount', 'meeting date'." },
-        },
-        required: ["query"],
-      },
-    },
-    {
-      name: "web_search",
-      description: "Search the web for real-world information. Use for news, weather, sports, people, products, prices, current events, comparisons — anything NOT in local files. Returns search results with titles, snippets, and URLs. The results are reliable and current — answer directly from them. Do NOT fall back to search_documents or search_facts for web queries. If you need more detail on a specific result, call again with that result's full URL.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          query: { type: "STRING", description: "Search query. Be specific." },
-          url: { type: "STRING", description: "Optional: a specific URL to read instead of searching. Use to read full content of a search result." },
-          start: { type: "INTEGER", description: "Character offset for long pages. Use the end value from previous response to continue reading." },
-        },
-        required: ["query"],
-      },
-    },
-    {
-      name: "search_images_visual",
-      description: "Search images in a folder by text description using AI vision. IMPORTANT: Try search_documents(query, file_type='image', folder=...) FIRST — indexed image captions are free and instant. Only use this tool if search_documents returns no results or the folder isn't indexed. Returns ranked list of images matching the query. Results are RELIABLE — trust them for categorization, grouping, and answering without manually inspecting individual images. Do NOT call read_file/resize_image/ocr on photos after getting visual search results. First call may take time, subsequent queries on same folder are faster (cached). Pass queries as array for batch search (multiple queries in one call). GROUPING WORKFLOW: When organizing/grouping photos into categories — 1) first run with default limit (10) as a PREVIEW, 2) show user the proposed categories with sample counts, 3) ask 'Shall I do the full folder?', 4) if yes, re-run with limit=200 per category to cover all photos.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          folder: { type: "STRING", description: "Absolute path to folder containing images." },
-          query: { type: "STRING", description: "Single text query. E.g. 'bride cutting cake'." },
-          queries: {
-            type: "ARRAY",
-            items: { type: "STRING" },
-            description: "Multiple queries for batch search. E.g. ['dancing', 'flowers', 'group photo']. Use instead of query for multiple searches at once.",
+      {
+        name: "analyze_data",
+        description:
+          "Run pandas data analysis on CSV or Excel files. WORKFLOW: 1) FIRST call with operation='columns' to see all sheets, column names, types, and sample values. 2) Use operation='search' with query to find values across ALL sheets — auto-normalizes phone/ID formats (strips dashes, parens). 3) Use filter/groupby/sort when you know the exact column name. Operations: columns (schema+sheets), search (grep-like across all cells), describe, head, filter, value_counts, groupby, corr, sort, unique, shape, eval. For phone/ID lookups ALWAYS use search — it normalizes automatically. File is cached after first load (instant repeat calls).",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            path: {
+              type: "STRING",
+              description: "Absolute path to CSV or Excel file.",
+            },
+            operation: {
+              type: "STRING",
+              description:
+                "Operation: columns (FIRST — see sheets+types), search (find values across all sheets), describe, head, filter, value_counts, groupby, corr, sort, unique, shape, eval.",
+            },
+            columns: {
+              type: "STRING",
+              description:
+                "Column name(s). For groupby use 'group_col:agg_col'. For sort prefix with '-' for descending.",
+            },
+            query: {
+              type: "STRING",
+              description:
+                "For search: value to find (e.g. '9208896630' — auto-normalizes phone formats). For filter: pandas query like 'amount > 1000'. For eval: expression like 'df.groupby(\"Cat\")[[\"Price\"]].sum()'.",
+            },
+            sheet: {
+              type: "STRING",
+              description:
+                "Sheet name for Excel files. Omit to use first sheet (or search ALL sheets with operation='search').",
+            },
           },
-          limit: { type: "INTEGER", description: "Max results per query. Default 10." },
+          required: ["path", "operation"],
         },
-        required: ["folder"],
       },
-    },
-    {
-      name: "search_video",
-      description: "Search inside a video by text description. Gemini analyzes the full video natively (up to 3h). Returns timestamps of matching moments. After finding timestamps, use extract_frame to get the image — it will be auto-sent to the user.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          video_path: { type: "STRING", description: "Absolute path to video file." },
-          query: { type: "STRING", description: "Text description of what to find. E.g. 'person dancing', 'sunset scene'." },
-          fps: { type: "NUMBER", description: "Frames per second to extract. Default 1. Use 0.5 for long videos, 2 for short clips." },
-          limit: { type: "INTEGER", description: "Max results. Default 5." },
+      {
+        name: "index_file",
+        description:
+          "Index a single file into the search database. Extracts text, chunks it into sections, and makes it searchable. Use this BEFORE search_documents when the file hasn't been indexed yet. After indexing, use search_documents to find specific sections within the file.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            path: {
+              type: "STRING",
+              description: "Absolute path to the file to index.",
+            },
+          },
+          required: ["path"],
         },
-        required: ["video_path", "query"],
       },
-    },
-    {
-      name: "extract_frame",
-      description: "Extract a single frame from a video at a specific timestamp. Returns the frame as an image file. Use after search_video to get the actual frame image for sending.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          video_path: { type: "STRING", description: "Absolute path to video file." },
-          seconds: { type: "NUMBER", description: "Timestamp in seconds to extract frame from." },
+      {
+        name: "write_file",
+        description:
+          "Create or write a text file. Can append to existing files. Use for creating notes, reports, summaries, text exports.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            path: { type: "STRING", description: "Absolute path for the file." },
+            content: { type: "STRING", description: "Text content to write." },
+            append: { type: "BOOLEAN", description: "If true, append to existing file. Default: false." },
+          },
+          required: ["path", "content"],
         },
-        required: ["video_path", "seconds"],
       },
-    },
-    {
-      name: "transcribe_audio",
-      description: "Transcribe an audio file to text using AI. Returns full transcript with timestamps. Supports: mp3, wav, flac, aac, ogg, wma, m4a, aiff. Up to 9.5 hours of audio.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          path: { type: "STRING", description: "Absolute path to audio file." },
+      {
+        name: "generate_excel",
+        description: "Create an Excel file from data. Use for expense reports, data exports, aggregated results.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            path: { type: "STRING", description: "Output path for .xlsx file." },
+            data: {
+              type: "ARRAY",
+              description: 'List of row objects (e.g. [{"name":"A","amount":100}]).',
+              items: { type: "OBJECT" },
+            },
+            sheet_name: { type: "STRING", description: "Sheet name. Default: Sheet1." },
+          },
+          required: ["path", "data"],
         },
-        required: ["path"],
       },
-    },
-    {
-      name: "search_audio",
-      description: "Search within an audio file for specific content (speech, sounds, topics). Returns timestamps of matching moments with relevance scores. Use for finding specific parts in podcasts, recordings, voice memos.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          audio_path: { type: "STRING", description: "Absolute path to audio file." },
-          query: { type: "STRING", description: "What to find in the audio. E.g. 'discussion about pricing', 'laughter', 'someone saying hello'." },
-          limit: { type: "INTEGER", description: "Max results. Default 5." },
+      {
+        name: "generate_chart",
+        description:
+          "Create a chart image (bar, line, pie, scatter, hist) from data using matplotlib. Returns image path — send via send_file.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            data: { type: "OBJECT", description: 'Chart data: {"labels": [...], "values": [...]}.' },
+            chart_type: { type: "STRING", description: "Chart type: bar, line, pie, scatter, hist." },
+            title: { type: "STRING", description: "Chart title." },
+            xlabel: { type: "STRING", description: "X-axis label." },
+            ylabel: { type: "STRING", description: "Y-axis label." },
+            output_path: { type: "STRING", description: "Output image path. Optional." },
+          },
+          required: ["data", "chart_type"],
         },
-        required: ["audio_path", "query"],
       },
-    },
-    {
-      name: "set_reminder",
-      description: "Set a reminder that will be sent to the user at a specific time. Supports one-time or recurring. Use when user says 'remind me to X at/by Y time' or 'remind me every Monday'. Persists across restarts.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          message: { type: "STRING", description: "The reminder message. E.g. 'Buy tablets', 'Call dentist'." },
-          time: { type: "STRING", description: "When to remind. ISO format preferred: '2026-02-27T17:00:00'. Also accepts: '17:00' (today), '5pm' (today), 'in 2 hours', 'tomorrow 9am'." },
-          repeat: { type: "STRING", description: "Optional. Repeat schedule: 'daily', 'weekly', 'monthly', 'weekdays'. Omit for one-time reminder." },
+      {
+        name: "merge_pdf",
+        description: "Combine multiple PDFs into one file. Use for merging invoices, reports, certificates.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            paths: { type: "ARRAY", description: "List of PDF file paths to merge.", items: { type: "STRING" } },
+            output_path: { type: "STRING", description: "Output path for merged PDF." },
+          },
+          required: ["paths", "output_path"],
         },
-        required: ["message", "time"],
       },
-    },
-    {
-      name: "list_reminders",
-      description: "List all pending reminders. Use when user asks 'what reminders do I have?' or 'show my reminders'.",
-      parameters: {
-        type: "OBJECT",
-        properties: {},
-      },
-    },
-    {
-      name: "cancel_reminder",
-      description: "Cancel a pending reminder by its ID. For recurring reminders, this stops all future occurrences.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          id: { type: "INTEGER", description: "Reminder ID (from list_reminders)." },
+      {
+        name: "split_pdf",
+        description: "Extract specific pages from a PDF. Page format: '1-5', '3,7,10', '1-3,5,8-10'.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            path: { type: "STRING", description: "Source PDF path." },
+            pages: { type: "STRING", description: "Pages to extract: '1-5', '3,7', '1-3,5,8-10'." },
+            output_path: { type: "STRING", description: "Output path for extracted PDF." },
+          },
+          required: ["path", "pages", "output_path"],
         },
-        required: ["id"],
       },
-    },
-    {
-      name: "extract_tables",
-      description: "Extract structured tables from a PDF. Returns headers + rows for each table found. Works on native PDFs (not scanned). Use for invoices, reports, financial statements, any PDF with tabular data.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          path: { type: "STRING", description: "Absolute path to PDF file." },
-          pages: { type: "STRING", description: "Page range: '1-5', '3', or 'all'. Default: all." },
+      {
+        name: "pdf_to_images",
+        description: "Render PDF pages as PNG images. Returns list of image paths. Use to send PDF pages via WhatsApp.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            path: { type: "STRING", description: "PDF file path." },
+            pages: { type: "STRING", description: "Pages to render: '1-5', '3,7'. Omit for all pages." },
+            dpi: { type: "INTEGER", description: "Resolution. Default 150." },
+            output_folder: { type: "STRING", description: "Folder for output images. Default: same folder as PDF." },
+          },
+          required: ["path"],
         },
-        required: ["path"],
       },
-    },
-    {
-      name: "watch_folder",
-      description: "Start auto-indexing a folder. New or modified files will be automatically indexed for search. Persists across restarts.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          folder: { type: "STRING", description: "Absolute path to folder to watch." },
+      {
+        name: "images_to_pdf",
+        description: "Combine multiple images into a single PDF. Supports jpg, png, webp, bmp.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            paths: { type: "ARRAY", items: { type: "STRING" }, description: "Array of image paths to combine." },
+            output_path: { type: "STRING", description: "Output PDF path." },
+          },
+          required: ["paths", "output_path"],
         },
-        required: ["folder"],
       },
-    },
-    {
-      name: "unwatch_folder",
-      description: "Stop auto-indexing a folder.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          folder: { type: "STRING", description: "Absolute path to folder to stop watching." },
+      {
+        name: "resize_image",
+        description: "Resize or compress an image. Set width OR height to keep aspect ratio, or both for exact size.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            path: { type: "STRING", description: "Image path." },
+            width: { type: "INTEGER", description: "Target width in pixels." },
+            height: { type: "INTEGER", description: "Target height in pixels." },
+            quality: { type: "INTEGER", description: "JPEG quality 1-100. Default 85." },
+            output_path: { type: "STRING", description: "Output path. If omitted, overwrites original." },
+          },
+          required: ["path"],
         },
-        required: ["folder"],
       },
-    },
-    {
-      name: "list_watched",
-      description: "List all folders currently being watched for auto-indexing.",
-      parameters: {
-        type: "OBJECT",
-        properties: {},
-      },
-    },
-    {
-      name: "score_photo",
-      description: "Score a single photo's quality using Gemini vision (/100). Returns technical (sharpness, exposure, composition, quality) + aesthetic (emotion, interest, keeper) breakdown with reasoning. Use for quick single-photo evaluation.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          path: { type: "STRING", description: "Absolute path to the image file." },
+      {
+        name: "convert_image",
+        description: "Convert image format. Supports: jpg, png, webp, bmp. Handles HEIC (iPhone photos) to JPG.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            path: { type: "STRING", description: "Source image path." },
+            format: { type: "STRING", description: "Target format: jpg, png, webp, bmp." },
+            output_path: {
+              type: "STRING",
+              description: "Output path. Optional — defaults to same name with new extension.",
+            },
+          },
+          required: ["path", "format"],
         },
-        required: ["path"],
       },
-    },
-    {
-      name: "cull_photos",
-      description: "Auto-cull photos in a folder: score ALL images, keep top N%, move rejects to _rejects subfolder. Generates an HTML report with thumbnail gallery. WORKFLOW: 1) list_files to survey folder 2) confirm with user 3) cull_photos 4) poll cull_status until done 5) report results + send report file. Background job — use cull_status to poll.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          folder: { type: "STRING", description: "Folder containing photos to cull." },
-          keep_pct: { type: "INTEGER", description: "Percentage of photos to keep (1-99). Default 80." },
-          rejects_folder: { type: "STRING", description: "Custom folder for rejects. Default: <folder>/_rejects." },
+      {
+        name: "crop_image",
+        description:
+          "Crop an image to specified rectangle. Coordinates in pixels. Use file_info or read_file first to know image dimensions before cropping.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            path: { type: "STRING", description: "Image path." },
+            x: { type: "INTEGER", description: "Left edge (pixels from left)." },
+            y: { type: "INTEGER", description: "Top edge (pixels from top)." },
+            width: { type: "INTEGER", description: "Crop width in pixels." },
+            height: { type: "INTEGER", description: "Crop height in pixels." },
+            output_path: { type: "STRING", description: "Output path. Optional." },
+          },
+          required: ["path", "x", "y", "width", "height"],
         },
-        required: ["folder"],
       },
-    },
-    {
-      name: "cull_status",
-      description: "Check progress of a running cull_photos job. Returns scored/total count, ETA, and final stats when done. Poll every few seconds until status is 'done'. Set cancel=true to stop the job.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          folder: { type: "STRING", description: "The folder being culled (same as passed to cull_photos)." },
-          cancel: { type: "BOOLEAN", description: "Set true to cancel the running job." },
+      {
+        name: "image_metadata",
+        description:
+          "Extract EXIF metadata from photos: date taken, camera model, GPS coordinates, lens, aperture, ISO, dimensions. Use for: 'when was this taken?', 'what camera?', 'where was this shot?', 'show timeline'. Pass folder for batch metadata of all images.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            path: { type: "STRING", description: "Absolute path to image." },
+            folder: { type: "STRING", description: "Absolute path to folder — get metadata for ALL images." },
+          },
         },
-        required: ["folder"],
       },
-    },
-    {
-      name: "suggest_categories",
-      description: "Sample ~20 photos from a folder and let Gemini suggest 4-8 grouping categories. Use BEFORE group_photos to auto-discover categories. Returns suggested category names for user confirmation.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          folder: { type: "STRING", description: "Folder containing photos to analyze." },
+      {
+        name: "compress_files",
+        description: "Zip files or folders into a .zip archive. Can include multiple files and entire folders.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            paths: { type: "ARRAY", description: "List of file/folder paths to zip.", items: { type: "STRING" } },
+            output_path: { type: "STRING", description: "Output .zip file path." },
+          },
+          required: ["paths", "output_path"],
         },
-        required: ["folder"],
       },
-    },
-    {
-      name: "group_photos",
-      description: "Auto-group ALL photos in a folder by Gemini vision classification. Each photo is sent to Gemini with the category list — Gemini picks the best match. Photos moved to category subfolders. Generates HTML report. Classifications cached in DB — re-runs are free. WORKFLOW: 1) list_files to survey 2) suggest_categories to auto-discover groups 3) confirm with user 4) group_photos 5) poll group_status 6) report. Background job — use group_status to poll.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          folder: { type: "STRING", description: "Folder containing photos to group." },
-          categories: { type: "ARRAY", items: { type: "STRING" }, description: "List of category names to classify into (e.g. ['Ceremony', 'Portraits', 'Family', 'Rituals'])." },
+      {
+        name: "extract_archive",
+        description: "Extract a zip archive. If no output_path, extracts to folder with same name.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            path: { type: "STRING", description: "Path to .zip file." },
+            output_path: { type: "STRING", description: "Folder to extract into. Optional." },
+          },
+          required: ["path"],
         },
-        required: ["folder", "categories"],
       },
-    },
-    {
-      name: "group_status",
-      description: "Check progress of a running group_photos job. Returns classified/total count, ETA, and final group counts when done. Poll every few seconds until status is 'done'. Set cancel=true to stop the job.",
-      parameters: {
-        type: "OBJECT",
-        properties: {
-          folder: { type: "STRING", description: "The folder being grouped (same as passed to group_photos)." },
-          cancel: { type: "BOOLEAN", description: "Set true to cancel the running job." },
+      {
+        name: "download_url",
+        description:
+          "Download a file from a URL. Saves to Downloads/Pinpoint/ by default. Use when user shares a link.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            url: { type: "STRING", description: "URL to download." },
+            save_path: { type: "STRING", description: "Where to save. Optional." },
+          },
+          required: ["url"],
         },
-        required: ["folder"],
       },
-    },
-  ],
-}];
+      {
+        name: "find_duplicates",
+        description: "Find duplicate files in a folder by content hash. Returns groups of identical files for cleanup.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            folder: { type: "STRING", description: "Folder path to scan." },
+          },
+          required: ["folder"],
+        },
+      },
+      {
+        name: "batch_rename",
+        description:
+          "Rename files matching a regex pattern. ALWAYS call with dry_run=true first to preview changes, show the user, and only execute with dry_run=false after confirmation.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            folder: { type: "STRING", description: "Folder containing files to rename." },
+            pattern: { type: "STRING", description: "Regex pattern to match in filenames." },
+            replace: { type: "STRING", description: "Replacement string." },
+            dry_run: {
+              type: "BOOLEAN",
+              description: "Preview only (default true). Set false to execute after user confirms.",
+            },
+          },
+          required: ["folder", "pattern", "replace"],
+        },
+      },
+      {
+        name: "run_python",
+        description:
+          "Execute Python code. Use for any custom operation: image manipulation, data processing, file operations, calculations, generating files. Pre-loaded: PIL, pandas, numpy, matplotlib, os, json. Working dir: /tmp/pinpoint_python/. Print results to stdout.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            code: {
+              type: "STRING",
+              description: "Python code to execute. Use print() for output. Save files to WORK_DIR.",
+            },
+            timeout: { type: "INTEGER", description: "Max execution time in seconds. Default 30, max 120." },
+          },
+          required: ["code"],
+        },
+      },
+      {
+        name: "memory_save",
+        description:
+          "Save a fact to persistent memory. Persists across sessions and restarts. Smart dedup: skips duplicates, merges related facts, handles contradictions. Only works when memory is enabled.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            fact: { type: "STRING", description: "The fact to remember. Keep it short and factual." },
+            category: {
+              type: "STRING",
+              description:
+                "Category: people, places, preferences, professional, health, plans, general. Default: general.",
+            },
+          },
+          required: ["fact"],
+        },
+      },
+      {
+        name: "memory_search",
+        description:
+          "Search persistent memories by keyword. Use to recall personal facts about the user before saying 'I don't know'. Only works when memory is enabled.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            query: { type: "STRING", description: "Search keywords. E.g. 'mom', 'trip', 'preference'." },
+          },
+          required: ["query"],
+        },
+      },
+      {
+        name: "memory_delete",
+        description: "Delete a memory by ID. Use when user asks to forget something and you have the ID.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            id: { type: "INTEGER", description: "Memory ID to delete (from memory_search results)." },
+          },
+          required: ["id"],
+        },
+      },
+      {
+        name: "memory_forget",
+        description:
+          "Forget a memory by description — no ID needed. Searches memories for best match and deletes it. Use when user says 'forget that I like dark mode' or 'remove the thing about Mumbai'. Preferred over memory_delete when you don't have the ID.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            description: {
+              type: "STRING",
+              description:
+                "Natural language description of what to forget. E.g. 'dark mode preference', 'living in Mumbai'.",
+            },
+          },
+          required: ["description"],
+        },
+      },
+      {
+        name: "search_facts",
+        description:
+          "Search extracted facts from indexed documents. Facts are key details (names, dates, amounts, topics) auto-extracted at index time. Use for quick factual lookups like 'who is the electrician?' or 'what was the invoice amount?'. Falls back to search_documents for full-text search if facts don't have enough detail.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            query: {
+              type: "STRING",
+              description: "Search keywords for facts. E.g. 'electrician', 'invoice amount', 'meeting date'.",
+            },
+          },
+          required: ["query"],
+        },
+      },
+      {
+        name: "web_search",
+        description:
+          "Search the web for real-world information. Use for news, weather, sports, people, products, prices, current events, comparisons — anything NOT in local files. Returns search results with titles, snippets, and URLs. The results are reliable and current — answer directly from them. Do NOT fall back to search_documents or search_facts for web queries. If you need more detail on a specific result, call again with that result's full URL.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            query: { type: "STRING", description: "Search query. Be specific." },
+            url: {
+              type: "STRING",
+              description:
+                "Optional: a specific URL to read instead of searching. Use to read full content of a search result.",
+            },
+            start: {
+              type: "INTEGER",
+              description:
+                "Character offset for long pages. Use the end value from previous response to continue reading.",
+            },
+          },
+          required: ["query"],
+        },
+      },
+      {
+        name: "search_images_visual",
+        description:
+          "Search images in a folder by text description using AI vision. IMPORTANT: Try search_documents(query, file_type='image', folder=...) FIRST — indexed image captions are free and instant. Only use this tool if search_documents returns no results or the folder isn't indexed. Returns ranked list of images matching the query. Results are RELIABLE — trust them for categorization, grouping, and answering without manually inspecting individual images. Do NOT call read_file/resize_image/ocr on photos after getting visual search results. First call may take time, subsequent queries on same folder are faster (cached). Pass queries as array for batch search (multiple queries in one call). GROUPING WORKFLOW: When organizing/grouping photos into categories — 1) first run with default limit (10) as a PREVIEW, 2) show user the proposed categories with sample counts, 3) ask 'Shall I do the full folder?', 4) if yes, re-run with limit=200 per category to cover all photos.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            folder: { type: "STRING", description: "Absolute path to folder containing images." },
+            query: { type: "STRING", description: "Single text query. E.g. 'bride cutting cake'." },
+            queries: {
+              type: "ARRAY",
+              items: { type: "STRING" },
+              description:
+                "Multiple queries for batch search. E.g. ['dancing', 'flowers', 'group photo']. Use instead of query for multiple searches at once.",
+            },
+            limit: { type: "INTEGER", description: "Max results per query. Default 10." },
+          },
+          required: ["folder"],
+        },
+      },
+      {
+        name: "search_video",
+        description:
+          "Search inside a video by text description. Gemini analyzes the full video natively (up to 3h). Returns timestamps of matching moments. After finding timestamps, use extract_frame to get the image — it will be auto-sent to the user.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            video_path: { type: "STRING", description: "Absolute path to video file." },
+            query: {
+              type: "STRING",
+              description: "Text description of what to find. E.g. 'person dancing', 'sunset scene'.",
+            },
+            fps: {
+              type: "NUMBER",
+              description: "Frames per second to extract. Default 1. Use 0.5 for long videos, 2 for short clips.",
+            },
+            limit: { type: "INTEGER", description: "Max results. Default 5." },
+          },
+          required: ["video_path", "query"],
+        },
+      },
+      {
+        name: "extract_frame",
+        description:
+          "Extract a single frame from a video at a specific timestamp. Returns the frame as an image file. Use after search_video to get the actual frame image for sending.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            video_path: { type: "STRING", description: "Absolute path to video file." },
+            seconds: { type: "NUMBER", description: "Timestamp in seconds to extract frame from." },
+          },
+          required: ["video_path", "seconds"],
+        },
+      },
+      {
+        name: "transcribe_audio",
+        description:
+          "Transcribe an audio file to text using AI. Returns full transcript with timestamps. Supports: mp3, wav, flac, aac, ogg, wma, m4a, aiff. Up to 9.5 hours of audio.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            path: { type: "STRING", description: "Absolute path to audio file." },
+          },
+          required: ["path"],
+        },
+      },
+      {
+        name: "search_audio",
+        description:
+          "Search within an audio file for specific content (speech, sounds, topics). Returns timestamps of matching moments with relevance scores. Use for finding specific parts in podcasts, recordings, voice memos.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            audio_path: { type: "STRING", description: "Absolute path to audio file." },
+            query: {
+              type: "STRING",
+              description:
+                "What to find in the audio. E.g. 'discussion about pricing', 'laughter', 'someone saying hello'.",
+            },
+            limit: { type: "INTEGER", description: "Max results. Default 5." },
+          },
+          required: ["audio_path", "query"],
+        },
+      },
+      {
+        name: "set_reminder",
+        description:
+          "Set a reminder that will be sent to the user at a specific time. Supports one-time or recurring. Use when user says 'remind me to X at/by Y time' or 'remind me every Monday'. Persists across restarts.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            message: { type: "STRING", description: "The reminder message. E.g. 'Buy tablets', 'Call dentist'." },
+            time: {
+              type: "STRING",
+              description:
+                "When to remind. ISO format preferred: '2026-02-27T17:00:00'. Also accepts: '17:00' (today), '5pm' (today), 'in 2 hours', 'tomorrow 9am'.",
+            },
+            repeat: {
+              type: "STRING",
+              description:
+                "Optional. Repeat schedule: 'daily', 'weekly', 'monthly', 'weekdays'. Omit for one-time reminder.",
+            },
+          },
+          required: ["message", "time"],
+        },
+      },
+      {
+        name: "list_reminders",
+        description:
+          "List all pending reminders. Use when user asks 'what reminders do I have?' or 'show my reminders'.",
+        parameters: {
+          type: "OBJECT",
+          properties: {},
+        },
+      },
+      {
+        name: "cancel_reminder",
+        description: "Cancel a pending reminder by its ID. For recurring reminders, this stops all future occurrences.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            id: { type: "INTEGER", description: "Reminder ID (from list_reminders)." },
+          },
+          required: ["id"],
+        },
+      },
+      {
+        name: "extract_tables",
+        description:
+          "Extract structured tables from a PDF. Returns headers + rows for each table found. Works on native PDFs (not scanned). Use for invoices, reports, financial statements, any PDF with tabular data.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            path: { type: "STRING", description: "Absolute path to PDF file." },
+            pages: { type: "STRING", description: "Page range: '1-5', '3', or 'all'. Default: all." },
+          },
+          required: ["path"],
+        },
+      },
+      {
+        name: "watch_folder",
+        description:
+          "Start auto-indexing a folder. New or modified files will be automatically indexed for search. Persists across restarts.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            folder: { type: "STRING", description: "Absolute path to folder to watch." },
+          },
+          required: ["folder"],
+        },
+      },
+      {
+        name: "unwatch_folder",
+        description: "Stop auto-indexing a folder.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            folder: { type: "STRING", description: "Absolute path to folder to stop watching." },
+          },
+          required: ["folder"],
+        },
+      },
+      {
+        name: "list_watched",
+        description: "List all folders currently being watched for auto-indexing.",
+        parameters: {
+          type: "OBJECT",
+          properties: {},
+        },
+      },
+      {
+        name: "score_photo",
+        description:
+          "Score a single photo's quality using Gemini vision (/100). Returns technical (sharpness, exposure, composition, quality) + aesthetic (emotion, interest, keeper) breakdown with reasoning. Use for quick single-photo evaluation.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            path: { type: "STRING", description: "Absolute path to the image file." },
+          },
+          required: ["path"],
+        },
+      },
+      {
+        name: "cull_photos",
+        description:
+          "Auto-cull photos in a folder: score ALL images, keep top N%, move rejects to _rejects subfolder. Generates an HTML report with thumbnail gallery. WORKFLOW: 1) list_files to survey folder 2) confirm with user 3) cull_photos 4) poll cull_status until done 5) report results + send report file. Background job — use cull_status to poll.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            folder: { type: "STRING", description: "Folder containing photos to cull." },
+            keep_pct: { type: "INTEGER", description: "Percentage of photos to keep (1-99). Default 80." },
+            rejects_folder: { type: "STRING", description: "Custom folder for rejects. Default: <folder>/_rejects." },
+          },
+          required: ["folder"],
+        },
+      },
+      {
+        name: "cull_status",
+        description:
+          "Check progress of a running cull_photos job. Returns scored/total count, ETA, and final stats when done. Poll every few seconds until status is 'done'. Set cancel=true to stop the job.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            folder: { type: "STRING", description: "The folder being culled (same as passed to cull_photos)." },
+            cancel: { type: "BOOLEAN", description: "Set true to cancel the running job." },
+          },
+          required: ["folder"],
+        },
+      },
+      {
+        name: "suggest_categories",
+        description:
+          "Sample ~20 photos from a folder and let Gemini suggest 4-8 grouping categories. Use BEFORE group_photos to auto-discover categories. Returns suggested category names for user confirmation.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            folder: { type: "STRING", description: "Folder containing photos to analyze." },
+          },
+          required: ["folder"],
+        },
+      },
+      {
+        name: "group_photos",
+        description:
+          "Auto-group ALL photos in a folder by Gemini vision classification. Each photo is sent to Gemini with the category list — Gemini picks the best match. Photos moved to category subfolders. Generates HTML report. Classifications cached in DB — re-runs are free. WORKFLOW: 1) list_files to survey 2) suggest_categories to auto-discover groups 3) confirm with user 4) group_photos 5) poll group_status 6) report. Background job — use group_status to poll.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            folder: { type: "STRING", description: "Folder containing photos to group." },
+            categories: {
+              type: "ARRAY",
+              items: { type: "STRING" },
+              description:
+                "List of category names to classify into (e.g. ['Ceremony', 'Portraits', 'Family', 'Rituals']).",
+            },
+          },
+          required: ["folder", "categories"],
+        },
+      },
+      {
+        name: "group_status",
+        description:
+          "Check progress of a running group_photos job. Returns classified/total count, ETA, and final group counts when done. Poll every few seconds until status is 'done'. Set cancel=true to stop the job.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            folder: { type: "STRING", description: "The folder being grouped (same as passed to group_photos)." },
+            cancel: { type: "BOOLEAN", description: "Set true to cancel the running job." },
+          },
+          required: ["folder"],
+        },
+      },
+    ],
+  },
+];
 
 // --- Reminders system (persistent via API) ---
 const reminders = []; // { id, chatJid, message, triggerAt (ms), repeat?, createdAt }
@@ -1715,7 +1940,9 @@ function getNextOccurrence(triggerAt, repeat) {
       while (d.getTime() <= now) d.setMonth(d.getMonth() + 1);
       break;
     case "weekdays":
-      do { d.setDate(d.getDate() + 1); } while (d.getDay() === 0 || d.getDay() === 6 || d.getTime() <= now);
+      do {
+        d.setDate(d.getDate() + 1);
+      } while (d.getDay() === 0 || d.getDay() === 6 || d.getTime() <= now);
       break;
     default:
       return null;
@@ -1727,11 +1954,14 @@ async function loadReminders() {
   try {
     const res = await apiGet("/reminders");
     reminders.length = 0; // clear in-memory
-    for (const r of (res.reminders || [])) {
+    for (const r of res.reminders || []) {
       reminders.push({
-        id: r.id, chatJid: r.chat_jid, message: r.message,
+        id: r.id,
+        chatJid: r.chat_jid,
+        message: r.message,
         triggerAt: new Date(r.trigger_at).getTime(),
-        repeat: r.repeat || null, createdAt: new Date(r.created_at).getTime(),
+        repeat: r.repeat || null,
+        createdAt: new Date(r.created_at).getTime(),
       });
     }
     if (reminders.length > 0) console.log(`[Reminder] Loaded ${reminders.length} reminders from DB`);
@@ -1752,16 +1982,30 @@ const REF_THRESHOLD = 2000; // Only store if JSON > 2000 chars
 
 // Tools whose results should be stored as refs when large
 const REF_TOOLS = new Set([
-  "list_files", "search_images_visual", "find_person", "find_person_by_face",
-  "detect_faces", "count_faces", "ocr", "find_duplicates",
-  "pdf_to_images", "search_documents",
+  "list_files",
+  "search_images_visual",
+  "find_person",
+  "find_person_by_face",
+  "detect_faces",
+  "count_faces",
+  "ocr",
+  "find_duplicates",
+  "pdf_to_images",
+  "search_documents",
 ]);
 
 // Preview limits per tool (how many items to show Gemini)
 const REF_PREVIEW = {
-  list_files: 20, search_images_visual: 10, find_person: 5, find_person_by_face: 5,
-  detect_faces: 10, count_faces: 10, ocr: 3, find_duplicates: 5,
-  pdf_to_images: 10, search_documents: 5,
+  list_files: 20,
+  search_images_visual: 10,
+  find_person: 5,
+  find_person_by_face: 5,
+  detect_faces: 10,
+  count_faces: 10,
+  ocr: 3,
+  find_duplicates: 5,
+  pdf_to_images: 10,
+  search_documents: 5,
 };
 
 function storeRef(data) {
@@ -1796,26 +2040,37 @@ function makeRefPreview(toolName, result, refKey) {
   if (Array.isArray(result)) {
     const total = result.length;
     const preview = result.slice(0, limit);
-    return { _ref: refKey, total, showing: preview.length, preview, note: `${total} items stored. Use ${refKey} in subsequent tool calls to reference all items.` };
+    return {
+      _ref: refKey,
+      total,
+      showing: preview.length,
+      preview,
+      note: `${total} items stored. Use ${refKey} in subsequent tool calls to reference all items.`,
+    };
   }
 
   // Handle multi-query search_images_visual: { "query1": { results: [...] }, "query2": { results: [...] } }
   // Show category summary + grouping file path so Gemini can read it and batch_move
   if (toolName === "search_images_visual") {
-    const queryKeys = Object.keys(result).filter(k => !k.startsWith("_") && result[k]?.results);
+    const queryKeys = Object.keys(result).filter((k) => !k.startsWith("_") && result[k]?.results);
     if (queryKeys.length > 1) {
       const summary = {};
       let totalFiles = 0;
       for (const q of queryKeys) {
         const files = result[q].results || [];
-        summary[q] = { count: files.length, top3: files.slice(0, 3).map(r => r.filename || r.path) };
+        summary[q] = { count: files.length, top3: files.slice(0, 3).map((r) => r.filename || r.path) };
         totalFiles += files.length;
       }
       const groupFile = result._grouping_file || null;
-      return { _ref: refKey, categories: summary, total_files: totalFiles, grouping_file: groupFile,
+      return {
+        _ref: refKey,
+        categories: summary,
+        total_files: totalFiles,
+        grouping_file: groupFile,
         note: groupFile
           ? `Grouped ${totalFiles} files into ${queryKeys.length} categories. Full mapping saved at ${groupFile}. Read that file to get all paths, then batch_move per category.`
-          : `Grouped ${totalFiles} files into ${queryKeys.length} categories.` };
+          : `Grouped ${totalFiles} files into ${queryKeys.length} categories.`,
+      };
     }
   }
 
@@ -1826,12 +2081,22 @@ function makeRefPreview(toolName, result, refKey) {
       const total = arr.length;
       const preview = arr.slice(0, limit);
       const rest = { ...result, [arrayKey]: preview };
-      return { _ref: refKey, total_items: total, showing: preview.length, ...rest, note: `${total} ${arrayKey} stored. Use ${refKey} to reference all.` };
+      return {
+        _ref: refKey,
+        total_items: total,
+        showing: preview.length,
+        ...rest,
+        note: `${total} ${arrayKey} stored. Use ${refKey} to reference all.`,
+      };
     }
   }
 
   // Fallback: just mark it as ref'd
-  return { _ref: refKey, note: `Large result stored. Use ${refKey} to reference it.`, summary: JSON.stringify(result).slice(0, 300) + "..." };
+  return {
+    _ref: refKey,
+    note: `Large result stored. Use ${refKey} to reference it.`,
+    summary: JSON.stringify(result).slice(0, 300) + "...",
+  };
 }
 
 // Resolve a single @ref:N value to its stored data, extracting paths for sources/paths keys
@@ -1851,7 +2116,7 @@ function _resolveOneRef(refKey, argName) {
     if (data[arrayKey] && Array.isArray(data[arrayKey])) {
       let items;
       if (argName === "sources" || argName === "paths") {
-        items = data[arrayKey].map(item => item.path || item.file || item);
+        items = data[arrayKey].map((item) => item.path || item.file || item);
       } else {
         items = data[arrayKey];
       }
@@ -2000,32 +2265,59 @@ async function apiDelete(path) {
 
 async function apiPut(path, body) {
   const resp = await fetch(`${API_URL}${path}`, {
-    method: "PUT", headers: { "Content-Type": "application/json", ..._apiHeaders }, body: JSON.stringify(body),
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ..._apiHeaders },
+    body: JSON.stringify(body),
   });
   if (!resp.ok) throw new Error(`API ${resp.status}: ${await resp.text()}`);
   return resp.json();
 }
 
 async function apiPing() {
-  try { return (await fetch(`${API_URL}/ping`)).ok; } catch { return false; }
+  try {
+    return (await fetch(`${API_URL}/ping`)).ok;
+  } catch {
+    return false;
+  }
 }
 
 // --- Execute a tool call from Gemini ---
 // Pre-validation: catch bad args before hitting the API (saves a round-trip)
 function preValidate(name, args) {
-
   // Tools that need a valid file path
-  const fileTools = ["read_file", "read_excel", "move_file", "copy_file", "delete_file",
-    "ocr", "detect_faces", "crop_face", "find_person", "find_person_by_face",
-    "resize_image", "convert_image", "crop_image", "merge_pdf", "split_pdf",
-    "pdf_to_images", "index_file", "compare_faces", "remember_face", "transcribe_audio",
+  const fileTools = [
+    "read_file",
+    "read_excel",
+    "move_file",
+    "copy_file",
+    "delete_file",
+    "ocr",
+    "detect_faces",
+    "crop_face",
+    "find_person",
+    "find_person_by_face",
+    "resize_image",
+    "convert_image",
+    "crop_image",
+    "merge_pdf",
+    "split_pdf",
+    "pdf_to_images",
+    "index_file",
+    "compare_faces",
+    "remember_face",
+    "transcribe_audio",
     "score_photo",
-    ];
-  const pathKey = name === "move_file" || name === "copy_file" ? "source"
-    : name === "find_person" || name === "find_person_by_face" ? "reference_image"
-    : name === "compare_faces" ? "image_path_1"
-    : name === "crop_face" || name === "remember_face" ? "image_path"
-    : "path";
+  ];
+  const pathKey =
+    name === "move_file" || name === "copy_file"
+      ? "source"
+      : name === "find_person" || name === "find_person_by_face"
+        ? "reference_image"
+        : name === "compare_faces"
+          ? "image_path_1"
+          : name === "crop_face" || name === "remember_face"
+            ? "image_path"
+            : "path";
 
   if (fileTools.includes(name) && args[pathKey]) {
     try {
@@ -2034,8 +2326,16 @@ function preValidate(name, args) {
   }
 
   // Tools that need a valid folder
-  const folderTools = ["list_files", "grep_files", "search_images_visual", "find_person",
-    "find_person_by_face", "create_folder", "cull_photos", "group_photos"];
+  const folderTools = [
+    "list_files",
+    "grep_files",
+    "search_images_visual",
+    "find_person",
+    "find_person_by_face",
+    "create_folder",
+    "cull_photos",
+    "group_photos",
+  ];
   const folderKey = "folder";
   if (folderTools.includes(name) && args[folderKey] && name !== "create_folder") {
     try {
@@ -2054,7 +2354,8 @@ function preValidate(name, args) {
   // Audio search needs valid audio_path
   if (name === "search_audio" && args.audio_path) {
     try {
-      if (!existsSync(args.audio_path)) return `Audio file not found: ${args.audio_path}. Check the path and try again.`;
+      if (!existsSync(args.audio_path))
+        return `Audio file not found: ${args.audio_path}. Check the path and try again.`;
     } catch (_) {}
   }
 
@@ -2072,65 +2373,204 @@ function preValidate(name, args) {
 const enc = encodeURIComponent;
 const TOOL_ROUTES = {
   // --- GET routes ---
-  search_documents: { m: "GET", p: (a) => { let u = `/search?q=${enc(a.query || "")}&limit=${MAX_RESULTS}`; if (a.file_type) u += `&file_type=${enc(a.file_type)}`; if (a.folder) u += `&folder=${enc(a.folder)}`; return u; } },
-  read_document:    { m: "GET", p: (a) => `/document/${a.document_id}` },
-  list_files:       { m: "GET", p: (a) => { let u = `/list_files?folder=${enc(a.folder)}`; if (a.sort_by) u += `&sort_by=${enc(a.sort_by)}`; if (a.filter_ext) u += `&filter_ext=${enc(a.filter_ext)}`; if (a.filter_type) u += `&filter_type=${enc(a.filter_type)}`; if (a.name_contains) u += `&name_contains=${enc(a.name_contains)}`; if (a.recursive) u += `&recursive=true`; return u; } },
-  file_info:        { m: "GET", p: (a) => `/file_info?path=${enc(a.path)}` },
-  get_status:       { m: "GET", p: () => "/status" },
-  search_history:   { m: "GET", p: (a) => `/conversation/search?q=${enc(a.query || "")}&limit=10` },
-  search_facts:     { m: "GET", p: (a) => `/search-facts?q=${enc(a.query)}&limit=10` },
-  list_watched:     { m: "GET", p: () => "/watched" },
+  search_documents: {
+    m: "GET",
+    p: (a) => {
+      let u = `/search?q=${enc(a.query || "")}&limit=${MAX_RESULTS}`;
+      if (a.file_type) u += `&file_type=${enc(a.file_type)}`;
+      if (a.folder) u += `&folder=${enc(a.folder)}`;
+      return u;
+    },
+  },
+  read_document: { m: "GET", p: (a) => `/document/${a.document_id}` },
+  list_files: {
+    m: "GET",
+    p: (a) => {
+      let u = `/list_files?folder=${enc(a.folder)}`;
+      if (a.sort_by) u += `&sort_by=${enc(a.sort_by)}`;
+      if (a.filter_ext) u += `&filter_ext=${enc(a.filter_ext)}`;
+      if (a.filter_type) u += `&filter_type=${enc(a.filter_type)}`;
+      if (a.name_contains) u += `&name_contains=${enc(a.name_contains)}`;
+      if (a.recursive) u += `&recursive=true`;
+      return u;
+    },
+  },
+  file_info: { m: "GET", p: (a) => `/file_info?path=${enc(a.path)}` },
+  get_status: { m: "GET", p: () => "/status" },
+  search_history: { m: "GET", p: (a) => `/conversation/search?q=${enc(a.query || "")}&limit=10` },
+  search_facts: { m: "GET", p: (a) => `/search-facts?q=${enc(a.query)}&limit=10` },
+  list_watched: { m: "GET", p: () => "/watched" },
   // --- Simple POST routes (tool args → API body) ---
-  read_excel:       { m: "POST", p: "/read_excel", b: (a) => ({ path: a.path, sheet_name: a.sheet_name || null, cell_range: a.cell_range || null }) },
-  calculate:        { m: "POST", p: "/calculate", b: (a) => ({ expression: a.expression }) },
-  grep_files:       { m: "POST", p: "/grep", b: (a) => ({ pattern: a.pattern, folder: a.folder, file_filter: a.file_filter }) },
-  batch_move:       { m: "POST", p: "/batch_move", b: (a) => ({ sources: a.sources || [], destination: a.destination, is_copy: a.is_copy || false }) },
-  move_file:        { m: "POST", p: "/move_file", b: (a) => ({ source: a.source, destination: a.destination, is_copy: a.copy || false }) },
-  copy_file:        { m: "POST", p: "/move_file", b: (a) => ({ source: a.source, destination: a.destination, is_copy: true }) },
-  create_folder:    { m: "POST", p: "/create_folder", b: (a) => ({ path: a.path }) },
-  delete_file:      { m: "POST", p: "/delete_file", b: (a) => ({ path: a.path }) },
-  read_file:        { m: "POST", p: "/read_file", b: (a) => ({ path: a.path }) },
-  detect_faces:     { m: "POST", p: "/detect-faces", b: (a) => ({ image_path: a.image_path, folder: a.folder }) },
-  crop_face:        { m: "POST", p: "/crop-face", b: (a) => ({ image_path: a.image_path, face_idx: a.face_idx }) },
-  find_person:      { m: "POST", p: "/find-person", b: (a) => ({ reference_image: a.reference_image, folder: a.folder }) },
-  find_person_by_face: { m: "POST", p: "/find-person-by-face", b: (a) => ({ reference_image: a.reference_image, face_idx: a.face_idx, folder: a.folder }) },
-  count_faces:      { m: "POST", p: "/count-faces", b: (a) => ({ image_path: a.image_path, paths: a.paths, folder: a.folder }) },
-  compare_faces:    { m: "POST", p: "/compare-faces", b: (a) => ({ image_path_1: a.image_path_1, face_idx_1: a.face_idx_1 || 0, image_path_2: a.image_path_2, face_idx_2: a.face_idx_2 || 0 }) },
-  remember_face:    { m: "POST", p: "/remember-face", b: (a) => ({ image_path: a.image_path, face_idx: a.face_idx || 0, name: a.name }) },
-  forget_face:      { m: "POST", p: "/forget-face", b: (a) => ({ name: a.name }) },
-  ocr:              { m: "POST", p: "/ocr", b: (a) => ({ path: a.path, folder: a.folder }) },
-  analyze_data:     { m: "POST", p: "/analyze-data", b: (a) => ({ path: a.path, operation: a.operation || "describe", columns: a.columns || null, query: a.query || null, sheet: a.sheet || null }) },
-  index_file:       { m: "POST", p: "/index-file", b: (a) => ({ path: a.path }) },
-  write_file:       { m: "POST", p: "/write-file", b: (a) => ({ path: a.path, content: a.content, append: a.append || false }) },
-  generate_excel:   { m: "POST", p: "/generate-excel", b: (a) => ({ path: a.path, data: a.data, sheet_name: a.sheet_name || "Sheet1" }) },
-  generate_chart:   { m: "POST", p: "/generate-chart", b: (a) => ({ data: a.data, chart_type: a.chart_type, title: a.title || "", xlabel: a.xlabel || "", ylabel: a.ylabel || "", output_path: a.output_path || null }) },
-  merge_pdf:        { m: "POST", p: "/merge-pdf", b: (a) => ({ paths: a.paths, output_path: a.output_path }) },
-  split_pdf:        { m: "POST", p: "/split-pdf", b: (a) => ({ path: a.path, pages: a.pages, output_path: a.output_path }) },
-  pdf_to_images:    { m: "POST", p: "/pdf-to-images", b: (a) => ({ path: a.path, pages: a.pages || null, dpi: a.dpi || 150, output_folder: a.output_folder || null }) },
-  images_to_pdf:    { m: "POST", p: "/images-to-pdf", b: (a) => ({ paths: a.paths, output_path: a.output_path }) },
-  resize_image:     { m: "POST", p: "/resize-image", b: (a) => ({ path: a.path, width: a.width || null, height: a.height || null, quality: a.quality || 85, output_path: a.output_path || null }) },
-  convert_image:    { m: "POST", p: "/convert-image", b: (a) => ({ path: a.path, format: a.format, output_path: a.output_path || null }) },
-  crop_image:       { m: "POST", p: "/crop-image", b: (a) => ({ path: a.path, x: a.x, y: a.y, width: a.width, height: a.height, output_path: a.output_path || null }) },
-  image_metadata:   { m: "POST", p: "/image-metadata", b: (a) => ({ path: a.path || null, folder: a.folder || null }) },
-  compress_files:   { m: "POST", p: "/compress-files", b: (a) => ({ paths: a.paths, output_path: a.output_path }) },
-  extract_archive:  { m: "POST", p: "/extract-archive", b: (a) => ({ path: a.path, output_path: a.output_path || null }) },
-  download_url:     { m: "POST", p: "/download-url", b: (a) => ({ url: a.url, save_path: a.save_path || null }) },
-  find_duplicates:  { m: "POST", p: "/find-duplicates", b: (a) => ({ folder: a.folder }) },
-  batch_rename:     { m: "POST", p: "/batch-rename", b: (a) => ({ folder: a.folder, pattern: a.pattern, replace: a.replace, dry_run: a.dry_run !== false }) },
-  run_python:       { m: "POST", p: "/run-python", b: (a) => ({ code: a.code, timeout: a.timeout || 30 }) },
-  search_video:     { m: "POST", p: "/search-video", b: (a) => ({ video_path: a.video_path, query: a.query, fps: a.fps || 1.0, limit: a.limit || 5 }) },
-  extract_frame:    { m: "POST", p: "/extract-frame", b: (a) => ({ video_path: a.video_path, seconds: a.seconds }) },
+  read_excel: {
+    m: "POST",
+    p: "/read_excel",
+    b: (a) => ({ path: a.path, sheet_name: a.sheet_name || null, cell_range: a.cell_range || null }),
+  },
+  calculate: { m: "POST", p: "/calculate", b: (a) => ({ expression: a.expression }) },
+  grep_files: {
+    m: "POST",
+    p: "/grep",
+    b: (a) => ({ pattern: a.pattern, folder: a.folder, file_filter: a.file_filter }),
+  },
+  batch_move: {
+    m: "POST",
+    p: "/batch_move",
+    b: (a) => ({ sources: a.sources || [], destination: a.destination, is_copy: a.is_copy || false }),
+  },
+  move_file: {
+    m: "POST",
+    p: "/move_file",
+    b: (a) => ({ source: a.source, destination: a.destination, is_copy: a.copy || false }),
+  },
+  copy_file: {
+    m: "POST",
+    p: "/move_file",
+    b: (a) => ({ source: a.source, destination: a.destination, is_copy: true }),
+  },
+  create_folder: { m: "POST", p: "/create_folder", b: (a) => ({ path: a.path }) },
+  delete_file: { m: "POST", p: "/delete_file", b: (a) => ({ path: a.path }) },
+  read_file: { m: "POST", p: "/read_file", b: (a) => ({ path: a.path }) },
+  detect_faces: { m: "POST", p: "/detect-faces", b: (a) => ({ image_path: a.image_path, folder: a.folder }) },
+  crop_face: { m: "POST", p: "/crop-face", b: (a) => ({ image_path: a.image_path, face_idx: a.face_idx }) },
+  find_person: { m: "POST", p: "/find-person", b: (a) => ({ reference_image: a.reference_image, folder: a.folder }) },
+  find_person_by_face: {
+    m: "POST",
+    p: "/find-person-by-face",
+    b: (a) => ({ reference_image: a.reference_image, face_idx: a.face_idx, folder: a.folder }),
+  },
+  count_faces: {
+    m: "POST",
+    p: "/count-faces",
+    b: (a) => ({ image_path: a.image_path, paths: a.paths, folder: a.folder }),
+  },
+  compare_faces: {
+    m: "POST",
+    p: "/compare-faces",
+    b: (a) => ({
+      image_path_1: a.image_path_1,
+      face_idx_1: a.face_idx_1 || 0,
+      image_path_2: a.image_path_2,
+      face_idx_2: a.face_idx_2 || 0,
+    }),
+  },
+  remember_face: {
+    m: "POST",
+    p: "/remember-face",
+    b: (a) => ({ image_path: a.image_path, face_idx: a.face_idx || 0, name: a.name }),
+  },
+  forget_face: { m: "POST", p: "/forget-face", b: (a) => ({ name: a.name }) },
+  ocr: { m: "POST", p: "/ocr", b: (a) => ({ path: a.path, folder: a.folder }) },
+  analyze_data: {
+    m: "POST",
+    p: "/analyze-data",
+    b: (a) => ({
+      path: a.path,
+      operation: a.operation || "describe",
+      columns: a.columns || null,
+      query: a.query || null,
+      sheet: a.sheet || null,
+    }),
+  },
+  index_file: { m: "POST", p: "/index-file", b: (a) => ({ path: a.path }) },
+  write_file: {
+    m: "POST",
+    p: "/write-file",
+    b: (a) => ({ path: a.path, content: a.content, append: a.append || false }),
+  },
+  generate_excel: {
+    m: "POST",
+    p: "/generate-excel",
+    b: (a) => ({ path: a.path, data: a.data, sheet_name: a.sheet_name || "Sheet1" }),
+  },
+  generate_chart: {
+    m: "POST",
+    p: "/generate-chart",
+    b: (a) => ({
+      data: a.data,
+      chart_type: a.chart_type,
+      title: a.title || "",
+      xlabel: a.xlabel || "",
+      ylabel: a.ylabel || "",
+      output_path: a.output_path || null,
+    }),
+  },
+  merge_pdf: { m: "POST", p: "/merge-pdf", b: (a) => ({ paths: a.paths, output_path: a.output_path }) },
+  split_pdf: { m: "POST", p: "/split-pdf", b: (a) => ({ path: a.path, pages: a.pages, output_path: a.output_path }) },
+  pdf_to_images: {
+    m: "POST",
+    p: "/pdf-to-images",
+    b: (a) => ({ path: a.path, pages: a.pages || null, dpi: a.dpi || 150, output_folder: a.output_folder || null }),
+  },
+  images_to_pdf: { m: "POST", p: "/images-to-pdf", b: (a) => ({ paths: a.paths, output_path: a.output_path }) },
+  resize_image: {
+    m: "POST",
+    p: "/resize-image",
+    b: (a) => ({
+      path: a.path,
+      width: a.width || null,
+      height: a.height || null,
+      quality: a.quality || 85,
+      output_path: a.output_path || null,
+    }),
+  },
+  convert_image: {
+    m: "POST",
+    p: "/convert-image",
+    b: (a) => ({ path: a.path, format: a.format, output_path: a.output_path || null }),
+  },
+  crop_image: {
+    m: "POST",
+    p: "/crop-image",
+    b: (a) => ({ path: a.path, x: a.x, y: a.y, width: a.width, height: a.height, output_path: a.output_path || null }),
+  },
+  image_metadata: { m: "POST", p: "/image-metadata", b: (a) => ({ path: a.path || null, folder: a.folder || null }) },
+  compress_files: { m: "POST", p: "/compress-files", b: (a) => ({ paths: a.paths, output_path: a.output_path }) },
+  extract_archive: {
+    m: "POST",
+    p: "/extract-archive",
+    b: (a) => ({ path: a.path, output_path: a.output_path || null }),
+  },
+  download_url: { m: "POST", p: "/download-url", b: (a) => ({ url: a.url, save_path: a.save_path || null }) },
+  find_duplicates: { m: "POST", p: "/find-duplicates", b: (a) => ({ folder: a.folder }) },
+  batch_rename: {
+    m: "POST",
+    p: "/batch-rename",
+    b: (a) => ({ folder: a.folder, pattern: a.pattern, replace: a.replace, dry_run: a.dry_run !== false }),
+  },
+  run_python: { m: "POST", p: "/run-python", b: (a) => ({ code: a.code, timeout: a.timeout || 30 }) },
+  search_video: {
+    m: "POST",
+    p: "/search-video",
+    b: (a) => ({ video_path: a.video_path, query: a.query, fps: a.fps || 1.0, limit: a.limit || 5 }),
+  },
+  extract_frame: { m: "POST", p: "/extract-frame", b: (a) => ({ video_path: a.video_path, seconds: a.seconds }) },
   transcribe_audio: { m: "POST", p: "/transcribe-audio", b: (a) => ({ path: a.path }) },
-  search_audio:     { m: "POST", p: "/search-audio", b: (a) => ({ audio_path: a.audio_path, query: a.query, limit: a.limit || 5 }) },
-  extract_tables:   { m: "POST", p: (a) => { const p = new URLSearchParams({ path: a.path }); if (a.pages) p.set("pages", a.pages); return `/extract-tables?${p}`; }, b: () => ({}) },
-  watch_folder:     { m: "POST", p: (a) => `/watch?folder=${enc(a.folder)}`, b: () => ({}) },
-  unwatch_folder:   { m: "POST", p: (a) => `/unwatch?folder=${enc(a.folder)}`, b: () => ({}) },
-  score_photo:      { m: "POST", p: "/score-photo", b: (a) => ({ path: a.path }) },
-  cull_photos:      { m: "POST", p: "/cull-photos", b: (a) => ({ folder: a.folder, keep_pct: a.keep_pct || 80, rejects_folder: a.rejects_folder || null }) },
-  cull_status:      { m: "GET", p: (a) => `/cull-photos/status?folder=${enc(a.folder)}${a.cancel ? "&cancel=true" : ""}` },
+  search_audio: {
+    m: "POST",
+    p: "/search-audio",
+    b: (a) => ({ audio_path: a.audio_path, query: a.query, limit: a.limit || 5 }),
+  },
+  extract_tables: {
+    m: "POST",
+    p: (a) => {
+      const p = new URLSearchParams({ path: a.path });
+      if (a.pages) p.set("pages", a.pages);
+      return `/extract-tables?${p}`;
+    },
+    b: () => ({}),
+  },
+  watch_folder: { m: "POST", p: (a) => `/watch?folder=${enc(a.folder)}`, b: () => ({}) },
+  unwatch_folder: { m: "POST", p: (a) => `/unwatch?folder=${enc(a.folder)}`, b: () => ({}) },
+  score_photo: { m: "POST", p: "/score-photo", b: (a) => ({ path: a.path }) },
+  cull_photos: {
+    m: "POST",
+    p: "/cull-photos",
+    b: (a) => ({ folder: a.folder, keep_pct: a.keep_pct || 80, rejects_folder: a.rejects_folder || null }),
+  },
+  cull_status: { m: "GET", p: (a) => `/cull-photos/status?folder=${enc(a.folder)}${a.cancel ? "&cancel=true" : ""}` },
   suggest_categories: { m: "POST", p: "/suggest-categories", b: (a) => ({ folder: a.folder }) },
-  group_photos:     { m: "POST", p: "/group-photos", b: (a) => ({ folder: a.folder, categories: a.categories }) },
-  group_status:     { m: "GET", p: (a) => `/group-photos/status?folder=${enc(a.folder)}${a.cancel ? "&cancel=true" : ""}` },
+  group_photos: { m: "POST", p: "/group-photos", b: (a) => ({ folder: a.folder, categories: a.categories }) },
+  group_status: { m: "GET", p: (a) => `/group-photos/status?folder=${enc(a.folder)}${a.cancel ? "&cancel=true" : ""}` },
 };
 
 async function executeTool(functionCall, sock, chatJid) {
@@ -2170,18 +2610,28 @@ async function executeTool(functionCall, sock, chatJid) {
         if (!args.folder) return { error: "folder is required. Pass the absolute path to the image folder." };
         const queries = args.queries || (args.query ? [args.query] : []);
         if (queries.length <= 1) {
-          return await apiPost("/search-images-visual", { folder: args.folder, query: queries[0] || "", limit: args.limit || 10 });
+          return await apiPost("/search-images-visual", {
+            folder: args.folder,
+            query: queries[0] || "",
+            limit: args.limit || 10,
+          });
         }
         // Multi-query = grouping mode: classify ALL images, no limit
         const groupLimit = 9999;
-        const firstResult = await apiPost("/search-images-visual", { folder: args.folder, query: queries[0], limit: groupLimit });
+        const firstResult = await apiPost("/search-images-visual", {
+          folder: args.folder,
+          query: queries[0],
+          limit: groupLimit,
+        });
         if (firstResult.status === "embedding") return firstResult;
-        const restPromises = queries.slice(1).map(q =>
-          apiPost("/search-images-visual", { folder: args.folder, query: q, limit: groupLimit })
-        );
+        const restPromises = queries
+          .slice(1)
+          .map((q) => apiPost("/search-images-visual", { folder: args.folder, query: q, limit: groupLimit }));
         const restResults = await Promise.all(restPromises);
         const allResults = { [queries[0]]: firstResult };
-        queries.slice(1).forEach((q, i) => { allResults[q] = restResults[i]; });
+        queries.slice(1).forEach((q, i) => {
+          allResults[q] = restResults[i];
+        });
 
         // Deduplicate: each image → best matching category only
         const bestCategory = {};
@@ -2211,10 +2661,18 @@ async function executeTool(functionCall, sock, chatJid) {
           const summary = {};
           for (const [q, files] of Object.entries(catMap)) {
             const refKey = storeRef(files);
-            summary[q] = { count: files.length, sources_ref: refKey, top3: files.slice(0, 3).map(f => pathModule.basename(f)) };
+            summary[q] = {
+              count: files.length,
+              sources_ref: refKey,
+              top3: files.slice(0, 3).map((f) => pathModule.basename(f)),
+            };
           }
-          const catList = Object.entries(summary).map(([q, s]) => `${q}: ${s.count} files (${s.sources_ref})`).join(", ");
-          console.log(`[Visual] Classified ${totalMapped} images into ${Object.keys(catMap).length} categories → ${mapFile}`);
+          const catList = Object.entries(summary)
+            .map(([q, s]) => `${q}: ${s.count} files (${s.sources_ref})`)
+            .join(", ");
+          console.log(
+            `[Visual] Classified ${totalMapped} images into ${Object.keys(catMap).length} categories → ${mapFile}`,
+          );
           return {
             total_classified: totalMapped,
             categories: summary,
@@ -2232,7 +2690,10 @@ async function executeTool(functionCall, sock, chatJid) {
       case "memory_save": {
         if (!memoryEnabled) return { error: "Memory is disabled. User can enable it with /memory on." };
         const res = await apiPost("/memory", { fact: args.fact, category: args.category || "general" });
-        try { const ctx = await apiGet("/memory/context"); memoryContext = ctx.text || ""; } catch (_) {}
+        try {
+          const ctx = await apiGet("/memory/context");
+          memoryContext = ctx.text || "";
+        } catch (_) {}
         return res;
       }
       case "memory_search": {
@@ -2242,47 +2703,93 @@ async function executeTool(functionCall, sock, chatJid) {
       case "memory_delete": {
         if (!memoryEnabled) return { error: "Memory is disabled. User can enable it with /memory on." };
         const res = await apiDelete(`/memory/${args.id}`);
-        try { const ctx = await apiGet("/memory/context"); memoryContext = ctx.text || ""; } catch (_) {}
+        try {
+          const ctx = await apiGet("/memory/context");
+          memoryContext = ctx.text || "";
+        } catch (_) {}
         return res;
       }
       case "memory_forget": {
         if (!memoryEnabled) return { error: "Memory is disabled. User can enable it with /memory on." };
         const res = await apiPost("/memory/forget", { description: args.description });
-        if (res.success) { try { const ctx = await apiGet("/memory/context"); memoryContext = ctx.text || ""; } catch (_) {} }
+        if (res.success) {
+          try {
+            const ctx = await apiGet("/memory/context");
+            memoryContext = ctx.text || "";
+          } catch (_) {}
+        }
         return res;
       }
       case "set_reminder": {
         const triggerAt = parseReminderTime(args.time);
-        if (!triggerAt) return { error: `Could not parse time: "${args.time}". Use format like "5pm", "in 2 hours", or "2026-02-27T17:00:00".` };
+        if (!triggerAt)
+          return {
+            error: `Could not parse time: "${args.time}". Use format like "5pm", "in 2 hours", or "2026-02-27T17:00:00".`,
+          };
         if (triggerAt.getTime() <= Date.now()) return { error: "That time is in the past." };
         const repeat = args.repeat || null;
         if (repeat && !["daily", "weekly", "monthly", "weekdays"].includes(repeat)) {
           return { error: `Invalid repeat: "${repeat}". Use: daily, weekly, monthly, or weekdays.` };
         }
         const tz = USER_TZ;
-        const saved = await apiPost("/reminders", { chat_jid: chatJid, message: args.message, trigger_at: triggerAt.toISOString(), repeat });
-        reminders.push({ id: saved.id, chatJid, message: args.message, triggerAt: triggerAt.getTime(), repeat, createdAt: Date.now() });
-        const result = { success: true, id: saved.id, message: args.message, trigger_at: triggerAt.toLocaleString("en-IN", { timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: true, day: "numeric", month: "short" }) };
+        const saved = await apiPost("/reminders", {
+          chat_jid: chatJid,
+          message: args.message,
+          trigger_at: triggerAt.toISOString(),
+          repeat,
+        });
+        reminders.push({
+          id: saved.id,
+          chatJid,
+          message: args.message,
+          triggerAt: triggerAt.getTime(),
+          repeat,
+          createdAt: Date.now(),
+        });
+        const result = {
+          success: true,
+          id: saved.id,
+          message: args.message,
+          trigger_at: triggerAt.toLocaleString("en-IN", {
+            timeZone: tz,
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true,
+            day: "numeric",
+            month: "short",
+          }),
+        };
         if (repeat) result.repeat = repeat;
         return result;
       }
       case "list_reminders": {
         const tz = USER_TZ;
-        const pending = reminders.filter(r => r.triggerAt > Date.now());
+        const pending = reminders.filter((r) => r.triggerAt > Date.now());
         if (pending.length === 0) return { count: 0, reminders: [], note: "No pending reminders." };
         return {
           count: pending.length,
-          reminders: pending.map(r => ({
-            id: r.id, message: r.message, repeat: r.repeat || null,
-            trigger_at: new Date(r.triggerAt).toLocaleString("en-IN", { timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: true, day: "numeric", month: "short" }),
+          reminders: pending.map((r) => ({
+            id: r.id,
+            message: r.message,
+            repeat: r.repeat || null,
+            trigger_at: new Date(r.triggerAt).toLocaleString("en-IN", {
+              timeZone: tz,
+              hour: "2-digit",
+              minute: "2-digit",
+              hour12: true,
+              day: "numeric",
+              month: "short",
+            }),
           })),
         };
       }
       case "cancel_reminder": {
-        const idx = reminders.findIndex(r => r.id === args.id);
+        const idx = reminders.findIndex((r) => r.id === args.id);
         if (idx === -1) return { error: `Reminder #${args.id} not found.` };
         const removed = reminders.splice(idx, 1)[0];
-        try { await apiDelete(`/reminders/${removed.id}`); } catch (_) {}
+        try {
+          await apiDelete(`/reminders/${removed.id}`);
+        } catch (_) {}
         return { success: true, cancelled: removed.message };
       }
       default:
@@ -2297,7 +2804,9 @@ async function executeTool(functionCall, sock, chatJid) {
 
 async function loadHistory(sessionId) {
   try {
-    const data = await apiGet(`/conversation/history?session_id=${encodeURIComponent(sessionId)}&limit=${MAX_HISTORY_MESSAGES}`);
+    const data = await apiGet(
+      `/conversation/history?session_id=${encodeURIComponent(sessionId)}&limit=${MAX_HISTORY_MESSAGES}`,
+    );
     return data;
   } catch {
     return { messages: [], updated_at: null, message_count: 0 };
@@ -2319,7 +2828,9 @@ function cleanupTempMedia() {
     if (!existsSync(TEMP_MEDIA_DIR)) return;
     const files = readdirSync(TEMP_MEDIA_DIR);
     for (const f of files) {
-      try { unlinkSync(pathModule.join(TEMP_MEDIA_DIR, f)); } catch (_) {}
+      try {
+        unlinkSync(pathModule.join(TEMP_MEDIA_DIR, f));
+      } catch (_) {}
     }
     if (files.length > 0) console.log(`[Pinpoint] Cleaned up ${files.length} temp media file(s)`);
   } catch (_) {}
@@ -2339,7 +2850,7 @@ async function resetSession(sessionId) {
 function isSessionIdle(updatedAt) {
   if (!updatedAt) return false;
   const lastActivity = new Date(updatedAt + "Z").getTime(); // ISO 8601 UTC
-  return (Date.now() - lastActivity) > IDLE_TIMEOUT_MS;
+  return Date.now() - lastActivity > IDLE_TIMEOUT_MS;
 }
 
 // --- Context compaction: summarize old messages instead of dropping them ---
@@ -2413,7 +2924,9 @@ async function compactContents(contents, chatJid) {
       if (part.text) {
         summaryParts.push(`${entry.role}: ${part.text.slice(0, 300)}`);
       } else if (part.functionCall) {
-        summaryParts.push(`tool: ${part.functionCall.name}(${JSON.stringify(part.functionCall.args || {}).slice(0, 100)})`);
+        summaryParts.push(
+          `tool: ${part.functionCall.name}(${JSON.stringify(part.functionCall.args || {}).slice(0, 100)})`,
+        );
       } else if (part.functionResponse) {
         const r = part.functionResponse.response?.result;
         const toolName = part.functionResponse.name;
@@ -2455,7 +2968,14 @@ ${summaryParts.join("\n")}${ledgerForCompaction}`;
 
     // Replace contents array in-place: summary + kept entries
     contents.length = 0;
-    contents.push({ role: "user", parts: [{ text: `[Previous conversation context]\n${summary}\n\nContinue from where you left off. Do not ask the user to repeat — use the context above.` }] });
+    contents.push({
+      role: "user",
+      parts: [
+        {
+          text: `[Previous conversation context]\n${summary}\n\nContinue from where you left off. Do not ask the user to repeat — use the context above.`,
+        },
+      ],
+    });
     contents.push({ role: "model", parts: [{ text: "I have the full context. Continuing with the current task." }] });
     for (const entry of toKeep) contents.push(entry);
 
@@ -2483,8 +3003,9 @@ function summarizeToolResult(name, args, result) {
       return `search_facts: ${n} fact(s) found`;
     }
     case "search_images_visual": {
-      if (result._ref) return `search_images_visual: ${result.total_items || "multiple"} results (stored as ${result._ref})`;
-      const keys = Object.keys(result).filter(k => !k.startsWith("_"));
+      if (result._ref)
+        return `search_images_visual: ${result.total_items || "multiple"} results (stored as ${result._ref})`;
+      const keys = Object.keys(result).filter((k) => !k.startsWith("_"));
       return `search_images_visual: results for ${keys.length} queries`;
     }
     case "list_files": {
@@ -2550,8 +3071,10 @@ function summarizeToolResult(name, args, result) {
     case "cull_photos":
       return `cull_photos: ${result.started ? `started ${result.total_images} photos` : "FAILED"}`;
     case "cull_status": {
-      if (result.status === "done") return `cull_status: done — kept ${result.kept}, rejected ${result.rejected}, report at ${result.report_path || "N/A"}`;
-      if (result.status === "cancelled" || result.status === "cancelling") return `cull_status: cancelled after ${result.scored || 0}/${result.total || "?"} scored`;
+      if (result.status === "done")
+        return `cull_status: done — kept ${result.kept}, rejected ${result.rejected}, report at ${result.report_path || "N/A"}`;
+      if (result.status === "cancelled" || result.status === "cancelling")
+        return `cull_status: cancelled after ${result.scored || 0}/${result.total || "?"} scored`;
       return `cull_status: ${result.status} — ${result.scored || 0}/${result.total || "?"} scored`;
     }
     case "suggest_categories":
@@ -2559,8 +3082,10 @@ function summarizeToolResult(name, args, result) {
     case "group_photos":
       return `group_photos: ${result.started ? `started ${result.total_images} photos → ${result.categories?.length ?? "?"} categories` : "FAILED"}`;
     case "group_status": {
-      if (result.status === "done") return `group_status: done — ${result.moved} grouped, report at ${result.report_path || "N/A"}`;
-      if (result.status === "cancelled" || result.status === "cancelling") return `group_status: cancelled after ${result.classified || 0}/${result.total || "?"} classified`;
+      if (result.status === "done")
+        return `group_status: done — ${result.moved} grouped, report at ${result.report_path || "N/A"}`;
+      if (result.status === "cancelled" || result.status === "cancelling")
+        return `group_status: cancelled after ${result.classified || 0}/${result.total || "?"} classified`;
       return `group_status: ${result.status} — ${result.classified || 0}/${result.total || "?"} classified`;
     }
     default:
@@ -2589,7 +3114,8 @@ async function runGemini(userMessage, sock, chatJid, opts = {}) {
     delete sessionCosts[chatJid];
     delete lastIntentCats[chatJid];
     delete actionLedger[chatJid];
-    if (deleted > 0) console.log(`[Memory] Auto-reset session (idle ${IDLE_TIMEOUT_MS / 60000} min), cleared ${deleted} messages`);
+    if (deleted > 0)
+      console.log(`[Memory] Auto-reset session (idle ${IDLE_TIMEOUT_MS / 60000} min), cleared ${deleted} messages`);
     history.messages = [];
   }
 
@@ -2649,14 +3175,19 @@ async function runGemini(userMessage, sock, chatJid, opts = {}) {
     }
 
     // Cost-based circuit breaker: per-message budget (not cumulative session)
-    const MESSAGE_BUDGET_USD = 0.10;
+    const MESSAGE_BUDGET_USD = 0.1;
     const sc = sessionCosts[chatJid];
     if (sc && round > 0) {
-      const msgCost = ((sc.input - msgStartTokens.input) * TOKEN_COST_INPUT +
-                       (sc.output - msgStartTokens.output) * TOKEN_COST_OUTPUT);
+      const msgCost =
+        (sc.input - msgStartTokens.input) * TOKEN_COST_INPUT + (sc.output - msgStartTokens.output) * TOKEN_COST_OUTPUT;
       if (msgCost >= MESSAGE_BUDGET_USD) {
-        console.warn(`[${LLM_TAG}] Budget exceeded ($${msgCost.toFixed(4)} >= $${MESSAGE_BUDGET_USD}) after ${round} rounds`);
-        return { text: `I've used my token budget for this request. Here's what I found so far — let me know if you need more.`, toolLog };
+        console.warn(
+          `[${LLM_TAG}] Budget exceeded ($${msgCost.toFixed(4)} >= $${MESSAGE_BUDGET_USD}) after ${round} rounds`,
+        );
+        return {
+          text: `I've used my token budget for this request. Here's what I found so far — let me know if you need more.`,
+          toolLog,
+        };
       }
     }
 
@@ -2706,7 +3237,9 @@ async function runGemini(userMessage, sock, chatJid, opts = {}) {
     // Mid-call compaction: if contents array is getting large (many tool rounds), summarize old turns
     // Prevents token burn from long tool chains (e.g. 24 rounds searching for a file)
     if (!didTokenCompact && contents.length > CONTENTS_COMPACT_THRESHOLD) {
-      console.log(`[Memory] Contents ${contents.length} entries > ${CONTENTS_COMPACT_THRESHOLD} threshold — compacting...`);
+      console.log(
+        `[Memory] Contents ${contents.length} entries > ${CONTENTS_COMPACT_THRESHOLD} threshold — compacting...`,
+      );
       didTokenCompact = await compactContents(contents, chatJid);
     }
 
@@ -2718,7 +3251,9 @@ async function runGemini(userMessage, sock, chatJid, opts = {}) {
         try {
           await sock.sendMessage(chatJid, { text: "⏳ Working on it..." });
           rememberSent("⏳ Working on it...");
-        } catch (e) { /* ignore send errors */ }
+        } catch (e) {
+          /* ignore send errors */
+        }
       }
 
       // Add model's response to conversation
@@ -2727,8 +3262,12 @@ async function runGemini(userMessage, sock, chatJid, opts = {}) {
       // Execute each tool call
       const elapsed = Math.round((Date.now() - toolStartTime) / 1000);
       const thinkInfo = roundTokens?.thinking ? `, ${formatTokens(roundTokens.thinking)} think` : "";
-      const tokenInfo = roundTokens ? `, ${formatTokens(roundTokens.input)} in / ${formatTokens(roundTokens.output)} out${thinkInfo}` : "";
-      console.log(`[${LLM_TAG}] Round ${round + 1}, ${response.functionCalls.length} tool(s), ${elapsed}s elapsed${tokenInfo}`);
+      const tokenInfo = roundTokens
+        ? `, ${formatTokens(roundTokens.input)} in / ${formatTokens(roundTokens.output)} out${thinkInfo}`
+        : "";
+      console.log(
+        `[${LLM_TAG}] Round ${round + 1}, ${response.functionCalls.length} tool(s), ${elapsed}s elapsed${tokenInfo}`,
+      );
       const functionResponses = [];
       const imageParts = []; // For read_file images — Gemini sees them visually
       for (const fc of response.functionCalls) {
@@ -2741,7 +3280,11 @@ async function runGemini(userMessage, sock, chatJid, opts = {}) {
             functionResponses.push({
               functionResponse: {
                 name: fc.name,
-                response: { result: { error: `Loop detected: you've called ${fc.name} ${lastCallCount} times with identical args. Stop retrying and answer with what you have — if the data wasn't found, tell the user.` } },
+                response: {
+                  result: {
+                    error: `Loop detected: you've called ${fc.name} ${lastCallCount} times with identical args. Stop retrying and answer with what you have — if the data wasn't found, tell the user.`,
+                  },
+                },
               },
             });
             continue;
@@ -2788,7 +3331,9 @@ async function runGemini(userMessage, sock, chatJid, opts = {}) {
           if (!result?.error) {
             if (fc.name === "batch_move" && (result?.moved_count ?? 0) === 0) {
               result._warning = `⚠️ 0 files were actually ${result?.action || "moved"}. ${result?.skipped_count || 0} skipped, ${result?.error_count || 0} errors. Tell the user NO files were moved.`;
-              console.log(`[Trust] batch_move: 0 files moved (${result?.skipped_count || 0} skipped) → ${fc.args?.destination}`);
+              console.log(
+                `[Trust] batch_move: 0 files moved (${result?.skipped_count || 0} skipped) → ${fc.args?.destination}`,
+              );
             } else if (fc.name === "batch_rename" && (result?.renamed_count ?? result?.renamed ?? 0) === 0) {
               result._warning = `⚠️ 0 files were actually renamed. Tell the user no files were renamed.`;
             }
@@ -2798,9 +3343,10 @@ async function runGemini(userMessage, sock, chatJid, opts = {}) {
         // Tail tool calls: auto-send generated files to user without LLM round-trip
         // (extract_frame, crop_face, generate_chart → auto send_file)
         if (!result?.error) {
-          const autoSendPath = (fc.name === "extract_frame" && result.path)
-            || (fc.name === "crop_face" && result.path)
-            || (fc.name === "generate_chart" && result.path);
+          const autoSendPath =
+            (fc.name === "extract_frame" && result.path) ||
+            (fc.name === "crop_face" && result.path) ||
+            (fc.name === "generate_chart" && result.path);
           if (autoSendPath) {
             const sent = await sendFile(sock, chatJid, autoSendPath, `${PREFIX} ${pathModule.basename(autoSendPath)}`);
             if (sent) {
@@ -2817,9 +3363,12 @@ async function runGemini(userMessage, sock, chatJid, opts = {}) {
           if (resultJson.length > REF_THRESHOLD) {
             // Multi-query results: only search_images_visual with explicit queries:[] returns { "query1": result, "query2": result }
             // Split into separate refs per query so Gemini can reference each individually
-            const isMultiQuery = fc.name === "search_images_visual"
-              && fc.args?.queries && fc.args.queries.length > 1
-              && typeof result === "object" && !Array.isArray(result);
+            const isMultiQuery =
+              fc.name === "search_images_visual" &&
+              fc.args?.queries &&
+              fc.args.queries.length > 1 &&
+              typeof result === "object" &&
+              !Array.isArray(result);
             if (isMultiQuery) {
               const multiPreview = {};
               for (const [queryStr, queryResult] of Object.entries(result)) {
@@ -2851,7 +3400,14 @@ async function runGemini(userMessage, sock, chatJid, opts = {}) {
           functionResponses.push({
             functionResponse: {
               name: fc.name,
-              response: { result: { type: "image", path: result.path, size: result.size, note: "Image included as visual data — analyze it directly." } },
+              response: {
+                result: {
+                  type: "image",
+                  path: result.path,
+                  size: result.size,
+                  note: "Image included as visual data — analyze it directly.",
+                },
+              },
             },
           });
           imageParts.push({
@@ -2864,7 +3420,14 @@ async function runGemini(userMessage, sock, chatJid, opts = {}) {
           functionResponses.push({
             functionResponse: {
               name: fc.name,
-              response: { result: { type: "image", path: result.path, size: result.size, note: `Image limit reached (${MAX_INLINE_IMAGES}). Use detect_faces or run_python for batch image analysis.` } },
+              response: {
+                result: {
+                  type: "image",
+                  path: result.path,
+                  size: result.size,
+                  note: `Image limit reached (${MAX_INLINE_IMAGES}). Use detect_faces or run_python for batch image analysis.`,
+                },
+              },
             },
           });
         } else {
@@ -2881,17 +3444,21 @@ async function runGemini(userMessage, sock, chatJid, opts = {}) {
       const parts = [...functionResponses, ...imageParts];
 
       // Inject tool result summaries (Claude Code pattern: model trusts summaries, doesn't re-verify raw data)
-      const summaries = response.functionCalls.map(fc => {
-        const r = toolCache.get(fc.name + ":" + JSON.stringify(fc.args || {}));
-        return summarizeToolResult(fc.name, fc.args, r);
-      }).filter(Boolean);
+      const summaries = response.functionCalls
+        .map((fc) => {
+          const r = toolCache.get(fc.name + ":" + JSON.stringify(fc.args || {}));
+          return summarizeToolResult(fc.name, fc.args, r);
+        })
+        .filter(Boolean);
       if (summaries.length > 0) {
         parts.push({ text: `[Tool summaries: ${summaries.join(". ")}]` });
       }
 
       // Loop hard-break: if loop was detected, force model to answer next round
       if (lastCallCount >= LOOP_THRESHOLD) {
-        parts.push({ text: "[System: LOOP DETECTED. You've called the same tool multiple times with identical args. STOP calling tools. Answer with what you have NOW.]" });
+        parts.push({
+          text: "[System: LOOP DETECTED. You've called the same tool multiple times with identical args. STOP calling tools. Answer with what you have NOW.]",
+        });
         // Send the error results back, then set round to max-1 so next iteration exits
         contents.push({ role: "user", parts });
         round = MAX_ROUNDS - 2; // Next round will be the last — forces text response
@@ -2900,9 +3467,13 @@ async function runGemini(userMessage, sock, chatJid, opts = {}) {
 
       // Round-based efficiency nudges (adapted from Claude Code patterns)
       if (round === 3) {
-        parts.push({ text: "[System: Go straight to the point. Try the simplest approach first without going in circles. Do not overdo it. If you have search results, answer now.]" });
+        parts.push({
+          text: "[System: Go straight to the point. Try the simplest approach first without going in circles. Do not overdo it. If you have search results, answer now.]",
+        });
       } else if (round === 6) {
-        parts.push({ text: "[System: You've used 7 rounds. Do what was asked, nothing more. Answer with what you have NOW. Do not call more tools.]" });
+        parts.push({
+          text: "[System: You've used 7 rounds. Do what was asked, nothing more. Answer with what you have NOW. Do not call more tools.]",
+        });
       } else if (round === 9) {
         parts.push({ text: "[System: 10 rounds used. STOP calling tools. Give your answer immediately.]" });
       }
@@ -2914,7 +3485,9 @@ async function runGemini(userMessage, sock, chatJid, opts = {}) {
       if (!text) {
         const finishReason = response.candidates?.[0]?.finishReason;
         const safetyRatings = response.candidates?.[0]?.safetyRatings;
-        console.error(`[${LLM_TAG}] Empty response. finishReason=${finishReason}, safety=${JSON.stringify(safetyRatings || [])}`);
+        console.error(
+          `[${LLM_TAG}] Empty response. finishReason=${finishReason}, safety=${JSON.stringify(safetyRatings || [])}`,
+        );
         // MALFORMED_FUNCTION_CALL in no-tools mode: Gemini tried to call a tool
         // Only re-enable tools if this was a text message (not a bare image/file)
         if (finishReason === "MALFORMED_FUNCTION_CALL" && opts.noTools && round === 0 && !opts.inlineImage) {
@@ -2933,7 +3506,10 @@ async function runGemini(userMessage, sock, chatJid, opts = {}) {
 
   // Max rounds reached — return what we have
   console.warn(`[${LLM_TAG}] Max rounds (${MAX_ROUNDS}) reached`);
-  return { text: `I've completed ${MAX_ROUNDS} rounds of work. Here's what I did so far — let me know if you need me to continue.`, toolLog };
+  return {
+    text: `I've completed ${MAX_ROUNDS} rounds of work. Here's what I did so far — let me know if you need me to continue.`,
+    toolLog,
+  };
 }
 
 // --- Detect non-search messages (greetings, thanks, etc.) ---
@@ -2947,7 +3523,10 @@ function isGreeting(text) {
 async function fallbackSearch(query) {
   // Don't search for greetings
   if (isGreeting(query)) {
-    return { text: "Hello! Smart search is temporarily unavailable (rate limit). Try a search query like \"find reliance invoice\".", files: [] };
+    return {
+      text: 'Hello! Smart search is temporarily unavailable (rate limit). Try a search query like "find reliance invoice".',
+      files: [],
+    };
   }
 
   const data = await apiGet(`/search?q=${encodeURIComponent(query)}&limit=${MAX_RESULTS}`);
@@ -2963,8 +3542,11 @@ async function fallbackSearch(query) {
     msg += `\n*${i + 1}. ${r.title}* (${r.file_type.toUpperCase()}, ${score}%)\n${snippet}\n`;
   }
 
-  const files = data.results.slice(0, MAX_FILES_TO_SEND).map(r => ({
-    path: r.path, title: r.title, score: r.score, file_type: r.file_type,
+  const files = data.results.slice(0, MAX_FILES_TO_SEND).map((r) => ({
+    path: r.path,
+    title: r.title,
+    score: r.score,
+    file_type: r.file_type,
   }));
 
   return { text: msg, files };
@@ -2976,7 +3558,10 @@ function chunkText(text, limit = TEXT_CHUNK_LIMIT) {
   const chunks = [];
   let remaining = text;
   while (remaining.length > 0) {
-    if (remaining.length <= limit) { chunks.push(remaining); break; }
+    if (remaining.length <= limit) {
+      chunks.push(remaining);
+      break;
+    }
     let breakAt = remaining.lastIndexOf("\n", limit);
     if (breakAt < limit * 0.5) breakAt = remaining.lastIndexOf(" ", limit);
     if (breakAt < limit * 0.5) breakAt = limit;
@@ -3000,7 +3585,10 @@ async function sendFile(sock, chatJid, filePath, caption) {
     try {
       const sharp = (await import("sharp")).default;
       const resizedPath = pathModule.join("/tmp", `pinpoint_send_${Date.now()}.jpg`);
-      await sharp(filePath).resize({ width: 2048, height: 2048, fit: "inside" }).jpeg({ quality: 80 }).toFile(resizedPath);
+      await sharp(filePath)
+        .resize({ width: 2048, height: 2048, fit: "inside" })
+        .jpeg({ quality: 80 })
+        .toFile(resizedPath);
       filePath = resizedPath;
       fileSize = statSync(filePath).size;
       console.log(`[Pinpoint] Auto-resized large image for sending (${(fileSize / 1024 / 1024).toFixed(1)}MB)`);
@@ -3098,22 +3686,24 @@ async function startBot() {
   // Queued credential saves — prevent concurrent writes corrupting creds.json (OpenClaw pattern)
   let credsSaveQueue = Promise.resolve();
   const saveCreds = () => {
-    credsSaveQueue = credsSaveQueue.then(async () => {
-      try {
-        // Backup before saving — only if current creds are valid JSON
-        if (existsSync(credsPath)) {
-          try {
-            const raw = readFileSync(credsPath, "utf-8");
-            JSON.parse(raw); // validate before backup
-            const { copyFileSync } = require("fs");
-            copyFileSync(credsPath, credsBackup);
-          } catch (_) {} // keep existing backup if invalid
-        }
-      } catch (_) {}
-      return _saveCreds();
-    }).catch((err) => {
-      console.error("[Pinpoint] Creds save error:", err.message);
-    });
+    credsSaveQueue = credsSaveQueue
+      .then(async () => {
+        try {
+          // Backup before saving — only if current creds are valid JSON
+          if (existsSync(credsPath)) {
+            try {
+              const raw = readFileSync(credsPath, "utf-8");
+              JSON.parse(raw); // validate before backup
+              const { copyFileSync } = require("fs");
+              copyFileSync(credsPath, credsBackup);
+            } catch (_) {} // keep existing backup if invalid
+          }
+        } catch (_) {}
+        return _saveCreds();
+      })
+      .catch((err) => {
+        console.error("[Pinpoint] Creds save error:", err.message);
+      });
   };
 
   const sock = makeWASocket({
@@ -3121,7 +3711,8 @@ async function startBot() {
       creds: state.creds,
       keys: makeCacheableSignalKeyStore(state.keys, logger),
     },
-    version, logger,
+    version,
+    logger,
     printQRInTerminal: false,
     browser: ["Pinpoint", "CLI", "1.0"],
     syncFullHistory: false,
@@ -3149,13 +3740,13 @@ async function startBot() {
       console.log("[Pinpoint] Send yourself a message to search.\n");
 
       // Load reminders from DB on connect
-      loadReminders().catch(e => console.error("[Reminder] Load failed:", e.message));
+      loadReminders().catch((e) => console.error("[Reminder] Load failed:", e.message));
 
       // Start reminder checker (every 30 seconds)
       if (!global._reminderInterval) {
         global._reminderInterval = setInterval(async () => {
           const now = Date.now();
-          const due = reminders.filter(r => r.triggerAt <= now);
+          const due = reminders.filter((r) => r.triggerAt <= now);
           for (const r of due) {
             try {
               const label = r.repeat ? `⏰ *Reminder (${r.repeat}):* ${r.message}` : `⏰ *Reminder:* ${r.message}`;
@@ -3174,15 +3765,21 @@ async function startBot() {
               const next = getNextOccurrence(r.triggerAt, r.repeat);
               if (next) {
                 r.triggerAt = next.getTime();
-                try { await apiPut(`/reminders/${r.id}?trigger_at=${encodeURIComponent(next.toISOString())}`, {}); } catch (_) {}
+                try {
+                  await apiPut(`/reminders/${r.id}?trigger_at=${encodeURIComponent(next.toISOString())}`, {});
+                } catch (_) {}
                 console.log(`[Reminder] Rescheduled "${r.message}" → ${next.toISOString()}`);
               } else {
                 reminders.splice(idx, 1);
-                try { await apiDelete(`/reminders/${r.id}`); } catch (_) {}
+                try {
+                  await apiDelete(`/reminders/${r.id}`);
+                } catch (_) {}
               }
             } else {
               reminders.splice(idx, 1);
-              try { await apiDelete(`/reminders/${r.id}`); } catch (_) {}
+              try {
+                await apiDelete(`/reminders/${r.id}`);
+              } catch (_) {}
             }
           }
         }, 30000);
@@ -3206,7 +3803,9 @@ async function startBot() {
         const jitter = baseDelay * RECONNECT.jitter * (Math.random() * 2 - 1); // ±25%
         const delay = Math.max(1000, Math.round(baseDelay + jitter));
         reconnectAttempt++;
-        console.log(`[Pinpoint] Reconnecting in ${(delay / 1000).toFixed(1)}s (attempt ${reconnectAttempt}/${RECONNECT.maxAttempts})`);
+        console.log(
+          `[Pinpoint] Reconnecting in ${(delay / 1000).toFixed(1)}s (attempt ${reconnectAttempt}/${RECONNECT.maxAttempts})`,
+        );
         setTimeout(startBot, delay);
       }
     }
@@ -3215,8 +3814,11 @@ async function startBot() {
   sock.ev.on("messages.upsert", async ({ messages, type }) => {
     if (type !== "notify" && type !== "append") return;
     for (const msg of messages) {
-      try { await handleMessage(sock, msg); }
-      catch (err) { console.error("[Pinpoint] Error:", err.message); }
+      try {
+        await handleMessage(sock, msg);
+      } catch (err) {
+        console.error("[Pinpoint] Error:", err.message);
+      }
     }
   });
 
@@ -3227,12 +3829,14 @@ async function startBot() {
 
 function generateFilename(mediaType, mimetype) {
   const now = new Date();
-  const ts = now.getFullYear().toString()
-    + String(now.getMonth() + 1).padStart(2, "0")
-    + String(now.getDate()).padStart(2, "0")
-    + "_" + String(now.getHours()).padStart(2, "0")
-    + String(now.getMinutes()).padStart(2, "0")
-    + String(now.getSeconds()).padStart(2, "0");
+  const ts =
+    now.getFullYear().toString() +
+    String(now.getMonth() + 1).padStart(2, "0") +
+    String(now.getDate()).padStart(2, "0") +
+    "_" +
+    String(now.getHours()).padStart(2, "0") +
+    String(now.getMinutes()).padStart(2, "0") +
+    String(now.getSeconds()).padStart(2, "0");
   const prefixes = { imageMessage: "IMG", videoMessage: "VID", audioMessage: "AUD" };
   const prefix = prefixes[mediaType] || "FILE";
   const ext = MIME_TO_EXT[mimetype] || ".bin";
@@ -3307,10 +3911,15 @@ async function handleMedia(sock, msg, chatJid) {
   // Download the file
   let buffer;
   try {
-    buffer = await downloadMediaMessage(msg, "buffer", {}, {
-      logger,
-      reuploadRequest: sock.updateMediaMessage,
-    });
+    buffer = await downloadMediaMessage(
+      msg,
+      "buffer",
+      {},
+      {
+        logger,
+        reuploadRequest: sock.updateMediaMessage,
+      },
+    );
   } catch (err) {
     console.error("[Pinpoint] Media download failed:", err.message);
     const reply = `${PREFIX} Failed to download file: ${err.message}`;
@@ -3389,7 +3998,11 @@ async function handleMedia(sock, msg, chatJid) {
         if (result.toolLog && result.toolLog.length > 0) {
           assistantSave = `[Actions: ${result.toolLog.join(", ")}]\n${result.text}`;
         }
-        await saveMessage(chatJid, "user", hasCaption ? cleanCaption : `[Sent photo: ${pathModule.basename(savePath)}]`);
+        await saveMessage(
+          chatJid,
+          "user",
+          hasCaption ? cleanCaption : `[Sent photo: ${pathModule.basename(savePath)}]`,
+        );
         await saveMessage(chatJid, "assistant", assistantSave);
       }
     } catch (err) {
@@ -3432,25 +4045,32 @@ async function handleMessage(sock, msg) {
   const myLid = sock.user?.lid?.split(":")[0]?.split("@")[0];
   const chatNumber = chatJid?.split("@")[0];
   const isGroup = chatJid?.endsWith("@g.us");
-  const isSelfChat = !isGroup && (
-    (myNumber && chatNumber && myNumber === chatNumber)
-    || (myLid && chatNumber && myLid === chatNumber)
-  );
+  const isSelfChat =
+    !isGroup && ((myNumber && chatNumber && myNumber === chatNumber) || (myLid && chatNumber && myLid === chatNumber));
 
   if (!isSelfChat && !isAllowedUser(chatJid)) {
-    if (!isGroup) console.log(`[Pinpoint] Ignored message from: ${chatJid} (not allowed). To allow: /allow ${chatJid.split("@")[0]}`);
+    if (!isGroup)
+      console.log(
+        `[Pinpoint] Ignored message from: ${chatJid} (not allowed). To allow: /allow ${chatJid.split("@")[0]}`,
+      );
     return;
   }
 
   // Allowed users: "pinpoint" starts session, "bye/stop pinpoint" ends it, 60min idle timeout
   const isAllowed = !isSelfChat && isAllowedUser(chatJid);
   if (isAllowed) {
-    const peekText = (msg.message?.conversation || msg.message?.extendedTextMessage?.text
-      || msg.message?.imageMessage?.caption || msg.message?.documentMessage?.caption || "").toLowerCase();
-    const hasSession = allowedSessions.has(chatJid) && (Date.now() - allowedSessions.get(chatJid)) < IDLE_TIMEOUT_MS;
+    const peekText = (
+      msg.message?.conversation ||
+      msg.message?.extendedTextMessage?.text ||
+      msg.message?.imageMessage?.caption ||
+      msg.message?.documentMessage?.caption ||
+      ""
+    ).toLowerCase();
+    const hasSession = allowedSessions.has(chatJid) && Date.now() - allowedSessions.get(chatJid) < IDLE_TIMEOUT_MS;
 
     // End session: "bye pinpoint" / "by pinpoint" / "stop pinpoint" / "exit pinpoint" / "pinpoint bye/stop"
-    const isEndCmd = /\b(bye|by|stop|exit|quit|close)\b.*\bpinpoint\b|\bpinpoint\b.*\b(bye|by|stop|exit|quit|close)\b/.test(peekText);
+    const isEndCmd =
+      /\b(bye|by|stop|exit|quit|close)\b.*\bpinpoint\b|\bpinpoint\b.*\b(bye|by|stop|exit|quit|close)\b/.test(peekText);
     if (hasSession && isEndCmd) {
       allowedSessions.delete(chatJid);
       const endMsg = `${PREFIX} Session ended. Say "pinpoint" anytime to start again.`;
@@ -3475,7 +4095,9 @@ async function handleMessage(sock, msg) {
   }
 
   // Send read receipt (blue ticks) so user knows bot received it
-  try { await sock.readMessages([key]); } catch (_) {}
+  try {
+    await sock.readMessages([key]);
+  } catch (_) {}
 
   // Check for media messages FIRST (before text check)
   const msgType = getContentType(msg.message);
@@ -3508,9 +4130,14 @@ async function handleMessage(sock, msg) {
 
   // --- Admin commands (self-chat only) ---
   if (isSelfChat && cmdLower.startsWith("/allow ")) {
-    const number = userMsg.slice(7).trim().replace(/[^0-9]/g, "");
+    const number = userMsg
+      .slice(7)
+      .trim()
+      .replace(/[^0-9]/g, "");
     if (!number || number.length < 10) {
-      await sock.sendMessage(chatJid, { text: `${PREFIX} Invalid number. Use: /allow 919876543210 (include country code)` });
+      await sock.sendMessage(chatJid, {
+        text: `${PREFIX} Invalid number. Use: /allow 919876543210 (include country code)`,
+      });
       return;
     }
     allowedUsers.add(number);
@@ -3522,7 +4149,10 @@ async function handleMessage(sock, msg) {
     return;
   }
   if (isSelfChat && cmdLower.startsWith("/revoke ")) {
-    const number = userMsg.slice(8).trim().replace(/[^0-9]/g, "");
+    const number = userMsg
+      .slice(8)
+      .trim()
+      .replace(/[^0-9]/g, "");
     // Remove all matching entries (phone number + any resolved LIDs)
     const removed = [];
     for (const id of [...allowedUsers]) {
@@ -3586,9 +4216,14 @@ async function handleMessage(sock, msg) {
   if (cmdLower === "/memory on" || cmdLower === "/memory off") {
     const on = cmdLower === "/memory on";
     memoryEnabled = on;
-    try { await apiPost(`/setting?key=memory_enabled&value=${on}`, {}); } catch (_) {}
+    try {
+      await apiPost(`/setting?key=memory_enabled&value=${on}`, {});
+    } catch (_) {}
     if (on) {
-      try { const ctx = await apiGet("/memory/context"); memoryContext = ctx.text || ""; } catch (_) {}
+      try {
+        const ctx = await apiGet("/memory/context");
+        memoryContext = ctx.text || "";
+      } catch (_) {}
     }
     const reply = `${PREFIX} Memory ${on ? "enabled" : "disabled"}.${on ? " I'll remember personal facts you share." : " I won't save or recall memories."}`;
     await sock.sendMessage(chatJid, { text: reply });
@@ -3678,14 +4313,17 @@ stop — Cancel current request`;
         // Confirmations ("yes", "ok", "go ahead") WITH recent context are NOT simple — they need tools
         // Claude Code pattern: never strip tools when there's active context
         const isGreeting = /^(hi|hello|hey|good morning|good night|gm|gn|bye)\s*[.!?]*$/i.test(userMsg.trim());
-        const isReaction = /^(thanks|thank you|lol|haha|cool|nice|great|awesome|amazing|wow|perfect|oh|damn|omg|hehe|bruh|whoa|dope|sick|sweet|beautiful|wonderful|brilliant|excellent|fantastic|superb|impressive|neat|solid|lit|fire|legit|bet|word|ooh|aah|yay|woah|geez|ty|thx|np|gg|kk|ikr|imo|fyi|asap|🔥|💯|👏|😍|🤩|🥳|💪|🎉|✅|🙌|👌|😭|🤣|😎|💀|🫡|👍|🙏|❤️|😂|😊)\s*[.!?]*$/i.test(userMsg.trim());
+        const isReaction =
+          /^(thanks|thank you|lol|haha|cool|nice|great|awesome|amazing|wow|perfect|oh|damn|omg|hehe|bruh|whoa|dope|sick|sweet|beautiful|wonderful|brilliant|excellent|fantastic|superb|impressive|neat|solid|lit|fire|legit|bet|word|ooh|aah|yay|woah|geez|ty|thx|np|gg|kk|ikr|imo|fyi|asap|🔥|💯|👏|😍|🤩|🥳|💪|🎉|✅|🙌|👌|😭|🤣|😎|💀|🫡|👍|🙏|❤️|😂|😊)\s*[.!?]*$/i.test(
+            userMsg.trim(),
+          );
         const hasContext = lastIntentCats[chatJid] && lastIntentCats[chatJid].size > 0;
         const isSimple = isGreeting || (isReaction && !hasContext);
         const noTools = isSimple;
         // Re-inject last image only if recent (< 2 min TTL) — prevents stale image re-injection
         const prevImg = lastImage.get(chatJid);
         const imgAge = prevImg ? Date.now() - (prevImg.ts || 0) : Infinity;
-        const inlineImage = (prevImg && imgAge < 120000) ? prevImg : null;
+        const inlineImage = prevImg && imgAge < 120000 ? prevImg : null;
         // Prepend image path so Gemini knows where it is (for tools like crop_image)
         let geminiMsg = userMsg;
         if (inlineImage && prevImg.path) {

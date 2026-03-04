@@ -5,14 +5,15 @@ find frames matching a text query. Embeddings cached in SQLite.
 """
 
 import os
-import time
+import sqlite3
 import struct
 import subprocess
 import tempfile
-import sqlite3
+import time
+from datetime import UTC, datetime
+
 import numpy as np
 from PIL import Image
-from datetime import datetime, timezone
 
 from database import DB_PATH, get_db
 from image_search import _HAS_SIGLIP
@@ -23,8 +24,12 @@ BATCH_SIZE = 16
 MAX_LOAD_DIM = 384
 VIDEO_EXTS = {".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm"}
 VIDEO_MIME = {
-    ".mp4": "video/mp4", ".mkv": "video/x-matroska", ".avi": "video/x-msvideo",
-    ".mov": "video/quicktime", ".wmv": "video/x-ms-wmv", ".flv": "video/x-flv",
+    ".mp4": "video/mp4",
+    ".mkv": "video/x-matroska",
+    ".avi": "video/x-msvideo",
+    ".mov": "video/quicktime",
+    ".wmv": "video/x-ms-wmv",
+    ".flv": "video/x-flv",
     ".webm": "video/webm",
 }
 DEFAULT_FPS = 1  # 1 frame per second
@@ -36,22 +41,25 @@ def _get_conn() -> sqlite3.Connection:
 
 # --- Reuse SigLIP2 from image_search ---
 
+
 def _get_siglip():
     """Reuse SigLIP2 model from image_search (shared lazy singleton)."""
     from image_search import _get_siglip as _img_get_siglip
+
     return _img_get_siglip()
 
 
 def _embed_text(query: str) -> np.ndarray:
     """Reuse text embedding from image_search."""
     from image_search import embed_text
+
     return embed_text(query)
 
 
 from image_search import _normalize
 
-
 # --- Embedding serialization ---
+
 
 def _embedding_to_bytes(emb: np.ndarray) -> bytes:
     return struct.pack(f"{EMBED_DIM}f", *emb.tolist())
@@ -63,6 +71,7 @@ def _bytes_to_embedding(data: bytes) -> np.ndarray:
 
 # --- Frame extraction with ffmpeg ---
 
+
 def extract_frames(video_path: str, fps: float = DEFAULT_FPS, temp_dir: str = None) -> list:
     """
     Extract frames from video using ffmpeg.
@@ -73,18 +82,29 @@ def extract_frames(video_path: str, fps: float = DEFAULT_FPS, temp_dir: str = No
 
     # Get video duration first
     probe = subprocess.run(
-        ["ffprobe", "-v", "quiet", "-show_entries", "format=duration",
-         "-of", "default=noprint_wrappers=1:nokey=1", video_path],
-        capture_output=True, text=True, timeout=60
+        [
+            "ffprobe",
+            "-v",
+            "quiet",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "default=noprint_wrappers=1:nokey=1",
+            video_path,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=60,
     )
     duration = float(probe.stdout.strip()) if probe.stdout.strip() else 0
 
     # Extract frames at specified fps
     pattern = os.path.join(temp_dir, "frame_%06d.jpg")
     subprocess.run(
-        ["ffmpeg", "-i", video_path, "-vf", f"fps={fps}", "-q:v", "2",
-         "-y", pattern],
-        capture_output=True, check=True, timeout=300
+        ["ffmpeg", "-i", video_path, "-vf", f"fps={fps}", "-q:v", "2", "-y", pattern],
+        capture_output=True,
+        check=True,
+        timeout=300,
     )
 
     # Collect extracted frames with timestamps
@@ -102,6 +122,7 @@ def extract_frames(video_path: str, fps: float = DEFAULT_FPS, temp_dir: str = No
 
 # --- DB cache operations ---
 
+
 def _load_cached_embeddings(video_path: str) -> dict:
     """Load cached frame embeddings for a video. Returns {frame_sec: ndarray} if valid."""
     conn = _get_conn()
@@ -111,8 +132,7 @@ def _load_cached_embeddings(video_path: str) -> dict:
         return {}
 
     rows = conn.execute(
-        "SELECT frame_sec, embedding, mtime FROM video_embeddings WHERE video_path = ?",
-        (video_path,)
+        "SELECT frame_sec, embedding, mtime FROM video_embeddings WHERE video_path = ?", (video_path,)
     ).fetchall()
 
     if not rows:
@@ -137,15 +157,16 @@ def _save_embeddings(video_path: str, frame_embeddings: list):
         return
     conn = _get_conn()
     mtime = os.path.getmtime(video_path)
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     conn.executemany(
         "INSERT OR REPLACE INTO video_embeddings (video_path, frame_sec, embedding, mtime, embedded_at) VALUES (?, ?, ?, ?, ?)",
-        [(video_path, sec, _embedding_to_bytes(emb), mtime, now) for sec, emb in frame_embeddings]
+        [(video_path, sec, _embedding_to_bytes(emb), mtime, now) for sec, emb in frame_embeddings],
     )
     conn.commit()
 
 
 # --- Core functions ---
+
 
 def _format_timestamp(seconds: float) -> str:
     """Convert seconds to HH:MM:SS or MM:SS format."""
@@ -160,8 +181,10 @@ def _format_timestamp(seconds: float) -> str:
 def _timestamp_to_seconds(ts: str) -> float:
     """Convert HH:MM:SS or MM:SS timestamp back to seconds."""
     parts = ts.split(":")
-    if len(parts) == 3: return int(parts[0]) * 3600 + int(parts[1]) * 60 + float(parts[2])
-    if len(parts) == 2: return int(parts[0]) * 60 + float(parts[1])
+    if len(parts) == 3:
+        return int(parts[0]) * 3600 + int(parts[1]) * 60 + float(parts[2])
+    if len(parts) == 2:
+        return int(parts[0]) * 60 + float(parts[1])
     return 0.0
 
 
@@ -184,7 +207,9 @@ def embed_video(video_path: str, fps: float = DEFAULT_FPS, progress_callback=Non
     temp_dir = tempfile.mkdtemp(prefix="pinpoint_vframes_")
     try:
         frames, duration = extract_frames(video_path, fps, temp_dir)
-        print(f"[VideoSearch] Extracted {len(frames)} frames in {time.time() - t0:.1f}s (duration: {_format_timestamp(duration)})")
+        print(
+            f"[VideoSearch] Extracted {len(frames)} frames in {time.time() - t0:.1f}s (duration: {_format_timestamp(duration)})"
+        )
 
         if not frames:
             return {}
@@ -198,7 +223,7 @@ def embed_video(video_path: str, fps: float = DEFAULT_FPS, progress_callback=Non
         new_embeddings = []
 
         for i in range(0, len(frames), BATCH_SIZE):
-            batch = frames[i:i + BATCH_SIZE]
+            batch = frames[i : i + BATCH_SIZE]
             batch_imgs = []
             batch_secs = []
 
@@ -233,13 +258,16 @@ def embed_video(video_path: str, fps: float = DEFAULT_FPS, progress_callback=Non
         _save_embeddings(video_path, new_embeddings)
 
         elapsed = time.time() - t1
-        print(f"[VideoSearch] Embedded {len(frames)} frames in {elapsed:.1f}s ({elapsed / max(len(frames), 1) * 1000:.0f}ms/frame)")
+        print(
+            f"[VideoSearch] Embedded {len(frames)} frames in {elapsed:.1f}s ({elapsed / max(len(frames), 1) * 1000:.0f}ms/frame)"
+        )
 
         return result
 
     finally:
         # Cleanup temp frames
         import shutil
+
         shutil.rmtree(temp_dir, ignore_errors=True)
 
 
@@ -247,11 +275,13 @@ def _search_video_gemini(video_path: str, query: str, fps: float = DEFAULT_FPS, 
     """Gemini native video analysis — upload full video, no frame extraction needed.
     Note: fps is accepted for API compatibility but unused (Gemini analyzes the full video)."""
     from extractors import _get_gemini
+
     client = _get_gemini()
     if not client:
         return {"error": "GEMINI_API_KEY not set", "results": []}
-    from google.genai import types
     import json as _json
+
+    from google.genai import types
 
     video_path = os.path.abspath(video_path)
     if not os.path.isfile(video_path):
@@ -309,6 +339,7 @@ def _search_video_gemini(video_path: str, query: str, fps: float = DEFAULT_FPS, 
 
     try:
         from extractors import gemini_call_with_retry
+
         resp = gemini_call_with_retry(
             client,
             model=model,
@@ -326,11 +357,13 @@ def _search_video_gemini(video_path: str, query: str, fps: float = DEFAULT_FPS, 
         for item in results_raw[:limit]:
             ts = item.get("timestamp", "0:00")
             secs = _timestamp_to_seconds(ts)
-            results.append({
-                "timestamp": ts,
-                "seconds": round(secs, 1),
-                "match_pct": round(float(item.get("match_pct", 0)), 1),
-            })
+            results.append(
+                {
+                    "timestamp": ts,
+                    "seconds": round(secs, 1),
+                    "match_pct": round(float(item.get("match_pct", 0)), 1),
+                }
+            )
     except Exception as e:
         print(f"[GeminiVideoSearch] Error: {e}")
         return {"error": f"Gemini video analysis failed: {e}", "results": []}
@@ -355,6 +388,7 @@ def search_video(video_path: str, query: str, fps: float = DEFAULT_FPS, limit: i
     """
     # Gemini native video analysis (primary), SigLIP fallback
     from extractors import _get_gemini
+
     if _get_gemini():
         return _search_video_gemini(video_path, query, fps, limit)
     if not _HAS_SIGLIP:
@@ -402,11 +436,13 @@ def search_video(video_path: str, query: str, fps: float = DEFAULT_FPS, limit: i
         sec = secs[idx]
         raw = similarities[idx]
         pct = round(float((raw - min_all) / score_range * 100), 1)
-        results.append({
-            "timestamp": _format_timestamp(sec),
-            "seconds": round(sec, 1),
-            "match_pct": pct,
-        })
+        results.append(
+            {
+                "timestamp": _format_timestamp(sec),
+                "seconds": round(sec, 1),
+                "match_pct": pct,
+            }
+        )
 
     return {
         "video": video_path,
@@ -430,9 +466,10 @@ def extract_frame_image(video_path: str, seconds: float, output_path: str = None
         output_path = os.path.join(tempfile.gettempdir(), f"{base}_frame_{ts}.jpg")
 
     subprocess.run(
-        ["ffmpeg", "-ss", str(seconds), "-i", video_path,
-         "-frames:v", "1", "-q:v", "2", "-y", output_path],
-        capture_output=True, check=True, timeout=60
+        ["ffmpeg", "-ss", str(seconds), "-i", video_path, "-frames:v", "1", "-q:v", "2", "-y", output_path],
+        capture_output=True,
+        check=True,
+        timeout=60,
     )
     return output_path
 
@@ -440,6 +477,7 @@ def extract_frame_image(video_path: str, seconds: float, output_path: str = None
 # --- Quick test ---
 if __name__ == "__main__":
     import sys
+
     if len(sys.argv) >= 3:
         vpath = sys.argv[1]
         query = sys.argv[2]

@@ -20,6 +20,7 @@ import os
 import sqlite3
 import struct
 import tempfile
+from datetime import UTC
 
 import numpy as np
 from PIL import Image
@@ -48,6 +49,7 @@ def _get_model():
     global _app
     if _app is None:
         from insightface.app import FaceAnalysis
+
         print("[FaceSearch] Loading InsightFace model (first time)...")
         _app = FaceAnalysis(
             name="buffalo_l",
@@ -60,6 +62,7 @@ def _get_model():
 
 # --- Embedding serialization ---
 
+
 def _embedding_to_bytes(emb: np.ndarray) -> bytes:
     return struct.pack(f"{len(emb)}f", *emb)
 
@@ -71,6 +74,7 @@ def _bytes_to_embedding(data: bytes) -> np.ndarray:
 
 # --- File hash (for cache invalidation) ---
 
+
 def _file_hash(path: str) -> str:
     stat = os.stat(path)
     key = f"{stat.st_size}:{stat.st_mtime}"
@@ -78,6 +82,7 @@ def _file_hash(path: str) -> str:
 
 
 # --- Extract full face data from InsightFace result ---
+
 
 def _extract_face_data(face, idx: int) -> dict:
     """Extract all available data from an InsightFace face object."""
@@ -110,13 +115,14 @@ def _extract_face_data(face, idx: int) -> dict:
 
 # --- Cache operations ---
 
+
 def _get_cached_faces(conn: sqlite3.Connection, image_path: str):
     """Get cached face data if file hasn't changed. Returns list or None."""
     current_hash = _file_hash(image_path)
     rows = conn.execute(
         "SELECT face_idx, bbox, embedding, confidence, age, gender, pose "
         "FROM face_cache WHERE image_path = ? AND file_hash = ? ORDER BY face_idx",
-        (image_path, current_hash)
+        (image_path, current_hash),
     ).fetchall()
 
     if not rows:
@@ -124,15 +130,17 @@ def _get_cached_faces(conn: sqlite3.Connection, image_path: str):
 
     faces = []
     for row in rows:
-        faces.append({
-            "face_idx": row["face_idx"],
-            "bbox": row["bbox"],
-            "embedding": _bytes_to_embedding(row["embedding"]),
-            "confidence": row["confidence"],
-            "age": row["age"],
-            "gender": row["gender"],
-            "pose": json.loads(row["pose"]) if row["pose"] else None,
-        })
+        faces.append(
+            {
+                "face_idx": row["face_idx"],
+                "bbox": row["bbox"],
+                "embedding": _bytes_to_embedding(row["embedding"]),
+                "confidence": row["confidence"],
+                "age": row["age"],
+                "gender": row["gender"],
+                "pose": json.loads(row["pose"]) if row["pose"] else None,
+            }
+        )
     return faces
 
 
@@ -146,9 +154,17 @@ def _cache_faces(conn: sqlite3.Connection, image_path: str, faces: list):
         conn.execute(
             "INSERT INTO face_cache(image_path, file_hash, face_idx, bbox, "
             "embedding, confidence, age, gender, pose) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (image_path, fh, face["face_idx"], face["bbox"],
-             _embedding_to_bytes(face["embedding"]), face["confidence"],
-             face.get("age"), face.get("gender"), pose_json)
+            (
+                image_path,
+                fh,
+                face["face_idx"],
+                face["bbox"],
+                _embedding_to_bytes(face["embedding"]),
+                face["confidence"],
+                face.get("age"),
+                face.get("gender"),
+                pose_json,
+            ),
         )
     conn.commit()
 
@@ -173,6 +189,7 @@ def _face_to_api(face: dict) -> dict:
 
 
 # --- Core functions ---
+
 
 def _recognize_against_known(faces_with_embeddings: list, conn: sqlite3.Connection, threshold: float = 0.5) -> dict:
     """Match face embeddings against known_faces table. Returns {face_idx: name}."""
@@ -376,7 +393,7 @@ def find_person(reference_image: str, folder: str, conn: sqlite3.Connection = No
             "faces": faces_info,
             "reference_image": reference_image,
             "message": f"Found {len(ref_faces)} faces. Use crop_face to show each to the user, "
-                       "then call find_person_by_face with the chosen face_idx.",
+            "then call find_person_by_face with the chosen face_idx.",
         }
 
     target_embedding = ref_faces[0].embedding
@@ -415,8 +432,9 @@ def find_person(reference_image: str, folder: str, conn: sqlite3.Connection = No
     }
 
 
-def find_person_by_face(reference_image: str, face_idx: int, folder: str,
-                         conn: sqlite3.Connection = None, threshold: float = 0.4):
+def find_person_by_face(
+    reference_image: str, face_idx: int, folder: str, conn: sqlite3.Connection = None, threshold: float = 0.4
+):
     """
     Find photos matching a specific face (by index) from a multi-face reference.
     """
@@ -493,9 +511,9 @@ def count_faces(image_path: str, conn: sqlite3.Connection = None):
     return summary
 
 
-def compare_faces(image_path_1: str, face_idx_1: int,
-                  image_path_2: str, face_idx_2: int,
-                  conn: sqlite3.Connection = None):
+def compare_faces(
+    image_path_1: str, face_idx_1: int, image_path_2: str, face_idx_2: int, conn: sqlite3.Connection = None
+):
     """
     Compare two specific faces from two images.
     Returns similarity score and whether they're the same person.
@@ -542,6 +560,7 @@ def compare_faces(image_path_1: str, face_idx_1: int,
 
 # --- Persistent face memory (Segment 18V) ---
 
+
 def remember_face(image_path: str, face_idx: int, name: str, conn: sqlite3.Connection):
     """
     Save a face embedding for future recognition.
@@ -576,11 +595,12 @@ def remember_face(image_path: str, face_idx: int, name: str, conn: sqlite3.Conne
         _cache_faces(conn, image_path, all_faces)
 
     # Insert into known_faces
-    from datetime import datetime, timezone
-    now = datetime.now(timezone.utc).isoformat()
+    from datetime import datetime
+
+    now = datetime.now(UTC).isoformat()
     cursor = conn.execute(
         "INSERT INTO known_faces(name, embedding, source_image, created_at) VALUES (?, ?, ?, ?)",
-        (name, _embedding_to_bytes(embedding), image_path, now)
+        (name, _embedding_to_bytes(embedding), image_path, now),
     )
     conn.commit()
 
@@ -650,7 +670,6 @@ def recognize_faces(image_path: str, conn: sqlite3.Connection, threshold: float 
 def list_known_faces(conn: sqlite3.Connection):
     """List all known faces (unique names with embedding counts)."""
     rows = conn.execute(
-        "SELECT name, COUNT(*) as count, MIN(created_at) as first_added "
-        "FROM known_faces GROUP BY name ORDER BY name"
+        "SELECT name, COUNT(*) as count, MIN(created_at) as first_added FROM known_faces GROUP BY name ORDER BY name"
     ).fetchall()
     return [{"name": r["name"], "embeddings": r["count"], "first_added": r["first_added"]} for r in rows]

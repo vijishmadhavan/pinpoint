@@ -8,20 +8,23 @@ Uses ONNX runtime (no torch dependency). Same model as InsightFace runtime.
 """
 
 import os
+import sqlite3
+import struct
 import sys
 import time
-import struct
-import sqlite3
+
 import numpy as np
 from PIL import Image
 
 # Ensure CUDA 12 libs from pip nvidia packages are on LD_LIBRARY_PATH (onnxruntime needs them)
-_site_pkgs = os.path.join(sys.prefix, "lib", f"python{sys.version_info.major}.{sys.version_info.minor}", "site-packages", "nvidia")
+_site_pkgs = os.path.join(
+    sys.prefix, "lib", f"python{sys.version_info.major}.{sys.version_info.minor}", "site-packages", "nvidia"
+)
 for _subdir in ["cublas/lib", "cudnn/lib", "cuda_runtime/lib"]:
     _p = os.path.join(_site_pkgs, _subdir)
     if os.path.isdir(_p):
         os.environ["LD_LIBRARY_PATH"] = _p + ":" + os.environ.get("LD_LIBRARY_PATH", "")
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from database import DB_PATH, get_db
 
@@ -29,6 +32,7 @@ from database import DB_PATH, get_db
 _HAS_SIGLIP = False
 try:
     import onnxruntime
+
     _HAS_SIGLIP = True
 except ImportError:
     pass
@@ -101,6 +105,7 @@ def _get_conn() -> sqlite3.Connection:
 
 # --- Embedding serialization (768 floats → bytes) ---
 
+
 def _embedding_to_bytes(emb: np.ndarray) -> bytes:
     """Convert 1D float array to compact bytes."""
     return struct.pack(f"{EMBED_DIM}f", *emb.tolist())
@@ -112,6 +117,7 @@ def _bytes_to_embedding(data: bytes) -> np.ndarray:
 
 
 # --- Fast image loading ---
+
 
 def _load_image_fast(path: str) -> Image.Image:
     """Load image with fast JPEG draft decoding + resize."""
@@ -135,10 +141,7 @@ def _get_image_files(folder: str, recursive: bool = False) -> list[str]:
                 if os.path.splitext(f)[1].lower() in IMAGE_EXTS:
                     files.append(os.path.join(root, f))
         return sorted(files)
-    return sorted([
-        os.path.join(folder, f) for f in os.listdir(folder)
-        if os.path.splitext(f)[1].lower() in IMAGE_EXTS
-    ])
+    return sorted([os.path.join(folder, f) for f in os.listdir(folder) if os.path.splitext(f)[1].lower() in IMAGE_EXTS])
 
 
 def _normalize(v: np.ndarray, axis=-1) -> np.ndarray:
@@ -150,6 +153,7 @@ def _normalize(v: np.ndarray, axis=-1) -> np.ndarray:
 
 # --- DB operations ---
 
+
 def _load_cached_embeddings(paths: list[str]) -> dict:
     """Load cached embeddings from DB. Returns {path: ndarray} for valid (unchanged) files."""
     if not paths:
@@ -158,11 +162,10 @@ def _load_cached_embeddings(paths: list[str]) -> dict:
     cached = {}
     # Query in chunks to avoid SQLite variable limit
     for i in range(0, len(paths), 500):
-        chunk = paths[i:i + 500]
+        chunk = paths[i : i + 500]
         placeholders = ",".join("?" * len(chunk))
         rows = conn.execute(
-            f"SELECT path, embedding, mtime FROM image_embeddings WHERE path IN ({placeholders})",
-            chunk
+            f"SELECT path, embedding, mtime FROM image_embeddings WHERE path IN ({placeholders})", chunk
         ).fetchall()
         for row in rows:
             path, emb_bytes, stored_mtime = row
@@ -180,15 +183,16 @@ def _save_embeddings(path_embeddings: list):
     if not path_embeddings:
         return
     conn = _get_conn()
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     conn.executemany(
         "INSERT OR REPLACE INTO image_embeddings (path, embedding, mtime, embedded_at) VALUES (?, ?, ?, ?)",
-        [(p, _embedding_to_bytes(e), m, now) for p, e, m in path_embeddings]
+        [(p, _embedding_to_bytes(e), m, now) for p, e, m in path_embeddings],
     )
     conn.commit()
 
 
 # --- Core functions ---
+
 
 def embed_images(folder: str, progress_callback=None) -> dict:
     """
@@ -212,7 +216,7 @@ def embed_images(folder: str, progress_callback=None) -> dict:
         new_embeddings = []  # For DB save
 
         for i in range(0, len(to_embed), BATCH_SIZE):
-            batch = to_embed[i:i + BATCH_SIZE]
+            batch = to_embed[i : i + BATCH_SIZE]
             batch_imgs = []
             batch_valid = []
             for fpath in batch:
@@ -250,7 +254,9 @@ def embed_images(folder: str, progress_callback=None) -> dict:
         _save_embeddings(new_embeddings)
 
         elapsed = time.time() - t0
-        print(f"[SigLIP2] Embedded {len(to_embed)} images in {elapsed:.1f}s ({elapsed / len(to_embed) * 1000:.0f}ms/img)")
+        print(
+            f"[SigLIP2] Embedded {len(to_embed)} images in {elapsed:.1f}s ({elapsed / len(to_embed) * 1000:.0f}ms/img)"
+        )
 
     return result
 
@@ -273,16 +279,22 @@ def embed_text(query: str) -> np.ndarray:
     return _normalize(emb).squeeze(0)
 
 
-def _search_images_gemini(folder: str, query: str, limit: int = 10, progress_callback=None, recursive: bool = False) -> dict:
+def _search_images_gemini(
+    folder: str, query: str, limit: int = 10, progress_callback=None, recursive: bool = False
+) -> dict:
     """Gemini vision fallback — multi-image concurrent ranking with LOW resolution.
     Handles 10K+ images: 200/batch, 5 concurrent workers, 280 tokens/image (LOW res)."""
     from extractors import _get_gemini
+
     client = _get_gemini()
     if not client:
         return {"error": "GEMINI_API_KEY not set", "results": []}
-    from google.genai import types
+    import io
+    import json as _json
+    import threading
     from concurrent.futures import ThreadPoolExecutor, as_completed
-    import io, json as _json, threading
+
+    from google.genai import types
 
     folder = os.path.abspath(folder)
     files = _get_image_files(folder, recursive=recursive)
@@ -312,9 +324,7 @@ def _search_images_gemini(folder: str, query: str, limit: int = 10, progress_cal
                 continue
         if not names:
             return {}
-        parts.append(types.Part.from_text(text=
-            f"Query: '{query}'\nRate each image 0-100 for relevance to the query."
-        ))
+        parts.append(types.Part.from_text(text=f"Query: '{query}'\nRate each image 0-100 for relevance to the query."))
         _score_schema = {
             "type": "OBJECT",
             "properties": {
@@ -334,6 +344,7 @@ def _search_images_gemini(folder: str, query: str, limit: int = 10, progress_cal
         }
         try:
             from extractors import gemini_call_with_retry
+
             resp = gemini_call_with_retry(
                 client,
                 model=model,
@@ -359,7 +370,7 @@ def _search_images_gemini(folder: str, query: str, limit: int = 10, progress_cal
             return {}
 
     # Build batch list
-    batches = [files[i:i + BATCH] for i in range(0, len(files), BATCH)]
+    batches = [files[i : i + BATCH] for i in range(0, len(files), BATCH)]
     total_batches = len(batches)
     print(f"[GeminiSearch] Scoring {len(files)} images in {total_batches} batches ({WORKERS} concurrent)...")
 
@@ -442,11 +453,13 @@ def search_images(folder: str, query: str, limit: int = 10, recursive: bool = Fa
         fpath = paths[idx]
         raw = similarities[idx]
         pct = round(float((raw - min_all) / score_range * 100), 1)
-        results.append({
-            "filename": os.path.basename(fpath),
-            "path": fpath,
-            "match_pct": pct,
-        })
+        results.append(
+            {
+                "filename": os.path.basename(fpath),
+                "path": fpath,
+                "match_pct": pct,
+            }
+        )
 
     return {
         "folder": folder,
