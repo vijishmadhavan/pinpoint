@@ -42,3 +42,7 @@ PINPOINT_IDEA.txt
 
 # Claude Code session data
 .claude/
+claude-code/
+
+# Logs
+pinpoint.log

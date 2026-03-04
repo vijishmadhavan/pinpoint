@@ -68,6 +68,12 @@ Endpoints:
   POST /watch?folder=                   → Start auto-indexing a folder
   POST /unwatch?folder=                 → Stop auto-indexing a folder
   GET  /watched                         → List watched folders
+  POST /score-photo                     → Score a photo's quality (Gemini vision)
+  POST /cull-photos                     → Auto-cull photos in a folder (background)
+  GET  /cull-photos/status              → Poll cull job progress
+  POST /suggest-categories               → Sample photos + suggest grouping categories (Gemini)
+  POST /group-photos                    → Auto-group photos by Gemini vision (background)
+  GET  /group-photos/status             → Poll group job progress
 """
 
 import ast
@@ -913,7 +919,7 @@ def read_file_endpoint(req: ReadFileRequest):
 
     ext = os.path.splitext(path)[1].lower()
 
-    # Images → base64 for Gemini vision
+    # Images → base64 for Gemini vision + cached caption if indexed
     if ext in _IMAGE_EXTS:
         with open(path, "rb") as f:
             data = base64.b64encode(f.read()).decode("ascii")
@@ -922,13 +928,25 @@ def read_file_endpoint(req: ReadFileRequest):
             ".bmp": "image/bmp", ".webp": "image/webp", ".gif": "image/gif",
             ".tiff": "image/tiff", ".tif": "image/tiff", ".heic": "image/heic",
         }
-        return {
+        result = {
             "type": "image",
             "mime_type": mime_map.get(ext, "image/jpeg"),
             "data": data,
             "path": path,
             "size": file_size,
         }
+        # DB-first: enrich with cached caption if already indexed (free)
+        try:
+            conn = _get_conn()
+            doc = conn.execute("SELECT hash FROM documents WHERE path = ? AND active = 1", (path,)).fetchone()
+            if doc:
+                cr = conn.execute("SELECT text FROM content WHERE hash = ?", (doc["hash"],)).fetchone()
+                if cr and cr["text"]:
+                    result["caption"] = cr["text"]
+                    result["_hint"] = "Image has cached caption from index — no need to re-caption."
+        except Exception:
+            pass
+        return result
 
     # Text files → raw content
     if ext in _TEXT_EXTS:
@@ -945,11 +963,16 @@ def read_file_endpoint(req: ReadFileRequest):
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Cannot read file: {e}")
 
-    # PDFs → extract with PyMuPDF
+    # PDFs → extract with PyMuPDF, fallback to OCR for scanned PDFs
     if ext in _PDF_EXTS:
         try:
             import pymupdf4llm
             content = pymupdf4llm.to_markdown(path)
+            # If empty text → likely scanned PDF, try OCR
+            if not content or not content.strip():
+                ocr_result = _ocr_single(path)
+                if ocr_result and ocr_result.get("text"):
+                    content = ocr_result["text"]
             truncated = len(content) > _MAX_TEXT_CHARS
             if truncated:
                 content = content[:_MAX_TEXT_CHARS] + "\n\n[... truncated ...]"
@@ -1369,6 +1392,7 @@ class VisualSearchRequest(BaseModel):
     folder: str
     query: str
     limit: int = 10
+    recursive: bool = False
 
 
 @app.post("/search-images-visual")
@@ -1381,9 +1405,21 @@ def search_images_visual_endpoint(req: VisualSearchRequest):
     from image_search import search_images, _get_image_files, _mem_cache, _load_cached_embeddings, _HAS_SIGLIP
 
     # Check if embedding is needed (folder not in memory cache)
-    files = _get_image_files(folder)
+    # Auto-recurse if no images at top level but subfolders exist
+    recursive = req.recursive
+    files = _get_image_files(folder, recursive=recursive)
+    if not files and not recursive:
+        files = _get_image_files(folder, recursive=True)
+        if files:
+            recursive = True
     if not files:
-        return {"error": f"No images found in {folder}", "results": []}
+        return {"error": f"No images found in {folder}", "results": [],
+                "_hint": "No images found. Try search_documents(query=..., file_type='image', folder=...) to search indexed image captions instead."}
+    # If auto-recursed into many images, suggest search_documents first (free + instant)
+    if recursive and len(files) > 200:
+        return {"error": f"Folder has {len(files)} images across subfolders — too many for visual search. Use search_documents(query=..., file_type='image', folder='{folder}') instead — it searches indexed image captions instantly for free.",
+                "results": [], "total_images": len(files),
+                "_hint": f"Too many images ({len(files)}). Try search_documents with file_type='image' first — it's free and instant."}
 
     # No SigLIP — dispatch to Gemini vision (no embedding needed)
     if not _HAS_SIGLIP:
@@ -1411,7 +1447,7 @@ def search_images_visual_endpoint(req: VisualSearchRequest):
                 try:
                     def _progress(done, total):
                         _embedding_jobs[folder]["done"] = done
-                    result = _search_images_gemini(folder, req.query, limit=req.limit, progress_callback=_progress)
+                    result = _search_images_gemini(folder, req.query, limit=req.limit, progress_callback=_progress, recursive=recursive)
                     _embedding_jobs[folder]["status"] = "done"
                     _embedding_jobs[folder]["result"] = result
                 except Exception as e:
@@ -1423,7 +1459,7 @@ def search_images_visual_endpoint(req: VisualSearchRequest):
                     "_hint": f"Scoring {len(files)} images with Gemini vision in {total_batches} batches. Tell the user it's processing and will be ready soon."}
 
         # Small folder — do inline
-        result = search_images(folder, req.query, limit=req.limit)
+        result = search_images(folder, req.query, limit=req.limit, recursive=recursive)
         if "error" in result and not result.get("results"):
             raise HTTPException(status_code=404, detail=result["error"])
         result["_hint"] = "Visual search complete. Results are AI-analyzed — trust them to answer, categorize, or group."
@@ -1432,7 +1468,7 @@ def search_images_visual_endpoint(req: VisualSearchRequest):
     mem = _mem_cache.get(folder)
     if mem and len(mem["paths"]) == len(files):
         # Already cached — search instantly
-        result = search_images(folder, req.query, limit=req.limit)
+        result = search_images(folder, req.query, limit=req.limit, recursive=recursive)
         if "error" in result and not result.get("results"):
             raise HTTPException(status_code=404, detail=result["error"])
         return result
@@ -1450,7 +1486,7 @@ def search_images_visual_endpoint(req: VisualSearchRequest):
                         "_hint": f"Still embedding ({job['done']}/{job['total']}). Tell the user to wait and try again in a bit."}
             if job["status"] == "done":
                 # Background embedding finished — search now
-                result = search_images(folder, req.query, limit=req.limit)
+                result = search_images(folder, req.query, limit=req.limit, recursive=recursive)
                 if "error" in result and not result.get("results"):
                     raise HTTPException(status_code=404, detail=result["error"])
                 result["_hint"] = "Visual search complete. Results are AI-analyzed — trust them to answer, categorize, or group."
@@ -1478,7 +1514,7 @@ def search_images_visual_endpoint(req: VisualSearchRequest):
                 "_hint": f"Embedding {to_embed} images in background. Tell the user it's processing and will be ready in a few minutes. They can search once done."}
 
     # Small job — do inline
-    result = search_images(folder, req.query, limit=req.limit)
+    result = search_images(folder, req.query, limit=req.limit, recursive=recursive)
     if "error" in result and not result.get("results"):
         raise HTTPException(status_code=404, detail=result["error"])
     result["_hint"] = "Visual search complete. Results are AI-analyzed — trust them to answer, categorize, or group."
@@ -1585,10 +1621,22 @@ class OcrRequest(BaseModel):
 
 
 def _ocr_single(path: str) -> dict:
-    """OCR a single file (image or PDF). Returns dict with text."""
+    """OCR a single file (image or PDF). Checks DB first — if already indexed, returns cached text."""
     path = os.path.abspath(path)
     if not os.path.exists(path):
         return {"error": f"File not found: {path}"}
+
+    # DB-first: check if already indexed (free — skip expensive OCR)
+    try:
+        conn = _get_conn()
+        doc = conn.execute("SELECT hash FROM documents WHERE path = ? AND active = 1", (path,)).fetchone()
+        if doc:
+            content_row = conn.execute("SELECT text FROM content WHERE hash = ?", (doc["hash"],)).fetchone()
+            if content_row and content_row["text"] and len(content_row["text"].strip()) > 10:
+                return {"path": path, "text": content_row["text"], "method": "cached_index",
+                        "_hint": "Text from DB index (no re-processing needed)."}
+    except Exception:
+        pass
 
     ext = os.path.splitext(path)[1].lower()
     if ext == ".pdf":
@@ -1918,7 +1966,21 @@ def index_file_endpoint(req: IndexFileRequest):
         raise HTTPException(status_code=400, detail="Use POST /index for folders. This endpoint is for single files.")
 
     from extractors import extract
-    from database import upsert_document, chunk_document
+    from database import upsert_document, chunk_document, content_hash
+
+    # DB-first: skip extraction if file unchanged (same mtime = same content)
+    conn = _get_conn()
+    existing = conn.execute(
+        "SELECT hash, modified_at FROM documents WHERE path = ? AND active = 1", (path,)
+    ).fetchone()
+    if existing:
+        file_mtime = datetime.fromtimestamp(os.path.getmtime(path)).isoformat()
+        if existing["modified_at"] and existing["modified_at"] >= file_mtime:
+            return {
+                "success": True, "path": path, "already_indexed": True,
+                "hash": existing["hash"][:16],
+                "_hint": "File already indexed (unchanged). Use search_documents to search it.",
+            }
 
     result = extract(path)
     if result is None:
@@ -1979,24 +2041,39 @@ Text:
 Facts:"""
 
     try:
-        from google import genai as genai_new
-        client = genai_new.Client(api_key=GEMINI_KEY)
-        response = client.models.generate_content(
-            model="gemini-2.0-flash-lite",
+        from google.genai import types as genai_types
+        from extractors import _get_gemini, gemini_call_with_retry
+        _facts_schema = {
+            "type": "OBJECT",
+            "properties": {"facts": {"type": "ARRAY", "items": {"type": "STRING"}}},
+            "required": ["facts"],
+        }
+        client = _get_gemini()
+        if not client:
+            return 0
+        response = gemini_call_with_retry(
+            client,
+            model=os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite-preview"),
             contents=prompt,
+            config=genai_types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_json_schema=_facts_schema,
+            ),
         )
-        facts_text = response.text
-        if not facts_text:
+        import json as _json_mod
+        data = _json_mod.loads(response.text)
+        facts_list = data.get("facts", [])
+        if not facts_list:
             return 0
 
         now = datetime.utcnow().isoformat()
         count = 0
-        for line in facts_text.strip().split("\n"):
-            line = line.strip().lstrip("-•*0123456789.) ")
-            if line and len(line) > 10:
+        for fact in facts_list:
+            fact = str(fact).strip()
+            if fact and len(fact) > 10:
                 conn.execute(
                     "INSERT INTO facts(document_id, fact_text, created_at) VALUES (?, ?, ?)",
-                    (doc_id, line, now)
+                    (doc_id, fact, now)
                 )
                 count += 1
         conn.commit()
@@ -2995,26 +3072,36 @@ Decide ONE action:
 - MERGE: New fact adds complementary info to an existing memory. Combine them. Example: "Likes cheese pizza" + "Likes chicken pizza" → "Likes cheese and chicken pizza".
 - DELETE: New fact directly contradicts an existing memory. Remove old, save new. Example: "Loves pizza" → "Dislikes pizza".
 
-Return ONLY valid JSON:
-{{"action": "ADD|UPDATE|MERGE|DELETE|NONE", "target_id": <integer id of existing memory or null>, "merged_text": "<combined text for MERGE/UPDATE, or null>"}}"""
+Decide the best action."""
+
+    _memory_decision_schema = {
+        "type": "OBJECT",
+        "properties": {
+            "action": {"type": "STRING", "enum": ["ADD", "UPDATE", "MERGE", "DELETE", "NONE"]},
+            "target_id": {"type": "INTEGER", "nullable": True},
+            "merged_text": {"type": "STRING", "nullable": True},
+        },
+        "required": ["action"],
+    }
 
     try:
-        from google import genai as genai_new
-        client = genai_new.Client(api_key=GEMINI_KEY)
-        response = client.models.generate_content(
-            model="gemini-2.0-flash-lite",
+        from google.genai import types as genai_types
+        from extractors import _get_gemini, gemini_call_with_retry
+        client = _get_gemini()
+        if not client:
+            return {"action": "ADD", "target_id": None, "merged_text": None}
+        response = gemini_call_with_retry(
+            client,
+            model=os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite-preview"),
             contents=prompt,
+            config=genai_types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_json_schema=_memory_decision_schema,
+            ),
         )
-        text = response.text.strip()
-        # Strip markdown code fences if present
-        if text.startswith("```"):
-            text = text.split("\n", 1)[1] if "\n" in text else text[3:]
-            if text.endswith("```"):
-                text = text[:-3]
-            text = text.strip()
 
         import json as _json
-        decision = _json.loads(text)
+        decision = _json.loads(response.text)
 
         # Map integer ID back to real DB ID
         if decision.get("target_id") is not None:
@@ -3646,6 +3733,64 @@ def _restore_watchers():
                     _start_watcher(folder)
     except Exception as e:
         print(f"[Watcher] Failed to restore watchers: {e}")
+
+
+# --- Photo Cull (Segment 21) ---
+
+class ScorePhotoRequest(BaseModel):
+    path: str
+
+class CullPhotosRequest(BaseModel):
+    folder: str
+    keep_pct: int = 80
+    rejects_folder: Optional[str] = None
+
+@app.post("/score-photo")
+def api_score_photo(req: ScorePhotoRequest):
+    """Score a photo's technical + aesthetic quality (Gemini vision, /100)."""
+    from photo_cull import score_photo
+    return score_photo(req.path)
+
+@app.post("/cull-photos")
+def api_cull_photos(req: CullPhotosRequest):
+    """Auto-cull photos: score all, move bottom rejects to _rejects folder. Background job."""
+    from photo_cull import cull_photos
+    return cull_photos(req.folder, req.keep_pct, req.rejects_folder)
+
+@app.get("/cull-photos/status")
+def api_cull_status(folder: str = Query(..., description="Folder being culled"), cancel: bool = Query(False, description="Set true to cancel the job")):
+    """Poll cull job progress. Set cancel=true to stop."""
+    from photo_cull import get_cull_status
+    return get_cull_status(folder, cancel=cancel)
+
+
+# --- Photo Group (Segment 21B) ---
+
+class SuggestCategoriesRequest(BaseModel):
+    folder: str
+
+@app.post("/suggest-categories")
+def api_suggest_categories(req: SuggestCategoriesRequest):
+    """Sample photos and suggest grouping categories via Gemini vision."""
+    from photo_cull import suggest_categories
+    return suggest_categories(req.folder)
+
+class GroupPhotosRequest(BaseModel):
+    folder: str
+    categories: list
+    uncategorized_folder: Optional[str] = None
+
+@app.post("/group-photos")
+def api_group_photos(req: GroupPhotosRequest):
+    """Auto-group photos: classify ALL images via Gemini vision, move to category subfolders. Background job."""
+    from photo_cull import group_photos
+    return group_photos(req.folder, req.categories, req.uncategorized_folder)
+
+@app.get("/group-photos/status")
+def api_group_status(folder: str = Query(..., description="Folder being grouped"), cancel: bool = Query(False, description="Set true to cancel the job")):
+    """Poll group job progress. Set cancel=true to stop."""
+    from photo_cull import get_group_status
+    return get_group_status(folder, cancel=cancel)
 
 
 # --- Run ---

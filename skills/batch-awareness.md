@@ -18,3 +18,5 @@
 - search_images_visual(folder, query) — embeds folder once, cached for instant re-queries
 - detect_faces(folder=) / count_faces(folder=) / ocr(folder=)
 - batch_move(sources[], destination) — move multiple files in one call
+- cull_photos(folder, keep_pct) — score + cull all photos in one call (~$0.045/1000 images)
+- group_photos(folder, categories) — classify + group all photos in one call (~$0.045/1000 images)

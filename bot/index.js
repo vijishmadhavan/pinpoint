@@ -42,7 +42,7 @@ const MAX_FILES_TO_SEND = 3;
 const MAX_IMAGE_SIZE = 16 * 1024 * 1024;
 const MAX_DOC_SIZE = 100 * 1024 * 1024;
 const TEXT_CHUNK_LIMIT = 4000;
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3-flash-preview";
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.1-flash-lite-preview";
 // No tool-calling timeout — batch mode handles long operations in single calls (not token-burning loops)
 const IDLE_TIMEOUT_MS = 60 * 60 * 1000; // 60 minutes — auto-reset conversation
 const MAX_HISTORY_MESSAGES = 50; // last 50 messages passed to Gemini (Claude Code sends ALL — we cap for token budget)
@@ -74,8 +74,8 @@ const allowedSessions = new Map(); // chatJid → last activity timestamp (activ
 
 // Cost tracking: per-session token usage (OpenCode-inspired)
 const sessionCosts = {}; // chatJid → { input, output, rounds, started }
-const TOKEN_COST_INPUT = 0.15 / 1_000_000;   // Gemini Flash $/token (input)
-const TOKEN_COST_OUTPUT = 0.60 / 1_000_000;   // Gemini Flash $/token (output)
+const TOKEN_COST_INPUT = 0.25 / 1_000_000;   // gemini-3.1-flash-lite-preview $/token (input)
+const TOKEN_COST_OUTPUT = 1.50 / 1_000_000;   // gemini-3.1-flash-lite-preview $/token (output, includes thinking)
 
 // --- Action Ledger: structural truth enforcement (OpenClaw-inspired) ---
 // Tracks every mutating tool call + real outcome. Injected into every LLM call.
@@ -85,7 +85,7 @@ const MUTATING_TOOLS = new Set([
   "batch_move", "move_file", "copy_file", "delete_file", "write_file",
   "batch_rename", "create_folder", "generate_excel", "merge_pdf", "split_pdf",
   "resize_image", "convert_image", "crop_image", "compress_files", "extract_archive",
-  "images_to_pdf", "pdf_to_images", "download_url",
+  "images_to_pdf", "pdf_to_images", "download_url", "cull_photos", "group_photos",
 ]);
 
 function recordAction(chatJid, toolName, args, result) {
@@ -129,6 +129,12 @@ function recordAction(chatJid, toolName, args, result) {
   } else if (toolName === "compress_files") {
     entry.outcome = result?.success ? "OK" : "FAILED";
     entry.summary = `compress_files → ${result?.path ? pathModule.basename(result.path) : "?"} (${result?.file_count ?? "?"} files)`;
+  } else if (toolName === "cull_photos") {
+    entry.outcome = result?.started ? "STARTED" : "FAILED";
+    entry.summary = `cull_photos → ${result?.started ? `started culling ${result.total_images} photos (keep ${result.keep_pct}%)` : "FAILED"}`;
+  } else if (toolName === "group_photos") {
+    entry.outcome = result?.started ? "STARTED" : "FAILED";
+    entry.summary = `group_photos → ${result?.started ? `started grouping ${result.total_images} photos into ${result.categories?.length ?? "?"} categories` : "FAILED"}`;
   } else {
     // Generic mutating tool
     entry.outcome = result?.success !== false ? "OK" : "FAILED";
@@ -390,19 +396,27 @@ async function ollamaGenerate(contents, config, toolsDefs) {
   };
 }
 
-// Unified LLM call — routes to Gemini or Ollama
+// Unified LLM call — routes to Gemini or Ollama, with retry on transient errors
 async function llmGenerate({ model, contents, config, tools: toolsDefs }) {
   if (USE_OLLAMA) {
     return ollamaGenerate(contents, config, toolsDefs);
   }
-  try {
-    return await ai.models.generateContent({ model, contents, config: { ...config, tools: toolsDefs } });
-  } catch (err) {
-    if (String(err.message).includes("500") || String(err.message).includes("Internal error")) {
-      console.warn(`[Gemini] 500 error, retrying once...`);
-      return ai.models.generateContent({ model, contents, config: { ...config, tools: toolsDefs } });
+  const maxRetries = 2;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await ai.models.generateContent({ model, contents, config: { ...config, tools: toolsDefs } });
+    } catch (err) {
+      const msg = String(err.message || err);
+      const isTransient = msg.includes("429") || msg.includes("503") || msg.includes("500")
+        || msg.includes("RESOURCE_EXHAUSTED") || msg.includes("Internal error");
+      if (isTransient && attempt < maxRetries) {
+        const wait = 2 ** (attempt + 1) * 1000; // 2s, 4s
+        console.warn(`[Gemini] Transient error (${msg.slice(0, 60)}), retry in ${wait / 1000}s...`);
+        await new Promise(r => setTimeout(r, wait));
+        continue;
+      }
+      throw err;
     }
-    throw err;
   }
 }
 
@@ -414,7 +428,7 @@ const GENERAL_SKILL_FILES = ["batch-awareness.md", "common-mistakes.md", "core-r
 
 // Task-specific skills: injected based on user intent detection
 const SKILL_CATEGORIES = {
-  image: ["face-analysis.md", "image-analysis.md", "image-tools.md", "visual-search.md"],
+  image: ["face-analysis.md", "image-analysis.md", "image-tools.md", "visual-search.md", "photo-cull.md", "photo-group.md"],
   search: ["search.md"],
   data: ["data-analysis.md"],
   files: ["file-tools.md", "smart-ops.md", "archive-tools.md"],
@@ -427,7 +441,7 @@ const SKILL_CATEGORIES = {
 
 // Intent detection keywords → categories
 const INTENT_KEYWORDS = {
-  image: /photo|image|picture|jpg|png|face|person|selfie|detect|object|bounding|visual|heic|camera|screenshot|exif|metadata|gps|lens|aperture|iso|when.*taken|shot.*with/i,
+  image: /photo|image|picture|jpg|png|face|person|selfie|detect|object|bounding|visual|heic|camera|screenshot|exif|metadata|gps|lens|aperture|iso|when.*taken|shot.*with|cull|score.*photo|rate.*photo|best.*photo|reject|keeper|group.*photo|segregat|categoriz|classify/i,
   search: /find|search|where|which|document|file.*contain|look.*for|indexed/i,
   data: /excel|csv|spreadsheet|column|row|data|analyze|chart|graph|pandas|filter|sort/i,
   files: /move|copy|rename|delete|duplicate|folder|list|organize|clean.*up|batch|zip|unzip|compress|extract|archive/i,
@@ -570,6 +584,8 @@ const TOOL_GROUPS = {
     "detect_faces", "crop_face", "find_person", "find_person_by_face",
     "count_faces", "compare_faces", "remember_face", "forget_face",
     "search_images_visual", "ocr", "image_metadata",
+    "score_photo", "cull_photos", "cull_status",
+    "suggest_categories", "group_photos", "group_status",
   ],
   data: ["analyze_data", "read_excel", "generate_chart", "extract_tables"],
   files: [
@@ -628,7 +644,7 @@ const tools = [{
   functionDeclarations: [
     {
       name: "search_documents",
-      description: "Search indexed documents by keywords. Returns the exact matching section/paragraph (not just filenames). PREFERRED way to answer questions about document content — always try this FIRST before read_document or read_file. If the file is not indexed yet, use index_file first, then search. Can filter by file type and folder.",
+      description: "Search indexed documents by keywords. Returns the exact matching section/paragraph (not just filenames). PREFERRED way to answer questions about document content — always try this FIRST before read_document or read_file. Also searches indexed IMAGE CAPTIONS — use file_type='image' to find photos by description (free, instant). If the file is not indexed yet, use index_file first, then search. Can filter by file type and folder.",
       parameters: {
         type: "OBJECT",
         properties: {
@@ -1419,7 +1435,7 @@ const tools = [{
     },
     {
       name: "search_images_visual",
-      description: "Search images in a folder by text description using AI vision. Returns ranked list of images matching the query. Results are RELIABLE — trust them for categorization, grouping, and answering without manually inspecting individual images. Do NOT call read_file/resize_image/ocr on photos after getting visual search results. First call may take time, subsequent queries on same folder are faster (cached). Pass queries as array for batch search (multiple queries in one call).",
+      description: "Search images in a folder by text description using AI vision. IMPORTANT: Try search_documents(query, file_type='image', folder=...) FIRST — indexed image captions are free and instant. Only use this tool if search_documents returns no results or the folder isn't indexed. Returns ranked list of images matching the query. Results are RELIABLE — trust them for categorization, grouping, and answering without manually inspecting individual images. Do NOT call read_file/resize_image/ocr on photos after getting visual search results. First call may take time, subsequent queries on same folder are faster (cached). Pass queries as array for batch search (multiple queries in one call). GROUPING WORKFLOW: When organizing/grouping photos into categories — 1) first run with default limit (10) as a PREVIEW, 2) show user the proposed categories with sample counts, 3) ask 'Shall I do the full folder?', 4) if yes, re-run with limit=200 per category to cover all photos.",
       parameters: {
         type: "OBJECT",
         properties: {
@@ -1557,6 +1573,77 @@ const tools = [{
       parameters: {
         type: "OBJECT",
         properties: {},
+      },
+    },
+    {
+      name: "score_photo",
+      description: "Score a single photo's quality using Gemini vision (/100). Returns technical (sharpness, exposure, composition, quality) + aesthetic (emotion, interest, keeper) breakdown with reasoning. Use for quick single-photo evaluation.",
+      parameters: {
+        type: "OBJECT",
+        properties: {
+          path: { type: "STRING", description: "Absolute path to the image file." },
+        },
+        required: ["path"],
+      },
+    },
+    {
+      name: "cull_photos",
+      description: "Auto-cull photos in a folder: score ALL images, keep top N%, move rejects to _rejects subfolder. Generates an HTML report with thumbnail gallery. WORKFLOW: 1) list_files to survey folder 2) confirm with user 3) cull_photos 4) poll cull_status until done 5) report results + send report file. Background job — use cull_status to poll.",
+      parameters: {
+        type: "OBJECT",
+        properties: {
+          folder: { type: "STRING", description: "Folder containing photos to cull." },
+          keep_pct: { type: "INTEGER", description: "Percentage of photos to keep (1-99). Default 80." },
+          rejects_folder: { type: "STRING", description: "Custom folder for rejects. Default: <folder>/_rejects." },
+        },
+        required: ["folder"],
+      },
+    },
+    {
+      name: "cull_status",
+      description: "Check progress of a running cull_photos job. Returns scored/total count, ETA, and final stats when done. Poll every few seconds until status is 'done'. Set cancel=true to stop the job.",
+      parameters: {
+        type: "OBJECT",
+        properties: {
+          folder: { type: "STRING", description: "The folder being culled (same as passed to cull_photos)." },
+          cancel: { type: "BOOLEAN", description: "Set true to cancel the running job." },
+        },
+        required: ["folder"],
+      },
+    },
+    {
+      name: "suggest_categories",
+      description: "Sample ~20 photos from a folder and let Gemini suggest 4-8 grouping categories. Use BEFORE group_photos to auto-discover categories. Returns suggested category names for user confirmation.",
+      parameters: {
+        type: "OBJECT",
+        properties: {
+          folder: { type: "STRING", description: "Folder containing photos to analyze." },
+        },
+        required: ["folder"],
+      },
+    },
+    {
+      name: "group_photos",
+      description: "Auto-group ALL photos in a folder by Gemini vision classification. Each photo is sent to Gemini with the category list — Gemini picks the best match. Photos moved to category subfolders. Generates HTML report. Classifications cached in DB — re-runs are free. WORKFLOW: 1) list_files to survey 2) suggest_categories to auto-discover groups 3) confirm with user 4) group_photos 5) poll group_status 6) report. Background job — use group_status to poll.",
+      parameters: {
+        type: "OBJECT",
+        properties: {
+          folder: { type: "STRING", description: "Folder containing photos to group." },
+          categories: { type: "ARRAY", items: { type: "STRING" }, description: "List of category names to classify into (e.g. ['Ceremony', 'Portraits', 'Family', 'Rituals'])." },
+        },
+        required: ["folder", "categories"],
+      },
+    },
+    {
+      name: "group_status",
+      description: "Check progress of a running group_photos job. Returns classified/total count, ETA, and final group counts when done. Poll every few seconds until status is 'done'. Set cancel=true to stop the job.",
+      parameters: {
+        type: "OBJECT",
+        properties: {
+          folder: { type: "STRING", description: "The folder being grouped (same as passed to group_photos)." },
+          cancel: { type: "BOOLEAN", description: "Set true to cancel the running job." },
+        },
+        required: ["folder"],
       },
     },
   ],
@@ -1932,6 +2019,7 @@ function preValidate(name, args) {
     "ocr", "detect_faces", "crop_face", "find_person", "find_person_by_face",
     "resize_image", "convert_image", "crop_image", "merge_pdf", "split_pdf",
     "pdf_to_images", "index_file", "compare_faces", "remember_face", "transcribe_audio",
+    "score_photo",
     ];
   const pathKey = name === "move_file" || name === "copy_file" ? "source"
     : name === "find_person" || name === "find_person_by_face" ? "reference_image"
@@ -1947,7 +2035,7 @@ function preValidate(name, args) {
 
   // Tools that need a valid folder
   const folderTools = ["list_files", "grep_files", "search_images_visual", "find_person",
-    "find_person_by_face", "create_folder"];
+    "find_person_by_face", "create_folder", "cull_photos", "group_photos"];
   const folderKey = "folder";
   if (folderTools.includes(name) && args[folderKey] && name !== "create_folder") {
     try {
@@ -2037,6 +2125,12 @@ const TOOL_ROUTES = {
   extract_tables:   { m: "POST", p: (a) => { const p = new URLSearchParams({ path: a.path }); if (a.pages) p.set("pages", a.pages); return `/extract-tables?${p}`; }, b: () => ({}) },
   watch_folder:     { m: "POST", p: (a) => `/watch?folder=${enc(a.folder)}`, b: () => ({}) },
   unwatch_folder:   { m: "POST", p: (a) => `/unwatch?folder=${enc(a.folder)}`, b: () => ({}) },
+  score_photo:      { m: "POST", p: "/score-photo", b: (a) => ({ path: a.path }) },
+  cull_photos:      { m: "POST", p: "/cull-photos", b: (a) => ({ folder: a.folder, keep_pct: a.keep_pct || 80, rejects_folder: a.rejects_folder || null }) },
+  cull_status:      { m: "GET", p: (a) => `/cull-photos/status?folder=${enc(a.folder)}${a.cancel ? "&cancel=true" : ""}` },
+  suggest_categories: { m: "POST", p: "/suggest-categories", b: (a) => ({ folder: a.folder }) },
+  group_photos:     { m: "POST", p: "/group-photos", b: (a) => ({ folder: a.folder, categories: a.categories }) },
+  group_status:     { m: "GET", p: (a) => `/group-photos/status?folder=${enc(a.folder)}${a.cancel ? "&cancel=true" : ""}` },
 };
 
 async function executeTool(functionCall, sock, chatJid) {
@@ -2451,6 +2545,24 @@ function summarizeToolResult(name, args, result) {
       const n = result.results?.length || 0;
       return `search_audio: ${n} matching moment(s) found`;
     }
+    case "score_photo":
+      return `score_photo: ${result.total ?? "?"}${"/100"} — ${(result.reasoning || "").slice(0, 60)}`;
+    case "cull_photos":
+      return `cull_photos: ${result.started ? `started ${result.total_images} photos` : "FAILED"}`;
+    case "cull_status": {
+      if (result.status === "done") return `cull_status: done — kept ${result.kept}, rejected ${result.rejected}, report at ${result.report_path || "N/A"}`;
+      if (result.status === "cancelled" || result.status === "cancelling") return `cull_status: cancelled after ${result.scored || 0}/${result.total || "?"} scored`;
+      return `cull_status: ${result.status} — ${result.scored || 0}/${result.total || "?"} scored`;
+    }
+    case "suggest_categories":
+      return `suggest_categories: ${result.categories ? `suggested ${result.categories.length} categories: ${result.categories.join(", ")}` : "FAILED"}`;
+    case "group_photos":
+      return `group_photos: ${result.started ? `started ${result.total_images} photos → ${result.categories?.length ?? "?"} categories` : "FAILED"}`;
+    case "group_status": {
+      if (result.status === "done") return `group_status: done — ${result.moved} grouped, report at ${result.report_path || "N/A"}`;
+      if (result.status === "cancelled" || result.status === "cancelling") return `group_status: cancelled after ${result.classified || 0}/${result.total || "?"} classified`;
+      return `group_status: ${result.status} — ${result.classified || 0}/${result.total || "?"} classified`;
+    }
     default:
       return `${name}: done`;
   }
@@ -2504,6 +2616,7 @@ async function runGemini(userMessage, sock, chatJid, opts = {}) {
   const config = {
     systemInstruction: getSystemPrompt(userMessage, chatJid),
     thinkingConfig: { thinkingLevel: "low" },
+    mediaResolution: "MEDIA_RESOLUTION_LOW",
   };
   let activeTools = null;
   if (!opts.noTools) {
@@ -2879,9 +2992,23 @@ async function sendFile(sock, chatJid, filePath, caption) {
 
   const ext = pathModule.extname(filePath).toLowerCase();
   const fileName = pathModule.basename(filePath);
-  const fileSize = statSync(filePath).size;
+  let fileSize = statSync(filePath).size;
   const isImage = IMAGE_EXTENSIONS.has(ext);
 
+  // Auto-resize large images to fit WhatsApp limit
+  if (isImage && fileSize > MAX_IMAGE_SIZE) {
+    try {
+      const sharp = (await import("sharp")).default;
+      const resizedPath = pathModule.join("/tmp", `pinpoint_send_${Date.now()}.jpg`);
+      await sharp(filePath).resize({ width: 2048, height: 2048, fit: "inside" }).jpeg({ quality: 80 }).toFile(resizedPath);
+      filePath = resizedPath;
+      fileSize = statSync(filePath).size;
+      console.log(`[Pinpoint] Auto-resized large image for sending (${(fileSize / 1024 / 1024).toFixed(1)}MB)`);
+    } catch (e) {
+      console.warn(`[Pinpoint] Auto-resize failed: ${e.message}`);
+      return false;
+    }
+  }
   if (isImage && fileSize > MAX_IMAGE_SIZE) return false;
   if (!isImage && fileSize > MAX_DOC_SIZE) return false;
 

@@ -260,7 +260,7 @@ def _search_video_gemini(video_path: str, query: str, fps: float = DEFAULT_FPS, 
     ext = os.path.splitext(video_path)[1].lower()
     mime = VIDEO_MIME.get(ext, "video/mp4")
     file_size = os.path.getsize(video_path)
-    model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+    model = os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite-preview")
 
     t0 = time.time()
 
@@ -285,20 +285,42 @@ def _search_video_gemini(video_path: str, query: str, fps: float = DEFAULT_FPS, 
 
     prompt = (
         f"Find the top {limit} moments in this video that best match: '{query}'\n"
-        f"Return ONLY valid JSON array: [{{\"timestamp\": \"MM:SS\", \"match_pct\": 0-100, \"description\": \"brief\"}}]\n"
         f"Use HH:MM:SS for videos over 1 hour. Sort by relevance (highest first)."
     )
 
+    _video_search_schema = {
+        "type": "OBJECT",
+        "properties": {
+            "moments": {
+                "type": "ARRAY",
+                "items": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "timestamp": {"type": "STRING"},
+                        "match_pct": {"type": "NUMBER"},
+                        "description": {"type": "STRING"},
+                    },
+                    "required": ["timestamp", "match_pct"],
+                },
+            },
+        },
+        "required": ["moments"],
+    }
+
     try:
-        resp = client.models.generate_content(
+        from extractors import gemini_call_with_retry
+        resp = gemini_call_with_retry(
+            client,
             model=model,
-            contents=[types.Content(parts=[video_part, types.Part.from_text(prompt)])],
-            config={"media_resolution": "MEDIA_RESOLUTION_LOW"},
+            contents=[types.Content(parts=[video_part, types.Part.from_text(text=prompt)])],
+            config=types.GenerateContentConfig(
+                media_resolution=types.MediaResolution.MEDIA_RESOLUTION_LOW,
+                response_mime_type="application/json",
+                response_json_schema=_video_search_schema,
+            ),
         )
-        text = (resp.text or "").strip()
-        if text.startswith("```"):
-            text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
-        results_raw = _json.loads(text)
+        data = _json.loads(resp.text)
+        results_raw = data.get("moments", [])
 
         results = []
         for item in results_raw[:limit]:

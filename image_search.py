@@ -123,11 +123,18 @@ def _load_image_fast(path: str) -> Image.Image:
     return img
 
 
-def _get_image_files(folder: str) -> list[str]:
-    """Get sorted list of image files in a folder."""
+def _get_image_files(folder: str, recursive: bool = False) -> list[str]:
+    """Get sorted list of image files in a folder (optionally recursive)."""
     folder = os.path.abspath(folder)
     if not os.path.isdir(folder):
         return []
+    if recursive:
+        files = []
+        for root, _dirs, fnames in os.walk(folder):
+            for f in fnames:
+                if os.path.splitext(f)[1].lower() in IMAGE_EXTS:
+                    files.append(os.path.join(root, f))
+        return sorted(files)
     return sorted([
         os.path.join(folder, f) for f in os.listdir(folder)
         if os.path.splitext(f)[1].lower() in IMAGE_EXTS
@@ -266,7 +273,7 @@ def embed_text(query: str) -> np.ndarray:
     return _normalize(emb).squeeze(0)
 
 
-def _search_images_gemini(folder: str, query: str, limit: int = 10, progress_callback=None) -> dict:
+def _search_images_gemini(folder: str, query: str, limit: int = 10, progress_callback=None, recursive: bool = False) -> dict:
     """Gemini vision fallback — multi-image concurrent ranking with LOW resolution.
     Handles 10K+ images: 200/batch, 5 concurrent workers, 280 tokens/image (LOW res)."""
     from extractors import _get_gemini
@@ -278,7 +285,7 @@ def _search_images_gemini(folder: str, query: str, limit: int = 10, progress_cal
     import io, json as _json, threading
 
     folder = os.path.abspath(folder)
-    files = _get_image_files(folder)
+    files = _get_image_files(folder, recursive=recursive)
     if not files:
         return {"error": f"No images in {folder}", "results": []}
 
@@ -299,31 +306,52 @@ def _search_images_gemini(folder: str, query: str, limit: int = 10, progress_cal
                 buf = io.BytesIO()
                 img.save(buf, format="JPEG", quality=80)
                 parts.append(types.Part.from_bytes(data=buf.getvalue(), mime_type="image/jpeg"))
-                parts.append(types.Part.from_text(f"[{os.path.basename(fpath)}]"))
+                parts.append(types.Part.from_text(text=f"[{os.path.basename(fpath)}]"))
                 names.append(fpath)
             except Exception:
                 continue
         if not names:
             return {}
-        parts.append(types.Part.from_text(
-            f"Query: '{query}'\nRate each image 0-100 for relevance to the query. "
-            f"Return ONLY valid JSON: {{\"filename\": score, ...}}"
+        parts.append(types.Part.from_text(text=
+            f"Query: '{query}'\nRate each image 0-100 for relevance to the query."
         ))
+        _score_schema = {
+            "type": "OBJECT",
+            "properties": {
+                "scores": {
+                    "type": "ARRAY",
+                    "items": {
+                        "type": "OBJECT",
+                        "properties": {
+                            "filename": {"type": "STRING"},
+                            "score": {"type": "NUMBER"},
+                        },
+                        "required": ["filename", "score"],
+                    },
+                },
+            },
+            "required": ["scores"],
+        }
         try:
-            resp = client.models.generate_content(
+            from extractors import gemini_call_with_retry
+            resp = gemini_call_with_retry(
+                client,
                 model=model,
                 contents=[types.Content(parts=parts)],
-                config={"media_resolution": "MEDIA_RESOLUTION_LOW"},
+                config=types.GenerateContentConfig(
+                    media_resolution=types.MediaResolution.MEDIA_RESOLUTION_LOW,
+                    response_mime_type="application/json",
+                    response_json_schema=_score_schema,
+                ),
             )
-            text = (resp.text or "").strip()
-            if text.startswith("```"):
-                text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
-            scores = _json.loads(text)
+            data = _json.loads(resp.text)
             batch_scores = {}
-            for fname, score in scores.items():
+            for item in data.get("scores", []):
+                fname = item.get("filename", "")
+                score = float(item.get("score", 0))
                 for fp in names:
                     if os.path.basename(fp) == fname:
-                        batch_scores[fp] = float(score)
+                        batch_scores[fp] = score
                         break
             return batch_scores
         except Exception as e:
@@ -360,15 +388,15 @@ def _search_images_gemini(folder: str, query: str, limit: int = 10, progress_cal
     }
 
 
-def search_images(folder: str, query: str, limit: int = 10) -> dict:
+def search_images(folder: str, query: str, limit: int = 10, recursive: bool = False) -> dict:
     """
     Search images in a folder by text description.
     Returns dict with results, timing, and cache info.
     """
     if not _HAS_SIGLIP:
-        return _search_images_gemini(folder, query, limit)
+        return _search_images_gemini(folder, query, limit, recursive=recursive)
     folder = os.path.abspath(folder)
-    files = _get_image_files(folder)
+    files = _get_image_files(folder, recursive=recursive)
     if not files:
         return {"error": f"No images found in {folder}", "results": []}
 

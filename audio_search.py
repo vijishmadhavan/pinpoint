@@ -60,7 +60,7 @@ def transcribe_audio(audio_path: str) -> dict:
     if ext not in AUDIO_EXTS:
         return {"error": f"Unsupported audio format: {ext}. Supported: {', '.join(sorted(AUDIO_EXTS))}"}
 
-    model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+    model = os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite-preview")
     t0 = time.time()
 
     try:
@@ -70,9 +70,11 @@ def transcribe_audio(audio_path: str) -> dict:
             "at natural breaks (every 15-30 seconds or at speaker changes). "
             "Format: [MM:SS] transcribed text"
         )
-        resp = client.models.generate_content(
+        from extractors import gemini_call_with_retry
+        resp = gemini_call_with_retry(
+            client,
             model=model,
-            contents=[types.Content(parts=[audio_part, types.Part.from_text(prompt)])],
+            contents=[types.Content(parts=[audio_part, types.Part.from_text(text=prompt)])],
         )
         text = (resp.text or "").strip()
     except Exception as e:
@@ -106,25 +108,46 @@ def search_audio(audio_path: str, query: str, limit: int = 5) -> dict:
     if ext not in AUDIO_EXTS:
         return {"error": f"Unsupported audio format: {ext}. Supported: {', '.join(sorted(AUDIO_EXTS))}"}
 
-    model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+    model = os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite-preview")
     t0 = time.time()
+
+    _audio_search_schema = {
+        "type": "OBJECT",
+        "properties": {
+            "moments": {
+                "type": "ARRAY",
+                "items": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "timestamp": {"type": "STRING"},
+                        "text": {"type": "STRING"},
+                        "match_pct": {"type": "NUMBER"},
+                    },
+                    "required": ["timestamp", "text", "match_pct"],
+                },
+            },
+        },
+        "required": ["moments"],
+    }
 
     try:
         audio_part = _get_audio_part(client, audio_path)
         prompt = (
             f"Find the top {limit} moments in this audio that match: '{query}'\n"
-            f"Return ONLY valid JSON array: [{{\"timestamp\": \"MM:SS\", \"text\": \"what is said/heard\", \"match_pct\": 0-100}}]\n"
             f"Use HH:MM:SS for audio over 1 hour. Sort by relevance (highest first)."
         )
-        resp = client.models.generate_content(
+        from extractors import gemini_call_with_retry
+        resp = gemini_call_with_retry(
+            client,
             model=model,
-            contents=[types.Content(parts=[audio_part, types.Part.from_text(prompt)])],
+            contents=[types.Content(parts=[audio_part, types.Part.from_text(text=prompt)])],
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_json_schema=_audio_search_schema,
+            ),
         )
-        text = (resp.text or "").strip()
-        if text.startswith("```"):
-            text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
-        results = json.loads(text)
-        results = results[:limit]
+        data = json.loads(resp.text)
+        results = data.get("moments", [])[:limit]
     except Exception as e:
         return {"error": f"Audio search failed: {e}", "results": []}
 

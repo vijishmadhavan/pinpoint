@@ -124,16 +124,25 @@ def expand_query(query: str, conn: sqlite3.Connection) -> list[str]:
     if not client:
         return []
 
+    from google.genai import types
+    _expand_schema = {
+        "type": "OBJECT",
+        "properties": {"queries": {"type": "ARRAY", "items": {"type": "STRING"}}},
+        "required": ["queries"],
+    }
     try:
-        response = client.models.generate_content(
-            model=os.environ.get("GEMINI_MODEL", "gemini-3-flash-preview"),
-            contents=f'Expand this search query into 3-5 keyword variants for full-text search. Return ONLY a JSON array of strings, nothing else. Query: "{query}"',
+        from extractors import gemini_call_with_retry
+        response = gemini_call_with_retry(
+            client,
+            model=os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite-preview"),
+            contents=f'Expand this search query into 3-5 keyword variants for full-text search. Query: "{query}"',
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_json_schema=_expand_schema,
+            ),
         )
-        text = response.text.strip()
-        # Parse JSON array from response
-        if text.startswith("```"):
-            text = text.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
-        variants = json.loads(text)
+        data = json.loads(response.text)
+        variants = data.get("queries", [])
         if isinstance(variants, list) and all(isinstance(v, str) for v in variants):
             cache_set(conn, cache_key, json.dumps(variants))
             return variants

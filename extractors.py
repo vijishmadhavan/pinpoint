@@ -9,6 +9,7 @@ Images:              Gemini 3.1 Flash-Lite captioning (multimodal, cheap)
 """
 
 import os
+import time
 
 # Max dimension for image preprocessing (originals untouched, resize in memory)
 MAX_IMAGE_DIM = 1024
@@ -79,12 +80,16 @@ def _ocr_gemini(images: list) -> str:
         try:
             buf = io.BytesIO()
             img.save(buf, format="JPEG", quality=85)
-            response = client.models.generate_content(
+            response = gemini_call_with_retry(
+                client,
                 model=os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite-preview"),
                 contents=[types.Content(parts=[
                     types.Part.from_bytes(data=buf.getvalue(), mime_type="image/jpeg"),
-                    types.Part.from_text("Extract ALL text from this image exactly as written. Preserve formatting and line breaks. Return ONLY the extracted text."),
+                    types.Part.from_text(text="Extract ALL text from this image exactly as written. Preserve formatting and line breaks. Return ONLY the extracted text."),
                 ])],
+                config=types.GenerateContentConfig(
+                    media_resolution=types.MediaResolution.MEDIA_RESOLUTION_LOW,
+                ),
             )
             text = (response.text or "").strip()
             if text:
@@ -285,6 +290,25 @@ def _get_gemini():
     return _gemini_client
 
 
+def gemini_call_with_retry(client, model, contents, config=None, retries=2):
+    """Call Gemini with exponential backoff on 429/503 transient errors."""
+    for attempt in range(retries + 1):
+        try:
+            kwargs = {"model": model, "contents": contents}
+            if config:
+                kwargs["config"] = config
+            return client.models.generate_content(**kwargs)
+        except Exception as e:
+            err_str = str(e)
+            is_transient = "429" in err_str or "503" in err_str or "RESOURCE_EXHAUSTED" in err_str
+            if is_transient and attempt < retries:
+                wait = 2 ** (attempt + 1)  # 2s, 4s
+                print(f"[Gemini] Transient error ({err_str[:60]}), retry in {wait}s...")
+                time.sleep(wait)
+                continue
+            raise
+
+
 def extract_image(path: str) -> dict | None:
     """Caption an image using Gemini Flash-Lite. Requires GEMINI_API_KEY in .env."""
     if not os.path.exists(path):
@@ -297,24 +321,27 @@ def extract_image(path: str) -> dict | None:
         return None
 
     try:
-        import base64, io
+        import io
         from PIL import Image
 
         img = Image.open(path).convert("RGB")
-        img = _preprocess_image(img)
+        img = _preprocess_image(img, 384)  # Gemini LOW res = 384px
         buf = io.BytesIO()
-        img.save(buf, format="JPEG", quality=85)
-        b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+        img.save(buf, format="JPEG", quality=80)
 
         from google.genai import types
-        response = client.models.generate_content(
+        response = gemini_call_with_retry(
+            client,
             model=os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite-preview"),
             contents=[
                 types.Content(parts=[
                     types.Part.from_bytes(data=buf.getvalue(), mime_type="image/jpeg"),
-                    types.Part.from_text("Describe this image in 1-2 sentences. Be specific about objects, people, text, and scene."),
+                    types.Part.from_text(text="Describe this image in 1-2 sentences. Be specific about objects, people, text, and scene."),
                 ]),
             ],
+            config=types.GenerateContentConfig(
+                media_resolution=types.MediaResolution.MEDIA_RESOLUTION_LOW,
+            ),
         )
         caption = response.text.strip()
         if not caption:
