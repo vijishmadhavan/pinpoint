@@ -26,9 +26,9 @@ opencode-main/
 qmd-main/
 supermemory/
 
-# Test files/data
+# Test files/data (root-level ad-hoc scripts, not tests/ directory)
 test_data/
-test_*.py
+/test_*.py
 create_test_data.py
 
 # Reference/build docs (large)
