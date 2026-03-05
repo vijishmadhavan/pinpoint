@@ -23,7 +23,7 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install fastapi uvicorn httpx pytest pytest-cov ruff
-          pip install python-multipart openpyxl pillow watchdog pydantic
+          pip install python-multipart openpyxl pillow watchdog pydantic python-dotenv pdfplumber
 
       - name: Lint with ruff
         run: ruff check .
