@@ -129,6 +129,11 @@ const MUTATING_TOOLS = new Set([
   "images_to_pdf",
   "pdf_to_images",
   "download_url",
+  "compress_pdf",
+  "add_page_numbers",
+  "pdf_to_word",
+  "organize_pdf",
+  "pdf_to_excel",
   "cull_photos",
   "group_photos",
 ]);
@@ -1929,7 +1934,8 @@ async function handleMedia(sock, msg, chatJid) {
   const cleanCaption_ = caption.replace(/save\s+(?:to|in)\s+.+/i, "").trim();
   const hasCaptionText = cleanCaption_.length > 2;
   const isImageMsg = msgType === "imageMessage";
-  const isProcessingOnly = !customFolder && (hasCaptionText || isImageMsg);
+  const isAudioMsg = msgType === "audioMessage";
+  const isProcessingOnly = !customFolder && (hasCaptionText || isImageMsg || isAudioMsg);
   const saveFolder = customFolder || (isProcessingOnly ? TEMP_MEDIA_DIR : DEFAULT_SAVE_FOLDER);
 
   // Create folder if needed
@@ -1980,34 +1986,44 @@ async function handleMedia(sock, msg, chatJid) {
   const isImage = msgType === "imageMessage";
   const hasCaption = cleanCaption && cleanCaption.length > 2;
 
-  // For images: send inline to Gemini (it sees the image immediately, no read_file needed)
-  // For non-images with caption: send file path + caption to Gemini
-  const shouldProcess = hasCaption || isImage;
+  // For images/audio: send inline to Gemini (it sees/hears it directly)
+  // For non-media with caption: send file path + caption to Gemini
+  const isAudio = msgType === "audioMessage";
+  const shouldProcess = hasCaption || isImage || isAudio;
 
   if (shouldProcess && !activeRequests.has(chatJid)) {
-    const userMsg = hasCaption
-      ? `[File: ${pathModule.basename(savePath)} at ${savePath}]\n${cleanCaption}`
-      : `[Photo: ${pathModule.basename(savePath)} at ${savePath}]\nUser sent this with no instruction. Just ask what they want to do with it.`;
+    let userMsg;
+    if (isAudio) {
+      userMsg = hasCaption
+        ? `[Voice note at ${savePath}]\n${cleanCaption}`
+        : `[Voice note at ${savePath}]\nUser sent a voice message. Listen and respond to what they said.`;
+    } else if (hasCaption) {
+      userMsg = `[File: ${pathModule.basename(savePath)} at ${savePath}]\n${cleanCaption}`;
+    } else {
+      userMsg = `[Photo: ${pathModule.basename(savePath)} at ${savePath}]\nUser sent this with no instruction. Just ask what they want to do with it.`;
+    }
     const myRequestId = ++requestCounter;
-    activeRequests.set(chatJid, { msg: hasCaption ? cleanCaption : "[photo]", startTime: Date.now(), id: myRequestId });
+    activeRequests.set(chatJid, { msg: hasCaption ? cleanCaption : isAudio ? "[voice]" : "[photo]", startTime: Date.now(), id: myRequestId });
     try {
       await sock.sendPresenceUpdate("composing", chatJid);
 
-      // If image, read as base64 and send inline — Gemini sees it directly
+      // If image or audio, read as base64 and send inline — Gemini sees/hears it directly
       let inlineImage = null;
-      if (isImage) {
+      if (isImage || isAudio) {
         try {
-          const imgData = readFileSync(savePath).toString("base64");
-          inlineImage = { mimeType: mimetype, data: imgData };
-          // Save for follow-up messages (e.g. user sends photo, then asks "who is this?")
-          lastImage.set(chatJid, { mimeType: mimetype, data: imgData, path: savePath, ts: Date.now() });
-          console.log(`[Pinpoint] Sending image inline to ${LLM_TAG} (${sizeStr})`);
+          const mediaData = readFileSync(savePath).toString("base64");
+          inlineImage = { mimeType: mimetype, data: mediaData };
+          if (isImage) {
+            lastImage.set(chatJid, { mimeType: mimetype, data: mediaData, path: savePath, ts: Date.now() });
+          }
+          console.log(`[Pinpoint] Sending ${isAudio ? "audio" : "image"} inline to ${LLM_TAG} (${sizeStr})`);
         } catch (e) {
-          console.error("[Pinpoint] Failed to read image for inline:", e.message);
+          console.error(`[Pinpoint] Failed to read ${isAudio ? "audio" : "image"} for inline:`, e.message);
         }
       }
 
       // No caption + image → disable tools (Gemini just describes, no fishing expedition)
+      // Audio always gets tools (user might ask to do something)
       const noTools = isImage && !hasCaption;
       const result = await runGemini(userMsg, sock, chatJid, { inlineImage, noTools });
       const current = activeRequests.get(chatJid);

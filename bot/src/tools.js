@@ -12,7 +12,7 @@ const INTENT_KEYWORDS = {
   search: /find|search|where|which|document|file.*contain|look.*for|indexed/i,
   data: /excel|csv|spreadsheet|column|row|data|analyze|chart|graph|pandas|filter|sort/i,
   files: /move|copy|rename|delete|duplicate|folder|list|organize|clean.*up|batch|zip|unzip|compress|extract|archive/i,
-  write: /write|create|pdf|merge|split|combine|generate/i,
+  write: /write|create|save|put.*file|store|\.txt|\.csv|\.json|\.md|pdf|merge|split|combine|generate/i,
   media: /video|mp4|clip|frame|scene|audio|mp3|wav|voice|transcri|podcast|recording|speech|listen/i,
   web: /download|url|web|search.*online|internet|website/i,
   memory: /remember|forget|memory|preference/i,
@@ -72,7 +72,7 @@ const TOOL_GROUPS = {
     "group_photos",
     "group_status",
   ],
-  data: ["analyze_data", "read_excel", "generate_chart", "extract_tables"],
+  data: ["analyze_data", "read_excel", "generate_chart", "extract_tables", "pdf_to_excel"],
   files: [
     "file_info",
     "move_file",
@@ -92,6 +92,11 @@ const TOOL_GROUPS = {
     "split_pdf",
     "pdf_to_images",
     "images_to_pdf",
+    "compress_pdf",
+    "add_page_numbers",
+    "pdf_to_word",
+    "organize_pdf",
+    "pdf_to_excel",
     "resize_image",
     "convert_image",
     "crop_image",
@@ -767,6 +772,33 @@ const TOOL_DECLARATIONS = [
     },
   },
   {
+    name: "organize_pdf",
+    description:
+      "Reorder, duplicate, or remove PDF pages. Pass ordered list of page numbers to define output. E.g. [3,1,2] reverses first 3 pages; [1,1,2] duplicates page 1; omit pages to remove them.",
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        path: { type: "STRING", description: "Source PDF path." },
+        pages: { type: "ARRAY", items: { type: "INTEGER" }, description: "Ordered list of 1-based page numbers for output." },
+        output_path: { type: "STRING", description: "Output path for reorganized PDF." },
+      },
+      required: ["path", "pages", "output_path"],
+    },
+  },
+  {
+    name: "pdf_to_excel",
+    description: "Extract tables from a PDF and save as Excel (.xlsx). Each table becomes a separate sheet. Works on native PDFs with structured tables.",
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        path: { type: "STRING", description: "PDF file path." },
+        output_path: { type: "STRING", description: "Output .xlsx path. Default: same name with .xlsx." },
+        pages: { type: "STRING", description: "Page range: '1-5', '3', 'all'. Default: all." },
+      },
+      required: ["path"],
+    },
+  },
+  {
     name: "pdf_to_images",
     description: "Render PDF pages as PNG images. Returns list of image paths. Use to send PDF pages via WhatsApp.",
     parameters: {
@@ -790,6 +822,45 @@ const TOOL_DECLARATIONS = [
         output_path: { type: "STRING", description: "Output PDF path." },
       },
       required: ["paths", "output_path"],
+    },
+  },
+  {
+    name: "compress_pdf",
+    description: "Compress a PDF to reduce file size. Removes unused objects and deflates streams. Reports size reduction %.",
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        path: { type: "STRING", description: "PDF file path to compress." },
+        output_path: { type: "STRING", description: "Output path. Omit to overwrite original." },
+      },
+      required: ["path"],
+    },
+  },
+  {
+    name: "add_page_numbers",
+    description: "Add page numbers to every page of a PDF. Supports 'Page {n} of {total}' format.",
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        path: { type: "STRING", description: "PDF file path." },
+        output_path: { type: "STRING", description: "Output path. Omit to overwrite original." },
+        position: { type: "STRING", description: "Position: bottom-left, bottom-center (default), bottom-right." },
+        start: { type: "INTEGER", description: "Starting page number. Default 1." },
+        format: { type: "STRING", description: "Format string. Use {n} for number, {total} for total. Default: '{n}'." },
+      },
+      required: ["path"],
+    },
+  },
+  {
+    name: "pdf_to_word",
+    description: "Convert a PDF to Word (.docx). Extracts text with basic formatting (bold, italic, font size). Best for text-heavy PDFs.",
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        path: { type: "STRING", description: "PDF file path." },
+        output_path: { type: "STRING", description: "Output .docx path. Default: same name with .docx extension." },
+      },
+      required: ["path"],
     },
   },
   {
@@ -1414,6 +1485,15 @@ function buildToolRoutes(maxResults) {
       b: (a) => ({ path: a.path, pages: a.pages || null, dpi: a.dpi || 150, output_folder: a.output_folder || null }),
     },
     images_to_pdf: { m: "POST", p: "/images-to-pdf", b: (a) => ({ paths: a.paths, output_path: a.output_path }) },
+    compress_pdf: { m: "POST", p: "/compress-pdf", b: (a) => ({ path: a.path, output_path: a.output_path || null }) },
+    add_page_numbers: {
+      m: "POST",
+      p: "/add-page-numbers",
+      b: (a) => ({ path: a.path, output_path: a.output_path || null, position: a.position || "bottom-center", start: a.start || 1, format: a.format || "{n}" }),
+    },
+    pdf_to_word: { m: "POST", p: "/pdf-to-word", b: (a) => ({ path: a.path, output_path: a.output_path || null }) },
+    organize_pdf: { m: "POST", p: "/organize-pdf", b: (a) => ({ path: a.path, pages: a.pages, output_path: a.output_path }) },
+    pdf_to_excel: { m: "GET", p: "/pdf-to-excel", q: (a) => ({ path: a.path, output_path: a.output_path || "", pages: a.pages || "" }) },
     resize_image: {
       m: "POST",
       p: "/resize-image",
@@ -1516,6 +1596,11 @@ const fileTools = [
   "merge_pdf",
   "split_pdf",
   "pdf_to_images",
+  "compress_pdf",
+  "add_page_numbers",
+  "pdf_to_word",
+  "organize_pdf",
+  "pdf_to_excel",
   "index_file",
   "compare_faces",
   "remember_face",
@@ -1663,6 +1748,16 @@ function summarizeToolResult(name, args, result) {
       const n = result.results?.length || 0;
       return `search_audio: ${n} matching moment(s) found`;
     }
+    case "compress_pdf":
+      return `compress_pdf: ${result.reduction_percent ?? 0}% smaller — ${result.path ? pathModule.basename(result.path) : "file"}`;
+    case "add_page_numbers":
+      return `add_page_numbers: ${result.pages_numbered ?? 0} pages numbered`;
+    case "pdf_to_word":
+      return `pdf_to_word: ${result.pages_converted ?? 0} pages → ${result.path ? pathModule.basename(result.path) : "docx"}${result.ocr_pages ? ` (${result.ocr_pages} OCR'd)` : ""}`;
+    case "organize_pdf":
+      return `organize_pdf: ${result.output_pages ?? 0} pages → ${result.path ? pathModule.basename(result.path) : "pdf"}`;
+    case "pdf_to_excel":
+      return `pdf_to_excel: ${result.tables_exported ?? 0} table(s) → ${result.path ? pathModule.basename(result.path) : "xlsx"}`;
     case "score_photo":
       return `score_photo: ${result.total ?? "?"}${"/100"} — ${(result.reasoning || "").slice(0, 60)}`;
     case "cull_photos":

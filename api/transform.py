@@ -198,6 +198,42 @@ def split_pdf_endpoint(req: SplitPdfRequest) -> dict:
     return {"success": True, "path": output, "pages_extracted": extracted, "source_pages": source_pages}
 
 
+class OrganizePdfRequest(BaseModel):
+    path: str
+    pages: list[int]  # ordered list: [3, 1, 2, 5] = reorder; [1, 1, 2] = duplicate page 1
+    output_path: str
+
+
+@router.post("/organize-pdf")
+def organize_pdf_endpoint(req: OrganizePdfRequest) -> dict:
+    """Reorder, duplicate, or remove PDF pages. Pages list defines exact output order (1-based)."""
+    import fitz
+
+    path = os.path.abspath(req.path)
+    _check_safe(path)
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail=f"File not found: {path}")
+    output = os.path.abspath(req.output_path)
+    _check_safe(output)
+    os.makedirs(os.path.dirname(output), exist_ok=True)
+
+    doc = fitz.open(path)
+    total = len(doc)
+    valid_pages = [p for p in req.pages if 1 <= p <= total]
+    if not valid_pages:
+        doc.close()
+        raise HTTPException(status_code=400, detail=f"No valid pages. PDF has {total} pages.")
+
+    new_doc = fitz.open()
+    for p in valid_pages:
+        new_doc.insert_pdf(doc, from_page=p - 1, to_page=p - 1)
+    new_doc.save(output)
+    result_pages = len(new_doc)
+    new_doc.close()
+    doc.close()
+    return {"success": True, "path": output, "output_pages": result_pages, "source_pages": total}
+
+
 class PdfToImagesRequest(BaseModel):
     path: str
     pages: str | None = None  # "1,3,5" or "1-3" or None for all
@@ -842,3 +878,190 @@ except ImportError:
         if len(new_files) > 50:
             result["files_created_total"] = len(new_files)
     return result
+
+
+# --- PDF Tools (Segment 22I — iLovePDF-inspired) ---
+
+
+class CompressPdfRequest(BaseModel):
+    path: str
+    output_path: str | None = None
+
+
+@router.post("/compress-pdf")
+def compress_pdf_endpoint(req: CompressPdfRequest) -> dict:
+    """Compress a PDF by removing unused objects and deflating streams."""
+    import fitz
+
+    path = os.path.abspath(req.path)
+    _check_safe(path)
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail=f"File not found: {path}")
+
+    original_size = os.path.getsize(path)
+    output = os.path.abspath(req.output_path) if req.output_path else path
+    _check_safe(output)
+    os.makedirs(os.path.dirname(output), exist_ok=True)
+
+    doc = fitz.open(path)
+    doc.save(output, garbage=4, deflate=True, clean=True)
+    doc.close()
+
+    new_size = os.path.getsize(output)
+    reduction = round((1 - new_size / original_size) * 100, 1) if original_size > 0 else 0
+    return {
+        "success": True,
+        "path": output,
+        "original_size": original_size,
+        "compressed_size": new_size,
+        "reduction_percent": reduction,
+        "_hint": f"Compressed {reduction}% — {original_size} → {new_size} bytes.",
+    }
+
+
+class AddPageNumbersRequest(BaseModel):
+    path: str
+    output_path: str | None = None
+    position: str = "bottom-center"  # bottom-left, bottom-center, bottom-right
+    start: int = 1
+    format: str = "{n}"  # e.g. "Page {n} of {total}", "{n}"
+
+
+@router.post("/add-page-numbers")
+def add_page_numbers_endpoint(req: AddPageNumbersRequest) -> dict:
+    """Add page numbers to every page of a PDF."""
+    import fitz
+
+    path = os.path.abspath(req.path)
+    _check_safe(path)
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail=f"File not found: {path}")
+
+    output = os.path.abspath(req.output_path) if req.output_path else path
+    _check_safe(output)
+    os.makedirs(os.path.dirname(output), exist_ok=True)
+
+    doc = fitz.open(path)
+    total = len(doc)
+
+    for i, page in enumerate(doc):
+        num = req.start + i
+        text = req.format.replace("{n}", str(num)).replace("{total}", str(total))
+        rect = page.rect
+        margin = 36  # 0.5 inch
+        font_size = 10
+
+        if "left" in req.position:
+            x = margin
+        elif "right" in req.position:
+            x = rect.width - margin - font_size * len(text) * 0.4
+        else:
+            x = rect.width / 2 - font_size * len(text) * 0.2
+
+        y = rect.height - margin
+        page.insert_text((x, y), text, fontsize=font_size, color=(0.4, 0.4, 0.4))
+
+    doc.save(output)
+    doc.close()
+    return {"success": True, "path": output, "pages_numbered": total}
+
+
+class PdfToWordRequest(BaseModel):
+    path: str
+    output_path: str | None = None
+
+
+@router.post("/pdf-to-word")
+def pdf_to_word_endpoint(req: PdfToWordRequest) -> dict:
+    """Convert a PDF to a Word (.docx) document. Handles both native text and scanned PDFs (via OCR)."""
+    import fitz
+    from docx import Document
+    from docx.shared import Pt
+
+    path = os.path.abspath(req.path)
+    _check_safe(path)
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail=f"File not found: {path}")
+
+    output = os.path.abspath(req.output_path) if req.output_path else path.rsplit(".", 1)[0] + ".docx"
+    _check_safe(output)
+    os.makedirs(os.path.dirname(output), exist_ok=True)
+
+    pdf = fitz.open(path)
+    doc = Document()
+    ocr_pages = 0
+
+    for i, page in enumerate(pdf):
+        if i > 0:
+            doc.add_page_break()
+
+        # Try native text extraction first
+        blocks = page.get_text("dict")["blocks"]
+        text_blocks = [b for b in blocks if b["type"] == 0]
+        page_text = "".join(
+            span["text"]
+            for b in text_blocks
+            for line in b["lines"]
+            for span in line["spans"]
+        ).strip()
+
+        if page_text and len(page_text) > 20:
+            # Native text — preserve formatting
+            for block in text_blocks:
+                for line in block["lines"]:
+                    line_text = "".join(span["text"] for span in line["spans"])
+                    if not line_text.strip():
+                        continue
+                    para = doc.add_paragraph()
+                    for span in line["spans"]:
+                        run = para.add_run(span["text"])
+                        run.font.size = Pt(span["size"])
+                        if span["flags"] & 2 ** 0:
+                            run.font.superscript = True
+                        if span["flags"] & 2 ** 1:
+                            run.font.italic = True
+                        if span["flags"] & 2 ** 4:
+                            run.font.bold = True
+        else:
+            # Scanned page — render to image and OCR
+            ocr_pages += 1
+            ocr_text = _ocr_pdf_page(page)
+            if ocr_text:
+                for line in ocr_text.split("\n"):
+                    if line.strip():
+                        doc.add_paragraph(line)
+            else:
+                doc.add_paragraph(f"[Page {i + 1}: OCR could not extract text]")
+
+    total_pages = len(pdf)
+    pdf.close()
+    doc.save(output)
+    result = {"success": True, "path": output, "pages_converted": total_pages}
+    if ocr_pages:
+        result["ocr_pages"] = ocr_pages
+        result["_hint"] = f"{ocr_pages} scanned page(s) converted via OCR."
+    return result
+
+
+def _ocr_pdf_page(page) -> str:
+    """OCR a single PyMuPDF page by rendering to image and running OCR."""
+    try:
+        import fitz
+        from PIL import Image
+
+        from extractors import _HAS_TESSERACT, _get_gemini, _ocr_gemini, _ocr_tesseract, _preprocess_image
+
+        # Render page at 200 DPI
+        mat = fitz.Matrix(200 / 72, 200 / 72)
+        pix = page.get_pixmap(matrix=mat)
+        img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+        img = _preprocess_image(img)
+
+        gemini = _get_gemini()
+        if gemini:
+            return _ocr_gemini([img])
+        elif _HAS_TESSERACT:
+            return _ocr_tesseract([img])
+        return ""
+    except Exception:
+        return ""

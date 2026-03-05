@@ -185,3 +185,23 @@ class TestWatchers:
 
         # Cleanup: unwatch
         client.post("/unwatch", params={"folder": folder})
+
+
+class TestIndexFileExtra:
+    def test_index_file_unsupported_ext(self, client, tmp_path):
+        f = tmp_path / "test.xyz"
+        f.write_text("some content")
+        with patch.dict(os.environ, {"GEMINI_API_KEY": ""}, clear=False):
+            r = client.post("/index-file", json={"path": str(f)})
+        # Unsupported extension — should fail or return error
+        assert r.status_code in (200, 400)
+
+
+class TestStatusExtra:
+    def test_status_returns_stats(self, client, test_db):
+        db_path = _get_db_path(test_db)
+        with patch("api.core.DB_PATH", db_path):
+            r = client.get("/status")
+        assert r.status_code == 200
+        data = r.json()
+        assert "total_documents" in data

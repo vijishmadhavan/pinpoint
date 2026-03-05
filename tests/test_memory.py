@@ -161,3 +161,38 @@ class TestReminders:
         r = client.put(f"/reminders/{rid}", params={"trigger_at": "2026-03-08T14:00:00"})
         assert r.status_code == 200
         assert r.json()["trigger_at"] == "2026-03-08T14:00:00"
+
+
+class TestSettingsExtra:
+    def test_set_and_get_setting(self, client):
+        r = client.post("/setting", params={"key": "test_key", "value": "test_val"})
+        assert r.status_code == 200
+        r = client.get("/setting", params={"key": "test_key"})
+        assert r.status_code == 200
+        assert r.json()["value"] == "test_val"
+
+    def test_get_setting_not_found(self, client):
+        r = client.get("/setting", params={"key": "nonexistent_key_xyz"})
+        assert r.status_code == 200
+        assert r.json()["value"] is None
+
+
+class TestRemindersExtra:
+    def test_create_reminder(self, client):
+        r = client.post("/reminders", json={
+            "chat_jid": "extra@s.whatsapp.net",
+            "message": "extra reminder",
+            "trigger_at": "2099-01-01T00:00:00",
+        })
+        assert r.status_code == 200
+        assert "id" in r.json()
+
+    def test_list_reminders_all(self, client):
+        client.post("/reminders", json={
+            "chat_jid": "list@s.whatsapp.net",
+            "message": "list check",
+            "trigger_at": "2099-06-01T12:00:00",
+        })
+        r = client.get("/reminders")
+        assert r.status_code == 200
+        assert isinstance(r.json()["reminders"], list)

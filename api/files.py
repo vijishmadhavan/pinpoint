@@ -568,9 +568,18 @@ def move_file_endpoint(req: MoveFileRequest) -> dict:
         shutil.move(src, dest)
         action = "moved"
 
-        # Update database path if the file was indexed
+        # Update database paths if the file was indexed
         conn = _get_conn()
         conn.execute("UPDATE documents SET path = ? WHERE path = ?", (dest, src))
+        # These tables may not exist yet (created on first use)
+        for stmt in [
+            ("UPDATE video_embeddings SET video_path = ? WHERE video_path = ?", (dest, src)),
+            ("UPDATE photo_classifications SET path = ? WHERE path = ?", (dest, src)),
+        ]:
+            try:
+                conn.execute(*stmt)
+            except Exception:
+                pass
         conn.commit()
 
     return {
@@ -617,6 +626,14 @@ def batch_move_endpoint(req: BatchMoveRequest) -> dict:
             else:
                 shutil.move(src, dest)
                 conn.execute("UPDATE documents SET path = ? WHERE path = ?", (dest, src))
+                for stmt in [
+                    ("UPDATE video_embeddings SET video_path = ? WHERE video_path = ?", (dest, src)),
+                    ("UPDATE photo_classifications SET path = ? WHERE path = ?", (dest, src)),
+                ]:
+                    try:
+                        conn.execute(*stmt)
+                    except Exception:
+                        pass
             results["moved"].append(os.path.basename(src))
         except Exception as e:
             results["errors"].append(f"{os.path.basename(src)}: {e}")

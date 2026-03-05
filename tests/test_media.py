@@ -105,3 +105,41 @@ class TestOcr:
     def test_ocr_no_path_or_folder(self, client):
         r = client.post("/ocr", json={})
         assert r.status_code == 400
+
+
+class TestSearchImagesVisual:
+    def test_search_images_visual(self, client, tmp_path):
+        folder = str(tmp_path)
+        mock_result = {
+            "results": [{"path": "/tmp/sunset.jpg", "score": 0.9}],
+            "count": 1,
+        }
+        with (
+            patch("image_search._HAS_SIGLIP", False),
+            patch("image_search._search_images_gemini", return_value=mock_result),
+            patch("image_search._get_image_files", return_value=["/tmp/sunset.jpg"]),
+        ):
+            r = client.post("/search-images-visual", json={"folder": folder, "query": "sunset"})
+        assert r.status_code == 200
+
+    def test_search_images_visual_no_folder(self, client):
+        r = client.post("/search-images-visual", json={"query": "sunset"})
+        assert r.status_code == 422
+
+
+class TestOCRExtra:
+    def test_ocr_folder(self, client, tmp_path):
+        img1 = tmp_path / "scan1.png"
+        img2 = tmp_path / "scan2.png"
+        img1.write_bytes(b"fake image 1")
+        img2.write_bytes(b"fake image 2")
+        mock_result = {"path": "mock", "text": "OCR text", "method": "tesseract_ocr"}
+        with patch("api.files._ocr_single", return_value=mock_result):
+            r = client.post("/ocr", json={"folder": str(tmp_path)})
+        assert r.status_code == 200
+
+    def test_ocr_not_found(self, client):
+        mock_result = {"error": "File not found: /tmp/nonexistent_scan.png"}
+        with patch("api.files._ocr_single", return_value=mock_result):
+            r = client.post("/ocr", json={"path": "/tmp/nonexistent_scan.png"})
+        assert r.status_code == 400

@@ -1,4 +1,4 @@
-"""Data analysis & calculation endpoints — /calculate, /read_excel, /analyze-data, /extract-tables."""
+"""Data analysis & calculation endpoints — /calculate, /read_excel, /analyze-data, /extract-tables, /pdf-to-excel."""
 
 from __future__ import annotations
 
@@ -542,4 +542,82 @@ def extract_tables_endpoint(
         "tables_found": len(tables),
         "tables": tables,
         "_hint": "Tables extracted. Present them clearly or use analyze_data for further analysis.",
+    }
+
+
+@router.post("/pdf-to-excel")
+def pdf_to_excel_endpoint(
+    path: str = Query(..., description="Path to PDF file"),
+    output_path: str | None = Query(None, description="Output .xlsx path. Default: same name with .xlsx"),
+    pages: str | None = Query(None, description="Page range: '1-5', '3', 'all'. Default: all"),
+) -> dict:
+    """Extract tables from a PDF and save as an Excel (.xlsx) file. Each table becomes a sheet."""
+    import pdfplumber
+
+    path = os.path.abspath(path)
+    _check_safe(path)
+    if not os.path.exists(path):
+        raise HTTPException(404, f"File not found: {path}")
+    if not path.lower().endswith(".pdf"):
+        raise HTTPException(400, "Only PDF files supported")
+
+    output = os.path.abspath(output_path) if output_path else path.rsplit(".", 1)[0] + ".xlsx"
+    _check_safe(output)
+    os.makedirs(os.path.dirname(output), exist_ok=True)
+
+    try:
+        pdf = pdfplumber.open(path)
+    except Exception as e:
+        return {"error": f"Cannot open PDF: {e}"}
+
+    total_pages = len(pdf.pages)
+
+    # Parse page range
+    page_indices = []
+    if not pages or pages == "all":
+        page_indices = list(range(total_pages))
+    elif "-" in pages:
+        parts = pages.split("-")
+        start = max(int(parts[0]) - 1, 0)
+        end = min(int(parts[1]), total_pages)
+        page_indices = list(range(start, end))
+    else:
+        p = int(pages) - 1
+        if 0 <= p < total_pages:
+            page_indices = [p]
+
+    import openpyxl
+
+    wb = openpyxl.Workbook()
+    wb.remove(wb.active)  # remove default empty sheet
+    table_count = 0
+
+    for pi in page_indices:
+        page = pdf.pages[pi]
+        page_tables = page.extract_tables()
+        for ti, table in enumerate(page_tables):
+            if not table or len(table) < 2:
+                continue
+            table_count += 1
+            sheet_name = f"P{pi + 1}_T{ti + 1}"[:31]  # Excel sheet name max 31 chars
+            ws = wb.create_sheet(title=sheet_name)
+            for row in table:
+                ws.append([str(c).strip() if c else "" for c in row])
+
+    pdf.close()
+
+    if table_count == 0:
+        return {
+            "path": path,
+            "error": "No tables found in this PDF.",
+            "_hint": "No tables detected. If scanned, try OCR first.",
+        }
+
+    wb.save(output)
+    return {
+        "success": True,
+        "path": output,
+        "tables_exported": table_count,
+        "total_pages": total_pages,
+        "_hint": f"{table_count} table(s) exported to Excel. Send the file or use analyze_data to work with it.",
     }

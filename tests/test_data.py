@@ -93,3 +93,73 @@ class TestAnalyzeData:
         path = str(sample_folder / "data.csv")
         r = client.post("/analyze-data", json={"path": path, "operation": "foobar"})
         assert r.status_code == 400
+
+    def test_groupby(self, client, sample_folder):
+        path = str(sample_folder / "data.csv")
+        r = client.post("/analyze-data", json={"path": path, "operation": "groupby", "columns": "city"})
+        assert r.status_code == 200
+        data = r.json()["data"]
+        assert "New York" in data
+        assert "London" in data
+
+    def test_describe_with_stats(self, client, sample_folder):
+        path = str(sample_folder / "data.csv")
+        r = client.post("/analyze-data", json={"path": path, "operation": "describe"})
+        assert r.status_code == 200
+        data = r.json()["data"]
+        assert "count" in data
+        assert "mean" in data
+
+    def test_analyze_blocked_path(self, client):
+        r = client.post("/analyze-data", json={"path": "/etc/passwd", "operation": "describe"})
+        assert r.status_code == 403
+
+
+class TestCalculateExtra:
+    def test_power(self, client):
+        r = client.post("/calculate", json={"expression": "2**10"})
+        assert r.status_code == 200
+        assert r.json()["result"] == 1024
+
+    def test_modulo(self, client):
+        r = client.post("/calculate", json={"expression": "10 % 3"})
+        assert r.status_code == 200
+        assert r.json()["result"] == 1
+
+
+class TestReadExcel:
+    def test_read_excel_basic(self, client, tmp_path):
+        import openpyxl
+
+        path = tmp_path / "test.xlsx"
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.append(["Name", "Age"])
+        ws.append(["Alice", 30])
+        wb.save(str(path))
+
+        r = client.post("/read_excel", json={"path": str(path)})
+        assert r.status_code == 200
+        data = r.json()
+        assert "sheet_names" in data
+        assert data["rows"] >= 1
+
+    def test_read_excel_not_found(self, client, tmp_path):
+        r = client.post("/read_excel", json={"path": str(tmp_path / "nope.xlsx")})
+        assert r.status_code == 404
+
+    def test_read_excel_wrong_format(self, client, sample_folder):
+        r = client.post("/read_excel", json={"path": str(sample_folder / "data.csv")})
+        assert r.status_code == 400
+
+
+class TestExtractTables:
+    def test_extract_tables_not_found(self, client, tmp_path):
+        missing = str(tmp_path / "nope.pdf")
+        r = client.post(f"/extract-tables?path={missing}")
+        assert r.status_code == 404
+
+    def test_extract_tables_wrong_format(self, client, sample_folder):
+        path = str(sample_folder / "data.csv")
+        r = client.post(f"/extract-tables?path={path}")
+        assert r.status_code == 400

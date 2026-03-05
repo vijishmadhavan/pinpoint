@@ -147,3 +147,131 @@ class TestRunPython:
         # Should detect created file
         if r.json().get("files_created"):
             assert any("test_output" in f for f in r.json()["files_created"])
+
+
+class TestImageMetadata:
+    def _create_test_png(self, path, width=10, height=10):
+        from PIL import Image
+        img = Image.new("RGB", (width, height), color=(128, 64, 32))
+        img.save(path)
+        img.close()
+
+    def test_image_metadata(self, client, tmp_path):
+        img_path = str(tmp_path / "meta_test.png")
+        self._create_test_png(img_path, 10, 10)
+        r = client.post("/image-metadata", json={"path": img_path})
+        assert r.status_code == 200
+        data = r.json()
+        assert data["dimensions"]["width"] == 10
+        assert data["dimensions"]["height"] == 10
+
+    def test_image_metadata_not_found(self, client, tmp_path):
+        r = client.post("/image-metadata", json={"path": str(tmp_path / "nope.png")})
+        assert r.status_code == 404
+
+
+class TestDownloadUrl:
+    def test_download_url_invalid(self, client, tmp_path):
+        r = client.post("/download-url", json={"url": "not-a-url", "save_path": str(tmp_path / "out")})
+        assert r.status_code == 400
+
+    def test_download_url_no_scheme(self, client, tmp_path):
+        r = client.post("/download-url", json={"url": "ftp://example.com/file.txt", "save_path": str(tmp_path / "out")})
+        assert r.status_code == 400
+
+
+class TestGenerateChart:
+    def test_generate_chart_bar(self, client, tmp_path):
+        out = str(tmp_path / "chart.png")
+        r = client.post("/generate-chart", json={
+            "data": {"x": ["A", "B", "C"], "y": [10, 20, 15]},
+            "chart_type": "bar",
+            "title": "Test Chart",
+            "output_path": out,
+        })
+        assert r.status_code == 200
+        assert r.json()["success"] is True
+        assert os.path.exists(out)
+
+    def test_generate_chart_line(self, client, tmp_path):
+        out = str(tmp_path / "line.png")
+        r = client.post("/generate-chart", json={
+            "data": {"labels": ["Jan", "Feb", "Mar"], "values": [5, 10, 7]},
+            "chart_type": "line",
+            "output_path": out,
+        })
+        assert r.status_code == 200
+        assert os.path.exists(out)
+
+
+class TestSplitPdf:
+    def test_split_pdf_not_found(self, client, tmp_path):
+        r = client.post("/split-pdf", json={
+            "path": str(tmp_path / "ghost.pdf"),
+            "pages": "1",
+            "output_path": str(tmp_path / "out.pdf"),
+        })
+        assert r.status_code == 404
+
+
+class TestPdfToImages:
+    def test_pdf_to_images_not_found(self, client, tmp_path):
+        r = client.post("/pdf-to-images", json={"path": str(tmp_path / "ghost.pdf")})
+        assert r.status_code == 404
+
+
+class TestImagesToPdf:
+    def _create_png(self, path):
+        from PIL import Image
+        img = Image.new("RGB", (20, 20), color=(200, 100, 50))
+        img.save(str(path))
+        img.close()
+
+    def test_images_to_pdf(self, client, tmp_path):
+        img1 = tmp_path / "page1.png"
+        img2 = tmp_path / "page2.png"
+        self._create_png(img1)
+        self._create_png(img2)
+        out = str(tmp_path / "combined.pdf")
+        r = client.post("/images-to-pdf", json={
+            "paths": [str(img1), str(img2)],
+            "output_path": out,
+        })
+        assert r.status_code == 200
+        assert r.json()["success"] is True
+        assert r.json()["pages"] == 2
+        assert os.path.exists(out)
+
+    def test_images_to_pdf_missing_image(self, client, tmp_path):
+        r = client.post("/images-to-pdf", json={
+            "paths": [str(tmp_path / "nope.png")],
+            "output_path": str(tmp_path / "out.pdf"),
+        })
+        assert r.status_code == 404
+
+
+class TestCropImageExtra:
+    def _create_test_image(self, path, width=100, height=80):
+        from PIL import Image
+        img = Image.new("RGB", (width, height), color=(0, 128, 255))
+        img.save(str(path))
+        img.close()
+
+    def test_crop_image_not_found(self, client, tmp_path):
+        r = client.post("/crop-image", json={
+            "path": str(tmp_path / "nope.png"),
+            "x": 0, "y": 0, "width": 50, "height": 50,
+        })
+        assert r.status_code == 404
+
+    def test_crop_out_of_bounds(self, client, tmp_path):
+        img_path = tmp_path / "small.png"
+        self._create_test_image(img_path, width=50, height=40)
+        out = str(tmp_path / "cropped_oob.png")
+        r = client.post("/crop-image", json={
+            "path": str(img_path),
+            "x": 0, "y": 0, "width": 200, "height": 200,
+            "output_path": out,
+        })
+        assert r.status_code == 200
+        assert os.path.exists(out)

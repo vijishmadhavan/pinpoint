@@ -1,10 +1,14 @@
-"""Tests for database.py — schema, FTS5, upsert, dedup, soft delete, cache."""
+"""Tests for database.py — schema, FTS5, upsert, dedup, soft delete, cache, chunks."""
+
+import sqlite3
 
 from database import (
     cache_get,
     cache_set,
+    chunk_document,
     cleanup_orphaned_content,
     content_hash,
+    get_db,
     get_stats,
     init_db,
     soft_delete_missing,
@@ -305,4 +309,112 @@ class TestStats:
         stats = get_stats(conn)
         assert stats["total_documents"] == 0
         assert stats["by_type"] == {}
+        conn.close()
+
+
+class TestChunking:
+    """Verify chunk_document stores chunks correctly."""
+
+    def _get_doc_id(self, conn, path):
+        return conn.execute("SELECT id FROM documents WHERE path = ?", (path,)).fetchone()["id"]
+
+    def test_chunk_short_document(self, tmp_path):
+        conn = init_db(str(tmp_path / "test.db"))
+        f = tmp_path / "short.txt"
+        f.write_text("This is a short document.")
+        upsert_document(conn, str(f), "This is a short document.", "txt")
+        doc_id = self._get_doc_id(conn, str(f.resolve()))
+        count = chunk_document(conn, doc_id, "This is a short document.")
+        assert count == 1
+        conn.close()
+
+    def test_chunk_empty_text(self, tmp_path):
+        conn = init_db(str(tmp_path / "test.db"))
+        f = tmp_path / "empty.txt"
+        f.write_text("placeholder")
+        upsert_document(conn, str(f), "placeholder", "txt")
+        doc_id = self._get_doc_id(conn, str(f.resolve()))
+        count = chunk_document(conn, doc_id, "")
+        assert count == 0
+        conn.close()
+
+    def test_chunk_rechunk_deletes_old(self, tmp_path):
+        conn = init_db(str(tmp_path / "test.db"))
+        f = tmp_path / "doc.txt"
+        f.write_text("first text")
+        upsert_document(conn, str(f), "first text", "txt")
+        doc_id = self._get_doc_id(conn, str(f.resolve()))
+        chunk_document(conn, doc_id, "first text")
+        chunk_document(conn, doc_id, "second text")
+        rows = conn.execute("SELECT text FROM chunks WHERE document_id = ?", (doc_id,)).fetchall()
+        assert len(rows) == 1
+        assert rows[0]["text"] == "second text"
+        conn.close()
+
+    def test_chunks_have_correct_fields(self, tmp_path):
+        conn = init_db(str(tmp_path / "test.db"))
+        text = "A short document with known length."
+        f = tmp_path / "doc.txt"
+        f.write_text(text)
+        upsert_document(conn, str(f), text, "txt")
+        doc_id = self._get_doc_id(conn, str(f.resolve()))
+        chunk_document(conn, doc_id, text)
+        row = conn.execute("SELECT * FROM chunks WHERE document_id = ?", (doc_id,)).fetchone()
+        assert row["chunk_num"] == 0
+        assert row["start_index"] == 0
+        assert row["end_index"] == len(text)
+        conn.close()
+
+
+class TestChunksFTS:
+    """Verify chunks_fts finds chunk text with porter stemming."""
+
+    def _insert_and_chunk(self, conn, tmp_path, text, filename="doc.txt"):
+        f = tmp_path / filename
+        f.write_text(text)
+        upsert_document(conn, str(f), text, "txt")
+        row = conn.execute("SELECT id FROM documents WHERE path = ?", (str(f.resolve()),)).fetchone()
+        chunk_document(conn, row["id"], text)
+
+    def test_chunks_fts_search(self, tmp_path):
+        conn = init_db(str(tmp_path / "test.db"))
+        self._insert_and_chunk(conn, tmp_path, "unique xylophone text here")
+        results = conn.execute(
+            "SELECT * FROM chunks_fts WHERE chunks_fts MATCH 'xylophone'"
+        ).fetchall()
+        assert len(results) == 1
+        conn.close()
+
+    def test_chunks_fts_porter(self, tmp_path):
+        conn = init_db(str(tmp_path / "test.db"))
+        self._insert_and_chunk(conn, tmp_path, "She was running through the forest")
+        results = conn.execute(
+            "SELECT * FROM chunks_fts WHERE chunks_fts MATCH 'run'"
+        ).fetchall()
+        assert len(results) == 1
+        conn.close()
+
+
+class TestGetDb:
+    def test_get_db_returns_connection(self, tmp_path):
+        conn = get_db(str(tmp_path / "getdb.db"))
+        assert isinstance(conn, sqlite3.Connection)
+        result = conn.execute("SELECT 1 AS val").fetchone()
+        assert result[0] == 1
+        conn.close()
+
+    def test_get_db_row_factory(self, tmp_path):
+        conn = get_db(str(tmp_path / "getdb.db"))
+        assert conn.row_factory is sqlite3.Row
+        conn.close()
+
+
+class TestCacheTimestamp:
+    def test_cache_set_has_timestamp(self, tmp_path):
+        conn = init_db(str(tmp_path / "test.db"))
+        cache_set(conn, "ts_test_key", "some_result")
+        h = content_hash("ts_test_key")
+        row = conn.execute("SELECT created_at FROM llm_cache WHERE hash = ?", (h,)).fetchone()
+        assert row is not None
+        assert row["created_at"] is not None
         conn.close()
