@@ -5,7 +5,7 @@ echo "=== Starting Pinpoint ==="
 echo ""
 
 # Kill any existing instances (match exact script names)
-pkill -f "python.*api\.py$" 2>/dev/null
+pkill -f "python.*run_api\.py$" 2>/dev/null
 pkill -f "node.*bot/index\.js$" 2>/dev/null
 sleep 1
 
@@ -21,7 +21,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # Start Python API in background
 echo "[1/2] Starting Python API on port 5123..."
-conda run -n pinpoint python "$SCRIPT_DIR/api.py" &
+conda run -n pinpoint python "$SCRIPT_DIR/run_api.py" &
 API_PID=$!
 
 # Cleanup on exit (SIGINT, SIGTERM, normal exit)
