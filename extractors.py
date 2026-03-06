@@ -161,13 +161,14 @@ def extract_pdf(path: str) -> dict | None:
 
     try:
         doc = fitz.open(path)
-        if doc.is_encrypted:
-            print(f"[SKIP] Password-protected PDF: {path}")
+        try:
+            if doc.is_encrypted:
+                print(f"[SKIP] Password-protected PDF: {path}")
+                return None
+            page_count = len(doc)
+            scanned = _is_scanned_pdf(doc)
+        finally:
             doc.close()
-            return None
-        page_count = len(doc)
-        scanned = _is_scanned_pdf(doc)
-        doc.close()
     except Exception as e:
         print(f"[SKIP] Cannot open PDF: {path} — {e}")
         return None
@@ -179,23 +180,25 @@ def extract_pdf(path: str) -> dict | None:
             from PIL import Image
 
             doc_render = fitz_render.open(path)
-            total_pages = len(doc_render)
-            _PAGE_BATCH = 20  # process 20 pages at a time (~200MB RAM max vs 2GB+ for 200 pages)
-            all_texts = []
-            for batch_start in range(0, total_pages, _PAGE_BATCH):
-                batch_end = min(batch_start + _PAGE_BATCH, total_pages)
-                images = []
-                for page_num in range(batch_start, batch_end):
-                    pix = doc_render[page_num].get_pixmap(dpi=OCR_DPI)
-                    img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-                    images.append(img)
-                batch_text = (
-                    _ocr_gemini(images) if _get_gemini() else (_ocr_tesseract(images) if _HAS_TESSERACT else "")
-                )
-                if batch_text.strip():
-                    all_texts.append(batch_text.strip())
-                del images  # free batch memory before next batch
-            doc_render.close()
+            try:
+                total_pages = len(doc_render)
+                _PAGE_BATCH = 20  # process 20 pages at a time (~200MB RAM max vs 2GB+ for 200 pages)
+                all_texts = []
+                for batch_start in range(0, total_pages, _PAGE_BATCH):
+                    batch_end = min(batch_start + _PAGE_BATCH, total_pages)
+                    images = []
+                    for page_num in range(batch_start, batch_end):
+                        pix = doc_render[page_num].get_pixmap(dpi=OCR_DPI)
+                        img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                        images.append(img)
+                    batch_text = (
+                        _ocr_gemini(images) if _get_gemini() else (_ocr_tesseract(images) if _HAS_TESSERACT else "")
+                    )
+                    if batch_text.strip():
+                        all_texts.append(batch_text.strip())
+                    del images  # free batch memory before next batch
+            finally:
+                doc_render.close()
             text = "\n\n".join(all_texts)
         except Exception as e:
             print(f"[SKIP] OCR failed: {path} — {e}")

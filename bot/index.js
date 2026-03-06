@@ -136,6 +136,9 @@ const MUTATING_TOOLS = new Set([
   "pdf_to_excel",
   "cull_photos",
   "group_photos",
+  "gmail_send",
+  "calendar_create",
+  "drive_upload",
 ]);
 
 function recordAction(chatJid, toolName, args, result) {
@@ -446,6 +449,22 @@ function cleanExpiredRefs() {
   }
 }
 setInterval(cleanExpiredRefs, 5 * 60 * 1000); // Check every 5 min
+
+// GC for stale per-chat state (prevents unbounded growth over days/weeks)
+setInterval(() => {
+  const now = Date.now();
+  const staleMs = 2 * 60 * 60 * 1000; // 2 hours
+  for (const [jid, ts] of allowedSessions) {
+    if (now - ts > staleMs) {
+      allowedSessions.delete(jid);
+      lastImage.delete(jid);
+      activeRequests.delete(jid);
+      delete sessionCosts[jid];
+      delete actionLedger[jid];
+      clearIntentCache(jid);
+    }
+  }
+}, 15 * 60 * 1000); // Check every 15 min
 
 // Create a preview summary for Gemini (array of items → first N + count + ref)
 function makeRefPreview(toolName, result, refKey) {
@@ -971,6 +990,10 @@ async function resetSession(sessionId) {
     const data = await apiPost("/conversation/reset", { session_id: sessionId });
     cleanupTempMedia();
     lastImage.delete(sessionId);
+    activeRequests.delete(sessionId);
+    delete sessionCosts[sessionId];
+    delete actionLedger[sessionId];
+    clearIntentCache(sessionId);
     return data.deleted_count || 0;
   } catch {
     return 0;
@@ -1802,6 +1825,7 @@ async function startBot() {
                 } catch (_) {}
                 console.log(`[Reminder] Rescheduled "${r.message}" → ${next.toISOString()}`);
               } else {
+                console.log(`[Reminder] Cannot reschedule "${r.message}" (unknown repeat: ${r.repeat}) — removing`);
                 reminders.splice(idx, 1);
                 try {
                   await apiDelete(`/reminders/${r.id}`);

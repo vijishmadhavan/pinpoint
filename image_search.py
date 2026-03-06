@@ -241,6 +241,9 @@ def embed_images(folder: str, progress_callback: Callable[[int, int], None] | No
             input_name = vision_session.get_inputs()[0].name
             outputs = vision_session.run(None, {input_name: pixel_values})
             embs = outputs[1]  # pooler_output [batch, embed_dim]
+            if len(embs) != len(batch_valid):
+                print(f"[SigLIP2] Shape mismatch: got {len(embs)} embeddings for {len(batch_valid)} images, skipping batch")
+                continue
 
             for j, fpath in enumerate(batch_valid):
                 emb = embs[j].astype(np.float32)

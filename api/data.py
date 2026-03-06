@@ -129,71 +129,74 @@ def read_excel_endpoint(req: ReadExcelRequest) -> dict:
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Cannot open Excel file: {e}")
 
-    sheet_names = wb.sheetnames
-    result = {"path": path, "sheet_names": sheet_names}
+    try:
+        sheet_names = wb.sheetnames
+        result = {"path": path, "sheet_names": sheet_names}
 
-    # Select sheet
-    if req.sheet_name:
-        if req.sheet_name not in sheet_names:
-            wb.close()
-            raise HTTPException(status_code=400, detail=f"Sheet '{req.sheet_name}' not found. Available: {sheet_names}")
-        ws = wb[req.sheet_name]
-    else:
-        ws = wb.active
-
-    result["active_sheet"] = ws.title
-
-    if req.cell_range:
-        # Read specific range
-        try:
-            cells = ws[req.cell_range]
-        except Exception as e:
-            wb.close()
-            raise HTTPException(status_code=400, detail=f"Invalid range '{req.cell_range}': {e}")
-
-        # Handle single cell
-        if not isinstance(cells, tuple):
-            result["data"] = [[str(cells.value) if cells.value is not None else ""]]
-            result["rows"] = 1
-            result["cols"] = 1
+        # Select sheet
+        if req.sheet_name:
+            if req.sheet_name not in sheet_names:
+                raise HTTPException(status_code=400, detail=f"Sheet '{req.sheet_name}' not found. Available: {sheet_names}")
+            ws = wb[req.sheet_name]
         else:
-            # Range of cells — could be rows of tuples or a single tuple
-            rows = []
-            if isinstance(cells[0], tuple):
-                for row in cells:
-                    rows.append([str(c.value) if c.value is not None else "" for c in row])
+            ws = wb.active
+
+        result["active_sheet"] = ws.title
+
+        if req.cell_range:
+            # Read specific range
+            try:
+                cells = ws[req.cell_range]
+            except Exception as e:
+                raise HTTPException(status_code=400, detail=f"Invalid range '{req.cell_range}': {e}")
+
+            # Handle single cell
+            if not isinstance(cells, tuple):
+                result["data"] = [[str(cells.value) if cells.value is not None else ""]]
+                result["rows"] = 1
+                result["cols"] = 1
             else:
-                # Single row/column
-                rows.append([str(c.value) if c.value is not None else "" for c in cells])
+                # Range of cells — could be rows of tuples or a single tuple
+                rows = []
+                if isinstance(cells[0], tuple):
+                    for row in cells:
+                        rows.append([str(c.value) if c.value is not None else "" for c in row])
+                else:
+                    # Single row/column
+                    rows.append([str(c.value) if c.value is not None else "" for c in cells])
+                result["data"] = rows
+                result["rows"] = len(rows)
+                result["cols"] = len(rows[0]) if rows else 0
+        else:
+            # No range — return first 20 rows
+            rows = []
+            for i, row in enumerate(ws.iter_rows(max_row=20, values_only=True)):
+                rows.append([str(v) if v is not None else "" for v in row])
             result["data"] = rows
             result["rows"] = len(rows)
             result["cols"] = len(rows[0]) if rows else 0
-    else:
-        # No range — return first 20 rows
-        rows = []
-        for i, row in enumerate(ws.iter_rows(max_row=20, values_only=True)):
-            rows.append([str(v) if v is not None else "" for v in row])
-        result["data"] = rows
-        result["rows"] = len(rows)
-        result["cols"] = len(rows[0]) if rows else 0
 
-    # Format as markdown table for readability
-    if result.get("data") and len(result["data"]) > 0:
-        lines = []
-        for i, row in enumerate(result["data"]):
-            lines.append("| " + " | ".join(row) + " |")
-            if i == 0:
-                lines.append("| " + " | ".join(["---"] * len(row)) + " |")
-        result["table"] = "\n".join(lines)
+        # Format as markdown table for readability
+        if result.get("data") and len(result["data"]) > 0:
+            lines = []
+            for i, row in enumerate(result["data"]):
+                lines.append("| " + " | ".join(row) + " |")
+                if i == 0:
+                    lines.append("| " + " | ".join(["---"] * len(row)) + " |")
+            result["table"] = "\n".join(lines)
 
-    wb.close()
-    return result
+        return result
+    finally:
+        wb.close()
 
 
 # --- Pandas data analysis (Segment 15 + 18Q: smart cache, multi-sheet, search) ---
 
 # DataFrame LRU cache: (path, mtime, sheet) → DataFrame
+import threading
+
 _df_cache = {}  # key → {"df": DataFrame, "atime": float}
+_df_cache_lock = threading.Lock()
 _DF_CACHE_MAX = 5
 
 
@@ -215,12 +218,13 @@ def _load_df(path: str, ext: str, sheet: str | None = None) -> tuple[Any, str | 
     cache_key = f"{path}:{mtime}:{sheet or '_default_'}"
 
     # Check cache
-    if cache_key in _df_cache:
-        entry = _df_cache[cache_key]
-        entry["atime"] = time.time()
-        return entry["df"], entry["sheet_name"], entry["all_sheets"]
+    with _df_cache_lock:
+        if cache_key in _df_cache:
+            entry = _df_cache[cache_key]
+            entry["atime"] = time.time()
+            return entry["df"], entry["sheet_name"], entry["all_sheets"]
 
-    # Load fresh
+    # Load fresh (outside lock — IO can be slow)
     all_sheets = None
     sheet_name = sheet
 
@@ -243,11 +247,12 @@ def _load_df(path: str, ext: str, sheet: str | None = None) -> tuple[Any, str | 
         raise HTTPException(status_code=400, detail=f"Unsupported format: {ext}. Use CSV or Excel.")
 
     # Evict oldest if cache full
-    if len(_df_cache) >= _DF_CACHE_MAX:
-        oldest_key = min(_df_cache, key=lambda k: _df_cache[k]["atime"])
-        del _df_cache[oldest_key]
+    with _df_cache_lock:
+        if len(_df_cache) >= _DF_CACHE_MAX:
+            oldest_key = min(_df_cache, key=lambda k: _df_cache[k]["atime"])
+            del _df_cache[oldest_key]
 
-    _df_cache[cache_key] = {"df": df, "sheet_name": sheet_name, "all_sheets": all_sheets, "atime": time.time()}
+        _df_cache[cache_key] = {"df": df, "sheet_name": sheet_name, "all_sheets": all_sheets, "atime": time.time()}
     return df, sheet_name, all_sheets
 
 
@@ -430,12 +435,15 @@ def analyze_data_endpoint(req: AnalyzeDataRequest) -> dict:
     elif op == "eval":
         if not req.query:
             raise HTTPException(status_code=400, detail="query required for eval (e.g. '(Qty * Price).sum()')")
+        # Security: block dangerous attribute access patterns
+        _blocked = ("__", "import", "exec", "eval", "compile", "globals", "locals", "getattr", "setattr", "delattr", "open", "os.", "sys.", "subprocess")
+        query_lower = req.query.lower()
+        for b in _blocked:
+            if b in query_lower:
+                raise HTTPException(status_code=400, detail=f"Blocked expression: '{b}' not allowed in eval queries")
         try:
-            eval_result = eval(
-                f"df.{req.query}" if not req.query.strip().startswith("df") else req.query,
-                {"__builtins__": {}},
-                {"df": df, "pd": pd},
-            )
+            # Use pd.eval for simple expressions (arithmetic, comparisons)
+            eval_result = pd.eval(req.query, local_dict={"df": df}, engine="python")
             if hasattr(eval_result, "to_string"):
                 result["data"] = (
                     eval_result.head(req.head).to_string() if hasattr(eval_result, "head") else eval_result.to_string()

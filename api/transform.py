@@ -136,17 +136,21 @@ def merge_pdf_endpoint(req: MergePdfRequest) -> dict:
     os.makedirs(os.path.dirname(output), exist_ok=True)
 
     merged = fitz.open()
-    for p in req.paths:
-        p = os.path.abspath(p)
-        _check_safe(p)
-        if not os.path.exists(p):
-            raise HTTPException(status_code=404, detail=f"File not found: {p}")
-        doc = fitz.open(p)
-        merged.insert_pdf(doc)
-        doc.close()
-    merged.save(output)
-    total_pages = len(merged)
-    merged.close()
+    try:
+        for p in req.paths:
+            p = os.path.abspath(p)
+            _check_safe(p)
+            if not os.path.exists(p):
+                raise HTTPException(status_code=404, detail=f"File not found: {p}")
+            doc = fitz.open(p)
+            try:
+                merged.insert_pdf(doc)
+            finally:
+                doc.close()
+        merged.save(output)
+        total_pages = len(merged)
+    finally:
+        merged.close()
     return {"success": True, "path": output, "total_pages": total_pages, "files_merged": len(req.paths)}
 
 
@@ -181,20 +185,23 @@ def split_pdf_endpoint(req: SplitPdfRequest) -> dict:
             page_nums.add(int(part))
 
     doc = fitz.open(path)
-    # Convert 1-based to 0-based
-    zero_based = sorted(p - 1 for p in page_nums if 1 <= p <= len(doc))
-    if not zero_based:
-        doc.close()
-        raise HTTPException(status_code=400, detail=f"No valid pages. PDF has {len(doc)} pages.")
+    try:
+        # Convert 1-based to 0-based
+        zero_based = sorted(p - 1 for p in page_nums if 1 <= p <= len(doc))
+        if not zero_based:
+            raise HTTPException(status_code=400, detail=f"No valid pages. PDF has {len(doc)} pages.")
 
-    new_doc = fitz.open()
-    for page_no in zero_based:
-        new_doc.insert_pdf(doc, from_page=page_no, to_page=page_no)
-    new_doc.save(output)
-    extracted = len(new_doc)
-    source_pages = len(doc)
-    new_doc.close()
-    doc.close()
+        new_doc = fitz.open()
+        try:
+            for page_no in zero_based:
+                new_doc.insert_pdf(doc, from_page=page_no, to_page=page_no)
+            new_doc.save(output)
+            extracted = len(new_doc)
+            source_pages = len(doc)
+        finally:
+            new_doc.close()
+    finally:
+        doc.close()
     return {"success": True, "path": output, "pages_extracted": extracted, "source_pages": source_pages}
 
 
@@ -218,19 +225,22 @@ def organize_pdf_endpoint(req: OrganizePdfRequest) -> dict:
     os.makedirs(os.path.dirname(output), exist_ok=True)
 
     doc = fitz.open(path)
-    total = len(doc)
-    valid_pages = [p for p in req.pages if 1 <= p <= total]
-    if not valid_pages:
-        doc.close()
-        raise HTTPException(status_code=400, detail=f"No valid pages. PDF has {total} pages.")
+    try:
+        total = len(doc)
+        valid_pages = [p for p in req.pages if 1 <= p <= total]
+        if not valid_pages:
+            raise HTTPException(status_code=400, detail=f"No valid pages. PDF has {total} pages.")
 
-    new_doc = fitz.open()
-    for p in valid_pages:
-        new_doc.insert_pdf(doc, from_page=p - 1, to_page=p - 1)
-    new_doc.save(output)
-    result_pages = len(new_doc)
-    new_doc.close()
-    doc.close()
+        new_doc = fitz.open()
+        try:
+            for p in valid_pages:
+                new_doc.insert_pdf(doc, from_page=p - 1, to_page=p - 1)
+            new_doc.save(output)
+            result_pages = len(new_doc)
+        finally:
+            new_doc.close()
+    finally:
+        doc.close()
     return {"success": True, "path": output, "output_pages": result_pages, "source_pages": total}
 
 
@@ -310,22 +320,26 @@ def images_to_pdf_endpoint(req: ImagesToPdfRequest) -> dict:
     os.makedirs(os.path.dirname(output), exist_ok=True)
 
     images = []
-    for p in req.paths:
-        p = os.path.abspath(p)
-        _check_safe(p)
-        if not os.path.exists(p):
-            raise HTTPException(status_code=404, detail=f"Image not found: {p}")
-        img = Image.open(p)
-        if img.mode == "RGBA":
-            img = img.convert("RGB")
-        images.append(img)
+    try:
+        for p in req.paths:
+            p = os.path.abspath(p)
+            _check_safe(p)
+            if not os.path.exists(p):
+                raise HTTPException(status_code=404, detail=f"Image not found: {p}")
+            img = Image.open(p)
+            if img.mode == "RGBA":
+                original = img
+                img = img.convert("RGB")
+                original.close()
+            images.append(img)
 
-    if not images:
-        raise HTTPException(status_code=400, detail="No valid images loaded")
+        if not images:
+            raise HTTPException(status_code=400, detail="No valid images loaded")
 
-    images[0].save(output, "PDF", save_all=True, append_images=images[1:])
-    for img in images:
-        img.close()
+        images[0].save(output, "PDF", save_all=True, append_images=images[1:])
+    finally:
+        for img in images:
+            img.close()
 
     return {"success": True, "path": output, "pages": len(images)}
 
@@ -438,14 +452,20 @@ def crop_image_endpoint(req: CropImageRequest) -> dict:
         raise HTTPException(status_code=404, detail=f"File not found: {path}")
 
     img = Image.open(path)
-    box = (req.x, req.y, req.x + req.width, req.y + req.height)
-    cropped = img.crop(box)
-
-    output = os.path.abspath(req.output_path) if req.output_path else path
-    _check_safe(output)
-    os.makedirs(os.path.dirname(output), exist_ok=True)
-    cropped.save(output)
-    return {"success": True, "path": output, "crop_box": list(box), "new_size": list(cropped.size)}
+    try:
+        box = (req.x, req.y, req.x + req.width, req.y + req.height)
+        cropped = img.crop(box)
+        try:
+            output = os.path.abspath(req.output_path) if req.output_path else path
+            _check_safe(output)
+            os.makedirs(os.path.dirname(output), exist_ok=True)
+            cropped.save(output)
+            result = {"success": True, "path": output, "crop_box": list(box), "new_size": list(cropped.size)}
+        finally:
+            cropped.close()
+    finally:
+        img.close()
+    return result
 
 
 # --- Image Metadata (EXIF) ---
@@ -904,8 +924,10 @@ def compress_pdf_endpoint(req: CompressPdfRequest) -> dict:
     os.makedirs(os.path.dirname(output), exist_ok=True)
 
     doc = fitz.open(path)
-    doc.save(output, garbage=4, deflate=True, clean=True)
-    doc.close()
+    try:
+        doc.save(output, garbage=4, deflate=True, clean=True)
+    finally:
+        doc.close()
 
     new_size = os.path.getsize(output)
     reduction = round((1 - new_size / original_size) * 100, 1) if original_size > 0 else 0
@@ -942,27 +964,29 @@ def add_page_numbers_endpoint(req: AddPageNumbersRequest) -> dict:
     os.makedirs(os.path.dirname(output), exist_ok=True)
 
     doc = fitz.open(path)
-    total = len(doc)
+    try:
+        total = len(doc)
 
-    for i, page in enumerate(doc):
-        num = req.start + i
-        text = req.format.replace("{n}", str(num)).replace("{total}", str(total))
-        rect = page.rect
-        margin = 36  # 0.5 inch
-        font_size = 10
+        for i, page in enumerate(doc):
+            num = req.start + i
+            text = req.format.replace("{n}", str(num)).replace("{total}", str(total))
+            rect = page.rect
+            margin = 36  # 0.5 inch
+            font_size = 10
 
-        if "left" in req.position:
-            x = margin
-        elif "right" in req.position:
-            x = rect.width - margin - font_size * len(text) * 0.4
-        else:
-            x = rect.width / 2 - font_size * len(text) * 0.2
+            if "left" in req.position:
+                x = margin
+            elif "right" in req.position:
+                x = rect.width - margin - font_size * len(text) * 0.4
+            else:
+                x = rect.width / 2 - font_size * len(text) * 0.2
 
-        y = rect.height - margin
-        page.insert_text((x, y), text, fontsize=font_size, color=(0.4, 0.4, 0.4))
+            y = rect.height - margin
+            page.insert_text((x, y), text, fontsize=font_size, color=(0.4, 0.4, 0.4))
 
-    doc.save(output)
-    doc.close()
+        doc.save(output)
+    finally:
+        doc.close()
     return {"success": True, "path": output, "pages_numbered": total}
 
 
@@ -988,53 +1012,55 @@ def pdf_to_word_endpoint(req: PdfToWordRequest) -> dict:
     os.makedirs(os.path.dirname(output), exist_ok=True)
 
     pdf = fitz.open(path)
-    doc = Document()
-    ocr_pages = 0
+    try:
+        doc = Document()
+        ocr_pages = 0
 
-    for i, page in enumerate(pdf):
-        if i > 0:
-            doc.add_page_break()
+        for i, page in enumerate(pdf):
+            if i > 0:
+                doc.add_page_break()
 
-        # Try native text extraction first
-        blocks = page.get_text("dict")["blocks"]
-        text_blocks = [b for b in blocks if b["type"] == 0]
-        page_text = "".join(
-            span["text"]
-            for b in text_blocks
-            for line in b["lines"]
-            for span in line["spans"]
-        ).strip()
+            # Try native text extraction first
+            blocks = page.get_text("dict")["blocks"]
+            text_blocks = [b for b in blocks if b["type"] == 0]
+            page_text = "".join(
+                span["text"]
+                for b in text_blocks
+                for line in b["lines"]
+                for span in line["spans"]
+            ).strip()
 
-        if page_text and len(page_text) > 20:
-            # Native text — preserve formatting
-            for block in text_blocks:
-                for line in block["lines"]:
-                    line_text = "".join(span["text"] for span in line["spans"])
-                    if not line_text.strip():
-                        continue
-                    para = doc.add_paragraph()
-                    for span in line["spans"]:
-                        run = para.add_run(span["text"])
-                        run.font.size = Pt(span["size"])
-                        if span["flags"] & 2 ** 0:
-                            run.font.superscript = True
-                        if span["flags"] & 2 ** 1:
-                            run.font.italic = True
-                        if span["flags"] & 2 ** 4:
-                            run.font.bold = True
-        else:
-            # Scanned page — render to image and OCR
-            ocr_pages += 1
-            ocr_text = _ocr_pdf_page(page)
-            if ocr_text:
-                for line in ocr_text.split("\n"):
-                    if line.strip():
-                        doc.add_paragraph(line)
+            if page_text and len(page_text) > 20:
+                # Native text — preserve formatting
+                for block in text_blocks:
+                    for line in block["lines"]:
+                        line_text = "".join(span["text"] for span in line["spans"])
+                        if not line_text.strip():
+                            continue
+                        para = doc.add_paragraph()
+                        for span in line["spans"]:
+                            run = para.add_run(span["text"])
+                            run.font.size = Pt(span["size"])
+                            if span["flags"] & 2 ** 0:
+                                run.font.superscript = True
+                            if span["flags"] & 2 ** 1:
+                                run.font.italic = True
+                            if span["flags"] & 2 ** 4:
+                                run.font.bold = True
             else:
-                doc.add_paragraph(f"[Page {i + 1}: OCR could not extract text]")
+                # Scanned page — render to image and OCR
+                ocr_pages += 1
+                ocr_text = _ocr_pdf_page(page)
+                if ocr_text:
+                    for line in ocr_text.split("\n"):
+                        if line.strip():
+                            doc.add_paragraph(line)
+                else:
+                    doc.add_paragraph(f"[Page {i + 1}: OCR could not extract text]")
 
-    total_pages = len(pdf)
-    pdf.close()
+        total_pages = len(pdf)
+    finally:
+        pdf.close()
     doc.save(output)
     result = {"success": True, "path": output, "pages_converted": total_pages}
     if ocr_pages:

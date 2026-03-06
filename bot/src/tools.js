@@ -17,6 +17,7 @@ const INTENT_KEYWORDS = {
   web: /download|url|web|search.*online|internet|website/i,
   memory: /remember|forget|memory|preference/i,
   code: /python|code|script|run|execute|program/i,
+  google: /email|mail|gmail|send.*mail|inbox|calendar|event|meeting|schedule|appointment|drive|upload.*drive|google/i,
 };
 
 // --- Skill file categories (maps intent → skill .md files) ---
@@ -37,6 +38,7 @@ const SKILL_CATEGORIES = {
   web: ["web-search.md", "download.md"],
   memory: ["memory.md"],
   code: ["python.md"],
+  google: ["google-workspace.md"],
 };
 
 // --- Tool grouping: map each tool to intent categories (mirrors SKILL_CATEGORIES) ---
@@ -106,6 +108,7 @@ const TOOL_GROUPS = {
   memory: ["memory_save", "memory_search", "memory_delete", "memory_forget"],
   code: ["run_python"],
   archive: ["compress_files", "extract_archive"],
+  google: ["gmail_send", "gmail_search", "gmail_triage", "calendar_events", "calendar_create", "drive_list", "drive_upload"],
   automation: ["set_reminder", "list_reminders", "cancel_reminder", "watch_folder", "unwatch_folder", "list_watched"],
 };
 
@@ -1345,6 +1348,98 @@ const TOOL_DECLARATIONS = [
       required: ["folder"],
     },
   },
+  // --- Google Workspace tools (gws-cli) ---
+  {
+    name: "gmail_send",
+    description:
+      "Send an email via Gmail. Can optionally attach a local file. Use when user says 'email this to X' or 'send mail'.",
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        to: { type: "STRING", description: "Recipient email address." },
+        subject: { type: "STRING", description: "Email subject line." },
+        body: { type: "STRING", description: "Email body (plain text)." },
+        attach: { type: "STRING", description: "Optional: absolute path to file to attach." },
+      },
+      required: ["to", "subject", "body"],
+    },
+  },
+  {
+    name: "gmail_search",
+    description:
+      "Search Gmail inbox. Uses same query syntax as Gmail search bar (from:, to:, subject:, has:attachment, after:, before:, etc).",
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        query: { type: "STRING", description: "Gmail search query (e.g. 'from:john invoice after:2026/01/01')." },
+        limit: { type: "NUMBER", description: "Max results (default 10)." },
+      },
+      required: ["query"],
+    },
+  },
+  {
+    name: "gmail_triage",
+    description: "Show unread inbox summary — sender, subject, date for each unread message. Use for 'check my email' or 'any new mail?'.",
+    parameters: { type: "OBJECT", properties: {} },
+  },
+  {
+    name: "calendar_events",
+    description:
+      "List upcoming calendar events. Use for 'what's on my calendar', 'am I free tomorrow', 'meetings this week'.",
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        days: { type: "NUMBER", description: "Days ahead to show (default 7, max 30)." },
+        today: { type: "BOOLEAN", description: "Set true to show only today's events." },
+      },
+    },
+  },
+  {
+    name: "calendar_create",
+    description:
+      "Create a calendar event. Times must be ISO 8601 format (e.g. 2026-03-07T15:00:00+05:30). Use user's timezone (IST = +05:30).",
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        summary: { type: "STRING", description: "Event title." },
+        start: { type: "STRING", description: "Start time in ISO 8601 (e.g. 2026-03-07T15:00:00+05:30)." },
+        end: { type: "STRING", description: "End time in ISO 8601." },
+        location: { type: "STRING", description: "Optional: event location." },
+        description: { type: "STRING", description: "Optional: event description." },
+        attendees: {
+          type: "ARRAY",
+          items: { type: "STRING" },
+          description: "Optional: list of attendee email addresses.",
+        },
+      },
+      required: ["summary", "start", "end"],
+    },
+  },
+  {
+    name: "drive_list",
+    description:
+      "List or search Google Drive files. Empty query shows recent files. Use for 'what files do I have on Drive', 'find report on Drive'.",
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        query: { type: "STRING", description: "Search term (searches file names and content). Empty = recent files." },
+        limit: { type: "NUMBER", description: "Max results (default 10)." },
+      },
+    },
+  },
+  {
+    name: "drive_upload",
+    description:
+      "Upload a local file to Google Drive. Use when user says 'upload to Drive', 'save to Drive', 'put on Drive'.",
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        path: { type: "STRING", description: "Absolute path to the local file to upload." },
+        name: { type: "STRING", description: "Optional: target filename on Drive (defaults to local filename)." },
+      },
+      required: ["path"],
+    },
+  },
 ];
 
 // --- Declarative tool routing table ---
@@ -1573,6 +1668,18 @@ function buildToolRoutes(maxResults) {
       m: "GET",
       p: (a) => `/group-photos/status?folder=${enc(a.folder)}${a.cancel ? "&cancel=true" : ""}`,
     },
+    // --- Google Workspace (gws-cli) ---
+    gmail_send: { m: "POST", p: "/google/gmail-send", b: (a) => ({ to: a.to, subject: a.subject, body: a.body, attach: a.attach || null }) },
+    gmail_search: { m: "GET", p: (a) => `/google/gmail-search?q=${enc(a.query || "")}&limit=${a.limit || 10}` },
+    gmail_triage: { m: "GET", p: () => "/google/gmail-triage" },
+    calendar_events: { m: "GET", p: (a) => `/google/calendar-events?days=${a.days || 7}${a.today ? "&today=true" : ""}` },
+    calendar_create: {
+      m: "POST",
+      p: "/google/calendar-create",
+      b: (a) => ({ summary: a.summary, start: a.start, end: a.end, location: a.location || null, description: a.description || null, attendees: a.attendees || null }),
+    },
+    drive_list: { m: "GET", p: (a) => `/google/drive-list?q=${enc(a.query || "")}&limit=${a.limit || 10}` },
+    drive_upload: { m: "POST", p: (a) => `/google/drive-upload?path=${enc(a.path)}${a.name ? "&name=" + enc(a.name) : ""}`, b: () => ({}) },
   };
 }
 
@@ -1606,6 +1713,7 @@ const fileTools = [
   "remember_face",
   "transcribe_audio",
   "score_photo",
+  "drive_upload",
 ];
 
 // Tools that need a valid folder
@@ -1780,6 +1888,20 @@ function summarizeToolResult(name, args, result) {
         return `group_status: cancelled after ${result.classified || 0}/${result.total || "?"} classified`;
       return `group_status: ${result.status} — ${result.classified || 0}/${result.total || "?"} classified`;
     }
+    case "gmail_send":
+      return `gmail_send: ${result.error ? "FAILED" : `sent to ${args?.to || "recipient"}`}`;
+    case "gmail_search":
+      return `gmail_search: ${result.count ?? 0} email(s) found`;
+    case "gmail_triage":
+      return `gmail_triage: inbox summary loaded`;
+    case "calendar_events":
+      return `calendar_events: agenda loaded`;
+    case "calendar_create":
+      return `calendar_create: ${result.error ? "FAILED" : `event '${args?.summary || ""}' created`}`;
+    case "drive_list":
+      return `drive_list: ${result.count ?? 0} file(s) found`;
+    case "drive_upload":
+      return `drive_upload: ${result.error ? "FAILED" : "uploaded to Drive"}`;
     default:
       return `${name}: done`;
   }

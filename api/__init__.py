@@ -11,6 +11,7 @@ Router modules:
   transform.py  — /write-file, /generate-excel, /resize-image, /merge-pdf, etc.
   memory.py     — /conversation/*, /memory/*, /setting, /reminders
   photos.py     — /score-photo, /cull-photos, /group-photos, etc.
+  google.py     — /google/gmail-*, /google/calendar-*, /google/drive-* (via gws CLI)
 """
 
 import os
@@ -44,6 +45,7 @@ from api.core import router as core_router
 from api.data import router as data_router
 from api.faces import router as faces_router
 from api.files import router as files_router
+from api.google import router as google_router
 from api.media import router as media_router
 from api.memory import router as memory_router
 from api.photos import router as photos_router
@@ -59,6 +61,7 @@ app.include_router(data_router)
 app.include_router(transform_router)
 app.include_router(memory_router)
 app.include_router(photos_router)
+app.include_router(google_router)
 
 
 # --- Startup events ---

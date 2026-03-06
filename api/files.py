@@ -113,6 +113,8 @@ def list_files_endpoint(
                 r = subprocess.run(
                     ["/mnt/c/Windows/System32/cmd.exe", "/c", dir_cmd], capture_output=True, text=True, timeout=30
                 )
+                if r.returncode != 0 and not r.stdout.strip():
+                    pass  # dir /s returns non-zero for empty results; only skip if no output
                 for line in r.stdout.strip().split("\n"):
                     line = line.strip()
                     if not line:
@@ -625,20 +627,22 @@ def batch_move_endpoint(req: BatchMoveRequest) -> dict:
                 shutil.copy2(src, dest)
             else:
                 shutil.move(src, dest)
-                conn.execute("UPDATE documents SET path = ? WHERE path = ?", (dest, src))
-                for stmt in [
-                    ("UPDATE video_embeddings SET video_path = ? WHERE video_path = ?", (dest, src)),
-                    ("UPDATE photo_classifications SET path = ? WHERE path = ?", (dest, src)),
-                ]:
-                    try:
-                        conn.execute(*stmt)
-                    except Exception:
-                        pass
+                try:
+                    conn.execute("UPDATE documents SET path = ? WHERE path = ?", (dest, src))
+                    for stmt in [
+                        ("UPDATE video_embeddings SET video_path = ? WHERE video_path = ?", (dest, src)),
+                        ("UPDATE photo_classifications SET path = ? WHERE path = ?", (dest, src)),
+                    ]:
+                        try:
+                            conn.execute(*stmt)
+                        except Exception:
+                            pass
+                    conn.commit()
+                except Exception:
+                    conn.rollback()
             results["moved"].append(os.path.basename(src))
         except Exception as e:
             results["errors"].append(f"{os.path.basename(src)}: {e}")
-
-    conn.commit()
     action = "copied" if req.is_copy else "moved"
     moved_count = len(results["moved"])
     skipped_count = len(results["skipped"])

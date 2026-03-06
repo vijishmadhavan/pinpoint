@@ -113,11 +113,14 @@ def extract_frames(
         timeout=300,
     )
 
-    # Collect extracted frames with timestamps
+    # Collect extracted frames with timestamps (cap at 1000 to prevent OOM on long videos)
+    _MAX_FRAMES = 1000
     frames = []
     for fname in sorted(os.listdir(temp_dir)):
         if not fname.startswith("frame_") or not fname.endswith(".jpg"):
             continue
+        if len(frames) >= _MAX_FRAMES:
+            break
         # frame_000001.jpg → index 0, timestamp = index / fps
         idx = int(fname.split("_")[1].split(".")[0]) - 1  # 1-based to 0-based
         timestamp = idx / fps
