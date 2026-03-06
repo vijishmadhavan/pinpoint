@@ -1398,6 +1398,21 @@ async function runGemini(userMessage, sock, chatJid, opts = {}) {
           }
         }
 
+        // Empty search results guidance: nudge Gemini to ask the user instead of giving up
+        if (!result?.error && !result?._hint) {
+          const n = fc.name;
+          const isEmpty =
+            (n === "search_documents" && (result?.results?.length ?? 0) === 0) ||
+            (n === "search_facts" && (result?.results?.length ?? result?.count ?? 0) === 0) ||
+            (n === "list_files" && (result?.total ?? 0) === 0) ||
+            (n === "search_generated_files" && (result?.count ?? 0) === 0) ||
+            (n === "grep_files" && (result?.total_matches ?? 0) === 0);
+          if (isEmpty) {
+            result._hint =
+              "0 results. Before giving up: try broader terms, a different folder, or search_generated_files. If still nothing, ASK the user — they may know where it is.";
+          }
+        }
+
         // Action Ledger: record every mutating tool's REAL outcome (OpenClaw pattern)
         // This gets injected into every subsequent LLM call as "## Actions Taken"
         if (MUTATING_TOOLS.has(fc.name)) {
