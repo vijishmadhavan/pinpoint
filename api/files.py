@@ -913,7 +913,10 @@ _SKIP_DIRS = {
     "System Volume Information", ".Trash", ".local", ".config",
 }
 
-_scan_status = {"running": False, "total": 0, "folders": []}
+_scan_status = {"running": False, "total": 0, "folders": [], "indexed": 0}
+_RESCAN_INTERVAL = 3600  # re-scan every 60 minutes
+_AUTO_INDEX_EXTS = {".pdf", ".docx", ".xlsx", ".pptx", ".epub", ".txt", ".csv", ".log", ".md"}
+_MAX_AUTO_INDEX_SIZE = 100 * 1024 * 1024  # 100MB — skip huge files
 
 
 _SKIP_USERS = {"All Users", "Default", "Default User", "Public", "TEMP"}
@@ -943,59 +946,127 @@ def _get_common_folders() -> list[str]:
 
 
 def scan_paths_background():
-    """Walk common folders and store all file paths in DB. Runs in background thread."""
+    """Walk common folders, store paths, auto-index text docs. Repeats every 60 min."""
     if _scan_status["running"]:
         return
-    _scan_status["running"] = True
-    folders = _get_common_folders()
-    _scan_status["folders"] = folders
-    _scan_status["total"] = 0
 
-    def _scan():
-        try:
-            conn = _get_conn()
-            now = datetime.now().isoformat()
-            batch = []
-            count = 0
-            for folder in folders:
-                try:
-                    for root, dirs, files in os.walk(folder):
-                        # Skip hidden/junk directories
-                        dirs[:] = [d for d in dirs if d not in _SKIP_DIRS and not d.startswith(".")]
-                        for fname in files:
-                            fpath = os.path.join(root, fname)
-                            ext = os.path.splitext(fname)[1].lower()
-                            try:
-                                st = os.stat(fpath)
+    def _scan_loop():
+        import time
+
+        while True:
+            _scan_status["running"] = True
+            folders = _get_common_folders()
+            _scan_status["folders"] = folders
+            _scan_status["total"] = 0
+            _scan_status["indexed"] = 0
+
+            try:
+                conn = _get_conn()
+                now = datetime.now().isoformat()
+                batch = []
+                count = 0
+                to_index = []  # files to auto-index content
+
+                for folder in folders:
+                    try:
+                        for root, dirs, files in os.walk(folder):
+                            dirs[:] = [d for d in dirs if d not in _SKIP_DIRS and not d.startswith(".")]
+                            for fname in files:
+                                fpath = os.path.join(root, fname)
+                                ext = os.path.splitext(fname)[1].lower()
+                                try:
+                                    st = os.stat(fpath)
+                                except OSError:
+                                    continue
                                 batch.append((fpath, fname, ext, st.st_size, st.st_mtime, now))
-                            except OSError:
-                                continue
-                            if len(batch) >= 1000:
-                                conn.executemany(
-                                    "INSERT OR REPLACE INTO file_paths (path, filename, ext, size_bytes, modified_at, scanned_at) VALUES (?, ?, ?, ?, ?, ?)",
-                                    batch,
-                                )
-                                conn.commit()
-                                count += len(batch)
-                                _scan_status["total"] = count
-                                batch = []
-                except OSError:
-                    continue
-            if batch:
-                conn.executemany(
-                    "INSERT OR REPLACE INTO file_paths (path, filename, ext, size_bytes, modified_at, scanned_at) VALUES (?, ?, ?, ?, ?, ?)",
-                    batch,
-                )
-                conn.commit()
-                count += len(batch)
-            _scan_status["total"] = count
-            print(f"[PathRegistry] Scanned {count} files from {len(folders)} folders")
-        except Exception as e:
-            print(f"[PathRegistry] Scan failed: {e}")
-        finally:
-            _scan_status["running"] = False
+                                # Queue text-extractable docs for content indexing
+                                if ext in _AUTO_INDEX_EXTS and st.st_size <= _MAX_AUTO_INDEX_SIZE:
+                                    to_index.append(fpath)
+                                if len(batch) >= 1000:
+                                    conn.executemany(
+                                        "INSERT OR REPLACE INTO file_paths (path, filename, ext, size_bytes, modified_at, scanned_at) VALUES (?, ?, ?, ?, ?, ?)",
+                                        batch,
+                                    )
+                                    conn.commit()
+                                    count += len(batch)
+                                    _scan_status["total"] = count
+                                    batch = []
+                    except OSError:
+                        continue
+                if batch:
+                    conn.executemany(
+                        "INSERT OR REPLACE INTO file_paths (path, filename, ext, size_bytes, modified_at, scanned_at) VALUES (?, ?, ?, ?, ?, ?)",
+                        batch,
+                    )
+                    conn.commit()
+                    count += len(batch)
+                _scan_status["total"] = count
+                print(f"[PathRegistry] Scanned {count} files from {len(folders)} folders")
 
-    threading.Thread(target=_scan, daemon=True, name="path-scanner").start()
+                # Phase 2: auto-index text docs (skip already-indexed, skip scanned PDFs)
+                if to_index:
+                    _auto_index_docs(conn, to_index)
+
+            except Exception as e:
+                print(f"[PathRegistry] Scan failed: {e}")
+            finally:
+                _scan_status["running"] = False
+
+            time.sleep(_RESCAN_INTERVAL)
+
+    threading.Thread(target=_scan_loop, daemon=True, name="path-scanner").start()
+
+
+def _auto_index_docs(conn, file_paths: list[str]):
+    """Auto-index text-extractable documents. Skips already-indexed and scanned PDFs."""
+    from database import chunk_document, upsert_document
+    from extractors import extract
+
+    indexed = 0
+    for fpath in file_paths:
+        try:
+            # Skip if already indexed and unchanged (mtime check)
+            row = conn.execute(
+                "SELECT modified_at FROM documents WHERE path = ? AND active = 1", (fpath,)
+            ).fetchone()
+            if row:
+                from datetime import UTC
+
+                file_mtime = os.path.getmtime(fpath)
+                try:
+                    db_dt = datetime.fromisoformat(row[0])
+                    file_dt = datetime.fromtimestamp(file_mtime, tz=UTC)
+                    if file_dt <= db_dt:
+                        continue  # already indexed, unchanged
+                except (ValueError, OSError):
+                    pass
+
+            result = extract(fpath)
+            if result is None:
+                continue
+
+            # Skip scanned PDFs (very little text extracted = likely scanned)
+            text = result.get("text", "")
+            if fpath.lower().endswith(".pdf") and len(text.strip()) < 50:
+                continue
+
+            upsert_document(conn, fpath, text, result["file_type"], result.get("page_count", 0))
+
+            # Chunk for section-level search
+            doc_row = conn.execute("SELECT id FROM documents WHERE path = ?", (os.path.abspath(fpath),)).fetchone()
+            if doc_row:
+                try:
+                    chunk_document(conn, doc_row[0], text)
+                except Exception:
+                    pass
+
+            indexed += 1
+            _scan_status["indexed"] = indexed
+        except Exception:
+            continue
+
+    if indexed:
+        print(f"[PathRegistry] Auto-indexed {indexed} documents")
 
 
 @router.get("/find-file")
@@ -1042,6 +1113,7 @@ def path_scan_status_endpoint() -> dict:
     """Check the status of the background path scan."""
     return {
         "running": _scan_status["running"],
-        "files_indexed": _scan_status["total"],
+        "paths_scanned": _scan_status["total"],
+        "docs_indexed": _scan_status["indexed"],
         "folders": _scan_status["folders"],
     }
