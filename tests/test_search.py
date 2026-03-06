@@ -147,11 +147,12 @@ class TestWebRead:
         assert r.status_code == 422
 
     def test_web_read_http_error(self, client):
+        import socket
         import unittest.mock as mock
 
-        with mock.patch("requests.get", side_effect=Exception("connection refused")):
+        # Mock DNS failure to guarantee 403 from SSRF protection
+        with mock.patch("socket.getaddrinfo", side_effect=socket.gaierror("Name resolution failed")):
             r = client.get("/web-read", params={"url": "https://unreachable.example.com/"})
-        # DNS resolution failure now returns 403 (SSRF protection fix)
         assert r.status_code == 403
 
 
