@@ -6,15 +6,7 @@ from __future__ import annotations
 class TestSearch:
     def test_search_returns_results(self, client, seeded_db, sample_folder):
         """Seeded DB has 'hello world' document — search should find it."""
-        from unittest.mock import patch as _p
-        from starlette.testclient import TestClient as _TC
-        # Temporarily use raise_server_exceptions to see actual error
-        import api
-        _c = _TC(api.app, raise_server_exceptions=True)
-        try:
-            r = _c.get("/search", params={"q": "hello world"})
-        except Exception as e:
-            raise AssertionError(f"Search endpoint raised: {type(e).__name__}: {e}") from e
+        r = client.get("/search", params={"q": "hello world"})
         assert r.status_code == 200
         data = r.json()
         assert len(data["results"]) >= 1
