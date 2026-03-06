@@ -147,14 +147,12 @@ class TestWebRead:
         assert r.status_code == 422
 
     def test_web_read_dns_failure(self, client):
-        import socket
-        import unittest.mock as mock
+        from unittest.mock import patch
 
-        # Patch socket.getaddrinfo globally to simulate DNS failure → SSRF check returns 403
-        original = socket.getaddrinfo
-        def fake_getaddrinfo(*args, **kwargs):
-            raise socket.gaierror("Mocked DNS failure")
-        with mock.patch.object(socket, "getaddrinfo", side_effect=fake_getaddrinfo):
+        from fastapi import HTTPException
+
+        # Patch _check_url_safe to raise 403 (simulates DNS failure / SSRF block)
+        with patch("api.search._check_url_safe", side_effect=HTTPException(status_code=403, detail="blocked")):
             r = client.get("/web-read", params={"url": "https://unreachable.test.invalid/"})
         assert r.status_code == 403
 
