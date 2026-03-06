@@ -7,7 +7,7 @@ class TestSearch:
     def test_search_returns_results(self, client, seeded_db, sample_folder):
         """Seeded DB has 'hello world' document — search should find it."""
         r = client.get("/search", params={"q": "hello world"})
-        assert r.status_code == 200
+        assert r.status_code == 200, f"Search failed: {r.text[:500]}"
         data = r.json()
         assert len(data["results"]) >= 1
         assert any("hello" in str(res).lower() for res in data["results"])
