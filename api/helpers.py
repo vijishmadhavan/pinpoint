@@ -152,7 +152,7 @@ def _check_url_safe(url: str) -> None:
             if ip in net:
                 raise HTTPException(status_code=403, detail="Access denied: URL resolves to private/loopback address")
     except socket.gaierror:
-        pass  # DNS failure is fine — the actual request will fail naturally
+        raise HTTPException(status_code=403, detail="Access denied: cannot resolve hostname")
 
 
 # --- File type constants ---

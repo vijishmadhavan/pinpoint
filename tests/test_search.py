@@ -151,8 +151,8 @@ class TestWebRead:
 
         with mock.patch("requests.get", side_effect=Exception("connection refused")):
             r = client.get("/web-read", params={"url": "https://unreachable.example.com/"})
-        assert r.status_code == 200
-        assert "error" in r.json()
+        # DNS resolution failure now returns 403 (SSRF protection fix)
+        assert r.status_code == 403
 
 
 class TestSearchChunks:

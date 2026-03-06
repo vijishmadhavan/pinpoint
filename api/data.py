@@ -436,7 +436,11 @@ def analyze_data_endpoint(req: AnalyzeDataRequest) -> dict:
         if not req.query:
             raise HTTPException(status_code=400, detail="query required for eval (e.g. '(Qty * Price).sum()')")
         # Security: block dangerous attribute access patterns
-        _blocked = ("__", "import", "exec", "eval", "compile", "globals", "locals", "getattr", "setattr", "delattr", "open", "os.", "sys.", "subprocess")
+        _blocked = ("__", "import", "exec", "eval", "compile", "globals", "locals",
+                    "getattr", "setattr", "delattr", "open", "os.", "sys.", "subprocess",
+                    "to_csv", "to_excel", "to_json", "to_html", "to_parquet", "to_pickle",
+                    "to_sql", "to_feather", "to_clipboard", "to_latex", "to_xml",
+                    "pipe", "applymap", "style", "plot", "lambda", "def ")
         query_lower = req.query.lower()
         for b in _blocked:
             if b in query_lower:
@@ -495,45 +499,44 @@ def extract_tables_endpoint(
     except Exception as e:
         return {"error": f"Cannot open PDF: {e}"}
 
-    total_pages = len(pdf.pages)
+    with pdf:
+        total_pages = len(pdf.pages)
 
-    # Parse page range
-    page_indices = []
-    if not pages or pages == "all":
-        page_indices = list(range(total_pages))
-    elif "-" in pages:
-        parts = pages.split("-")
-        start = max(int(parts[0]) - 1, 0)
-        end = min(int(parts[1]), total_pages)
-        page_indices = list(range(start, end))
-    else:
-        p = int(pages) - 1
-        if 0 <= p < total_pages:
-            page_indices = [p]
+        # Parse page range
+        page_indices = []
+        if not pages or pages == "all":
+            page_indices = list(range(total_pages))
+        elif "-" in pages:
+            parts = pages.split("-")
+            start = max(int(parts[0]) - 1, 0)
+            end = min(int(parts[1]), total_pages)
+            page_indices = list(range(start, end))
+        else:
+            p = int(pages) - 1
+            if 0 <= p < total_pages:
+                page_indices = [p]
 
-    tables = []
-    for pi in page_indices:
-        page = pdf.pages[pi]
-        page_tables = page.extract_tables()
-        for ti, table in enumerate(page_tables):
-            if not table or len(table) < 2:
-                continue
-            # First row as headers, rest as data
-            headers = [str(c).strip() if c else "" for c in table[0]]
-            rows = []
-            for row in table[1:]:
-                rows.append([str(c).strip() if c else "" for c in row])
-            tables.append(
-                {
-                    "page": pi + 1,
-                    "table_index": ti + 1,
-                    "headers": headers,
-                    "rows": rows,
-                    "row_count": len(rows),
-                }
-            )
-
-    pdf.close()
+        tables = []
+        for pi in page_indices:
+            page = pdf.pages[pi]
+            page_tables = page.extract_tables()
+            for ti, table in enumerate(page_tables):
+                if not table or len(table) < 2:
+                    continue
+                # First row as headers, rest as data
+                headers = [str(c).strip() if c else "" for c in table[0]]
+                rows = []
+                for row in table[1:]:
+                    rows.append([str(c).strip() if c else "" for c in row])
+                tables.append(
+                    {
+                        "page": pi + 1,
+                        "table_index": ti + 1,
+                        "headers": headers,
+                        "rows": rows,
+                        "row_count": len(rows),
+                    }
+                )
 
     if not tables:
         return {
@@ -578,41 +581,40 @@ def pdf_to_excel_endpoint(
     except Exception as e:
         return {"error": f"Cannot open PDF: {e}"}
 
-    total_pages = len(pdf.pages)
-
-    # Parse page range
-    page_indices = []
-    if not pages or pages == "all":
-        page_indices = list(range(total_pages))
-    elif "-" in pages:
-        parts = pages.split("-")
-        start = max(int(parts[0]) - 1, 0)
-        end = min(int(parts[1]), total_pages)
-        page_indices = list(range(start, end))
-    else:
-        p = int(pages) - 1
-        if 0 <= p < total_pages:
-            page_indices = [p]
-
     import openpyxl
 
     wb = openpyxl.Workbook()
     wb.remove(wb.active)  # remove default empty sheet
     table_count = 0
 
-    for pi in page_indices:
-        page = pdf.pages[pi]
-        page_tables = page.extract_tables()
-        for ti, table in enumerate(page_tables):
-            if not table or len(table) < 2:
-                continue
-            table_count += 1
-            sheet_name = f"P{pi + 1}_T{ti + 1}"[:31]  # Excel sheet name max 31 chars
-            ws = wb.create_sheet(title=sheet_name)
-            for row in table:
-                ws.append([str(c).strip() if c else "" for c in row])
+    with pdf:
+        total_pages = len(pdf.pages)
 
-    pdf.close()
+        # Parse page range
+        page_indices = []
+        if not pages or pages == "all":
+            page_indices = list(range(total_pages))
+        elif "-" in pages:
+            parts = pages.split("-")
+            start = max(int(parts[0]) - 1, 0)
+            end = min(int(parts[1]), total_pages)
+            page_indices = list(range(start, end))
+        else:
+            p = int(pages) - 1
+            if 0 <= p < total_pages:
+                page_indices = [p]
+
+        for pi in page_indices:
+            page = pdf.pages[pi]
+            page_tables = page.extract_tables()
+            for ti, table in enumerate(page_tables):
+                if not table or len(table) < 2:
+                    continue
+                table_count += 1
+                sheet_name = f"P{pi + 1}_T{ti + 1}"[:31]  # Excel sheet name max 31 chars
+                ws = wb.create_sheet(title=sheet_name)
+                for row in table:
+                    ws.append([str(c).strip() if c else "" for c in row])
 
     if table_count == 0:
         return {

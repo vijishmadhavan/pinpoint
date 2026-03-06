@@ -94,9 +94,15 @@ const lastImage = new Map(); // chatJid → { mimeType, data (base64), path, ts 
 let requestCounter = 0;
 let currentSock = null; // Module-level sock reference for reminders (survives reconnects)
 
-// Persistent memory: on by default (all local, single user)
-let memoryEnabled = true;
-let memoryContext = ""; // Loaded from API, injected into system prompt
+// Persistent memory: on by default, per-chat state
+const memoryEnabled = new Map(); // chatJid → boolean (default from _default key or true)
+const memoryContext = new Map(); // chatJid → string (loaded from API)
+function isMemoryEnabled(chatJid) {
+  return memoryEnabled.get(chatJid) ?? memoryEnabled.get("_default") ?? true;
+}
+function getMemoryContext(chatJid) {
+  return memoryContext.get(chatJid) || memoryContext.get("_default") || "";
+}
 
 // Allowed users: phone numbers/LIDs that can use Pinpoint (managed via /allow, /revoke)
 const allowedUsers = new Set();
@@ -676,14 +682,20 @@ function debounceMessage(chatJid, text, sock) {
 const API_SECRET = process.env.API_SECRET || "";
 const _apiHeaders = API_SECRET ? { "X-API-Secret": API_SECRET } : {};
 
+function fetchWithTimeout(url, opts = {}, timeoutMs = 120000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(url, { ...opts, signal: controller.signal }).finally(() => clearTimeout(timer));
+}
+
 async function apiGet(path) {
-  const resp = await fetch(`${API_URL}${path}`, { headers: _apiHeaders });
+  const resp = await fetchWithTimeout(`${API_URL}${path}`, { headers: _apiHeaders });
   if (!resp.ok) throw new Error(`API ${resp.status}: ${await resp.text()}`);
   return resp.json();
 }
 
 async function apiPost(path, body) {
-  const resp = await fetch(`${API_URL}${path}`, {
+  const resp = await fetchWithTimeout(`${API_URL}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ..._apiHeaders },
     body: JSON.stringify(body),
@@ -693,13 +705,13 @@ async function apiPost(path, body) {
 }
 
 async function apiDelete(path) {
-  const resp = await fetch(`${API_URL}${path}`, { method: "DELETE", headers: _apiHeaders });
+  const resp = await fetchWithTimeout(`${API_URL}${path}`, { method: "DELETE", headers: _apiHeaders });
   if (!resp.ok) throw new Error(`API ${resp.status}: ${await resp.text()}`);
   return resp.json();
 }
 
 async function apiPut(path, body) {
-  const resp = await fetch(`${API_URL}${path}`, {
+  const resp = await fetchWithTimeout(`${API_URL}${path}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json", ..._apiHeaders },
     body: JSON.stringify(body),
@@ -838,34 +850,34 @@ async function executeTool(functionCall, sock, chatJid) {
         return await apiGet(`/web-read?url=${enc(webUrl)}${args.start ? `&start=${args.start}` : ""}`);
       }
       case "memory_save": {
-        if (!memoryEnabled) return { error: "Memory is disabled. User can enable it with /memory on." };
+        if (!(isMemoryEnabled(chatJid))) return { error: "Memory is disabled. User can enable it with /memory on." };
         const res = await apiPost("/memory", { fact: args.fact, category: args.category || "general" });
         try {
           const ctx = await apiGet("/memory/context");
-          memoryContext = ctx.text || "";
+          memoryContext.set(chatJid, ctx.text || "");
         } catch (_) {}
         return res;
       }
       case "memory_search": {
-        if (!memoryEnabled) return { error: "Memory is disabled. User can enable it with /memory on." };
+        if (!(isMemoryEnabled(chatJid))) return { error: "Memory is disabled. User can enable it with /memory on." };
         return await apiGet(`/memory/search?q=${enc(args.query)}&limit=10`);
       }
       case "memory_delete": {
-        if (!memoryEnabled) return { error: "Memory is disabled. User can enable it with /memory on." };
+        if (!(isMemoryEnabled(chatJid))) return { error: "Memory is disabled. User can enable it with /memory on." };
         const res = await apiDelete(`/memory/${args.id}`);
         try {
           const ctx = await apiGet("/memory/context");
-          memoryContext = ctx.text || "";
+          memoryContext.set(chatJid, ctx.text || "");
         } catch (_) {}
         return res;
       }
       case "memory_forget": {
-        if (!memoryEnabled) return { error: "Memory is disabled. User can enable it with /memory on." };
+        if (!(isMemoryEnabled(chatJid))) return { error: "Memory is disabled. User can enable it with /memory on." };
         const res = await apiPost("/memory/forget", { description: args.description });
         if (res.success) {
           try {
             const ctx = await apiGet("/memory/context");
-            memoryContext = ctx.text || "";
+            memoryContext.set(chatJid, ctx.text || "");
           } catch (_) {}
         }
         return res;
@@ -995,6 +1007,8 @@ async function resetSession(sessionId) {
     delete sessionCosts[sessionId];
     delete actionLedger[sessionId];
     clearIntentCache(sessionId);
+    memoryEnabled.delete(sessionId);
+    memoryContext.delete(sessionId);
     return data.deleted_count || 0;
   } catch {
     return 0;
@@ -1150,11 +1164,11 @@ ${summaryParts.join("\n")}${ledgerForCompaction}`;
 async function runGemini(userMessage, sock, chatJid, opts = {}) {
   // opts.inlineImage: { mimeType, data (base64) } — image already visible to Gemini
   // Refresh memory context if enabled — pass query for relevant retrieval (Supermemory pattern)
-  if (memoryEnabled) {
+  if (isMemoryEnabled(chatJid)) {
     try {
       const qParam = encodeURIComponent(userMessage.slice(0, 200));
       const ctx = await apiGet(`/memory/context?q=${qParam}`);
-      memoryContext = ctx.text || "";
+      memoryContext.set(chatJid, ctx.text || "");
     } catch (_) {}
   }
 
@@ -1194,8 +1208,8 @@ async function runGemini(userMessage, sock, chatJid, opts = {}) {
 
   const config = {
     systemInstruction: getSystemPrompt(userMessage, chatJid, {
-      memoryEnabled,
-      memoryContext,
+      memoryEnabled: isMemoryEnabled(chatJid),
+      memoryContext: getMemoryContext(chatJid),
       actionLedgerText: getActionLedgerText(chatJid),
     }),
     thinkingConfig: { thinkingLevel: "low" },
@@ -1314,6 +1328,11 @@ async function runGemini(userMessage, sock, chatJid, opts = {}) {
       }
 
       // Add model's response to conversation
+      if (!response.candidates?.[0]?.content) {
+        const reason = response.candidates?.[0]?.finishReason || "unknown";
+        console.error(`[${LLM_TAG}] Empty candidate during tool calling. finishReason=${reason}`);
+        return `Sorry, I couldn't process that request (safety filter or empty response).`;
+      }
       contents.push(response.candidates[0].content);
 
       // Execute each tool call
@@ -1639,19 +1658,21 @@ async function sendFile(sock, chatJid, filePath, caption) {
   const isImage = IMAGE_EXTENSIONS.has(ext);
 
   // Auto-resize large images to fit WhatsApp limit
+  let tempResizedPath = null;
   if (isImage && fileSize > MAX_IMAGE_SIZE) {
     try {
       const sharp = (await import("sharp")).default;
-      const resizedPath = pathModule.join("/tmp", `pinpoint_send_${Date.now()}.jpg`);
+      tempResizedPath = pathModule.join("/tmp", `pinpoint_send_${Date.now()}.jpg`);
       await sharp(filePath)
         .resize({ width: 2048, height: 2048, fit: "inside" })
         .jpeg({ quality: 80 })
-        .toFile(resizedPath);
-      filePath = resizedPath;
+        .toFile(tempResizedPath);
+      filePath = tempResizedPath;
       fileSize = statSync(filePath).size;
       console.log(`[Pinpoint] Auto-resized large image for sending (${(fileSize / 1024 / 1024).toFixed(1)}MB)`);
     } catch (e) {
       console.warn(`[Pinpoint] Auto-resize failed: ${e.message}`);
+      if (tempResizedPath) try { unlinkSync(tempResizedPath); } catch (_) {}
       return false;
     }
   }
@@ -1686,6 +1707,8 @@ async function sendFile(sock, chatJid, filePath, caption) {
   }
   // Mark sent media as processed so echo doesn't trigger handleMedia (self-chat echo prevention)
   if (sentMsg?.key?.id) markProcessed(sentMsg.key.id);
+  // Clean up temp resized file
+  if (tempResizedPath) try { unlinkSync(tempResizedPath); } catch (_) {}
   return true;
 }
 
@@ -1708,10 +1731,11 @@ async function startBot() {
     try {
       const setting = await apiGet("/setting?key=memory_enabled");
       // Default ON: only disable if explicitly set to "false"
-      memoryEnabled = setting.value !== "false";
-      if (memoryEnabled) {
+      const memDefault = setting.value !== "false";
+      memoryEnabled.set("_default", memDefault);
+      if (memDefault) {
         const ctx = await apiGet("/memory/context");
-        memoryContext = ctx.text || "";
+        memoryContext.set("_default", ctx.text || "");
         console.log(`[Pinpoint] Memory ON (${ctx.count || 0} memories loaded)`);
       } else {
         console.log("[Pinpoint] Memory OFF (enable with /memory on)");
@@ -1824,12 +1848,10 @@ async function startBot() {
             }
           }
           // Handle sent reminders: reschedule recurring, remove one-time
+          const toRemove = new Set();
           for (const r of due) {
             delete r._firing;
-            const idx = reminders.indexOf(r);
-            if (idx === -1) continue;
             if (r.repeat) {
-              // Reschedule to next occurrence
               const next = getNextOccurrence(r.triggerAt, r.repeat);
               if (next) {
                 r.triggerAt = next.getTime();
@@ -1839,17 +1861,18 @@ async function startBot() {
                 console.log(`[Reminder] Rescheduled "${r.message}" → ${next.toISOString()}`);
               } else {
                 console.log(`[Reminder] Cannot reschedule "${r.message}" (unknown repeat: ${r.repeat}) — removing`);
-                reminders.splice(idx, 1);
-                try {
-                  await apiDelete(`/reminders/${r.id}`);
-                } catch (_) {}
+                toRemove.add(r);
+                try { await apiDelete(`/reminders/${r.id}`); } catch (_) {}
               }
             } else {
-              reminders.splice(idx, 1);
-              try {
-                await apiDelete(`/reminders/${r.id}`);
-              } catch (_) {}
+              toRemove.add(r);
+              try { await apiDelete(`/reminders/${r.id}`); } catch (_) {}
             }
+          }
+          if (toRemove.size > 0) {
+            const kept = reminders.filter(r => !toRemove.has(r));
+            reminders.length = 0;
+            reminders.push(...kept);
           }
         }, 30000);
       }
@@ -2159,6 +2182,8 @@ async function handleMessage(sock, msg) {
       lastImage.delete(chatJid);
       activeRequests.delete(chatJid);
       clearIntentCache(chatJid);
+      memoryEnabled.delete(chatJid);
+      memoryContext.delete(chatJid);
       const endMsg = `${PREFIX} Session ended. Say "pinpoint" anytime to start again.`;
       await sock.sendMessage(chatJid, { text: endMsg });
       rememberSent(endMsg);
@@ -2301,25 +2326,25 @@ async function handleMessage(sock, msg) {
   }
   if (cmdLower === "/memory on" || cmdLower === "/memory off") {
     const on = cmdLower === "/memory on";
-    memoryEnabled = on;
+    memoryEnabled.set(chatJid, on);
     try {
       await apiPost(`/setting?key=memory_enabled&value=${on}`, {});
     } catch (_) {}
     if (on) {
       try {
         const ctx = await apiGet("/memory/context");
-        memoryContext = ctx.text || "";
+        memoryContext.set(chatJid, ctx.text || "");
       } catch (_) {}
     }
     const reply = `${PREFIX} Memory ${on ? "enabled" : "disabled"}.${on ? " I'll remember personal facts you share." : " I won't save or recall memories."}`;
     await sock.sendMessage(chatJid, { text: reply });
     rememberSent(reply);
-    console.log(`[Pinpoint] Memory ${on ? "ON" : "OFF"}`);
+    console.log(`[Pinpoint] Memory ${on ? "ON" : "OFF"} for ${chatJid}`);
     return;
   }
   if (cmdLower === "/memory" || cmdLower === "/memory status") {
-    let reply = `${PREFIX} Memory is ${memoryEnabled ? "ON" : "OFF"}.`;
-    if (memoryEnabled) {
+    let reply = `${PREFIX} Memory is ${isMemoryEnabled(chatJid) ? "ON" : "OFF"}.`;
+    if (isMemoryEnabled(chatJid)) {
       try {
         const list = await apiGet("/memory/list?limit=50");
         reply += ` ${list.count} memories saved.`;

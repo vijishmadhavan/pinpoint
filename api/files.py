@@ -104,7 +104,7 @@ def list_files_endpoint(
         try:
             # Sanitize name_contains to prevent command injection
             import re as _re
-            _safe_name = _re.sub(r'[&|;$`"\'\\<>()!^%]', '', name_contains)
+            _safe_name = _re.sub(r'[&|;$`"\'\\<>()!^%*?\[\]\r\n\t]', '', name_contains)
 
             # WSL: /mnt/X/ paths -> use Windows cmd.exe dir /s /b (NTFS-native, fast)
             # Linux paths -> use find command
@@ -131,7 +131,7 @@ def list_files_endpoint(
                         break
                 _found_via_native = True
             else:
-                cmd = ["find", folder, "-iname", f"*{name_contains}*", "-not", "-path", "*/.*"]
+                cmd = ["find", folder, "-iname", f"*{_safe_name}*", "-not", "-path", "*/.*"]
                 r = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
                 for line in r.stdout.strip().split("\n"):
                     if line:

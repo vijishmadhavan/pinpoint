@@ -14,6 +14,7 @@ Router modules:
   google.py     — /google/gmail-*, /google/calendar-*, /google/drive-* (via gws CLI)
 """
 
+import hmac
 import os
 
 from dotenv import load_dotenv
@@ -33,7 +34,7 @@ async def check_api_secret(request, call_next):
     """Require API_SECRET header on all endpoints except /ping."""
     if API_SECRET and request.url.path != "/ping":
         token = request.headers.get("X-API-Secret", "")
-        if token != API_SECRET:
+        if not hmac.compare_digest(token, API_SECRET):
             from starlette.responses import JSONResponse
 
             return JSONResponse({"error": "Unauthorized"}, status_code=401)

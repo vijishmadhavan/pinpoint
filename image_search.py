@@ -109,10 +109,12 @@ _db_lock = threading.Lock()
 
 
 def _get_conn() -> sqlite3.Connection:
-    """Get or create a shared DB connection (thread-safe via lock)."""
+    """Get or create a shared DB connection (thread-safe via double-checked locking)."""
     global _db_conn
     if _db_conn is None:
-        _db_conn = get_db(DB_PATH)
+        with _db_lock:
+            if _db_conn is None:
+                _db_conn = get_db(DB_PATH)
     return _db_conn
 
 

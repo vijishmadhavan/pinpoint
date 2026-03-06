@@ -55,10 +55,16 @@ def _init_table(conn: Any) -> None:
     conn.commit()
 
 
+_db_conn = None
+
+
 def _get_conn() -> Any:
-    conn = get_db(DB_PATH)
-    _init_table(conn)
-    return conn
+    global _db_conn
+    with _db_lock:
+        if _db_conn is None:
+            _db_conn = get_db(DB_PATH)
+            _init_table(_db_conn)
+        return _db_conn
 
 
 _gemini_call_with_retry = gemini_call_with_retry  # alias for backward compat

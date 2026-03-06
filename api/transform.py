@@ -802,8 +802,15 @@ def download_url_endpoint(req: DownloadUrlRequest) -> dict:
 
     try:
         _MAX_DOWNLOAD = 1024 * 1024 * 1024  # 1GB limit
+
+        class _SafeRedirectHandler(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, req, fp, code, msg, headers, newurl):
+                _check_url_safe(newurl)
+                return super().redirect_request(req, fp, code, msg, headers, newurl)
+
         req_obj = urllib.request.Request(url, headers={"User-Agent": "Pinpoint/1.0"})
-        with urllib.request.urlopen(req_obj, timeout=60) as resp:
+        opener = urllib.request.build_opener(_SafeRedirectHandler)
+        with opener.open(req_obj, timeout=60) as resp:
             with open(save_path, "wb") as f:
                 downloaded = 0
                 while True:
@@ -843,7 +850,6 @@ def run_python_endpoint(req: RunPythonRequest) -> dict:
     """Execute Python code and return stdout + created files."""
     import contextlib
     import io
-    import signal
 
     timeout = min(req.timeout, 120)
 
@@ -889,24 +895,25 @@ except ImportError:
     stdout_capture = io.StringIO()
     stderr_capture = io.StringIO()
 
-    # Timeout handler
-    def timeout_handler(signum: int, frame: object) -> None:
-        raise TimeoutError(f"Code execution timed out after {timeout}s")
+    # Timeout via threading (signal.SIGALRM doesn't work in non-main threads)
+    exec_error = [None]
 
-    try:
-        old_handler = signal.signal(signal.SIGALRM, timeout_handler)
-        signal.alarm(timeout)
+    def _run_code():
+        try:
+            with contextlib.redirect_stdout(stdout_capture), contextlib.redirect_stderr(stderr_capture):
+                exec(full_code, namespace)
+        except Exception as e:
+            exec_error[0] = e
 
-        with contextlib.redirect_stdout(stdout_capture), contextlib.redirect_stderr(stderr_capture):
-            exec(full_code, namespace)
+    import threading as _threading
+    t = _threading.Thread(target=_run_code, daemon=True)
+    t.start()
+    t.join(timeout=timeout)
 
-        signal.alarm(0)
-        signal.signal(signal.SIGALRM, old_handler)
-    except TimeoutError as e:
-        signal.alarm(0)
-        return {"success": False, "error": str(e), "stdout": stdout_capture.getvalue()[:5000]}
-    except Exception as e:
-        signal.alarm(0)
+    if t.is_alive():
+        return {"success": False, "error": f"Code execution timed out after {timeout}s", "stdout": stdout_capture.getvalue()[:5000]}
+    if exec_error[0] is not None:
+        e = exec_error[0]
         return {"success": False, "error": f"{type(e).__name__}: {e}", "stdout": stdout_capture.getvalue()[:5000]}
 
     # Find new/modified files

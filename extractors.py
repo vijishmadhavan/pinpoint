@@ -98,13 +98,15 @@ def _ocr_gemini(images: list[Any]) -> str:
         try:
             buf = io.BytesIO()
             img.save(buf, format="JPEG", quality=85)
+            img_bytes = buf.getvalue()
+            buf.close()
             response = gemini_call_with_retry(
                 client,
                 model=os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite-preview"),
                 contents=[
                     types.Content(
                         parts=[
-                            types.Part.from_bytes(data=buf.getvalue(), mime_type="image/jpeg"),
+                            types.Part.from_bytes(data=img_bytes, mime_type="image/jpeg"),
                             types.Part.from_text(
                                 text="Extract ALL text from this image exactly as written. Preserve formatting and line breaks. Return ONLY the extracted text."
                             ),

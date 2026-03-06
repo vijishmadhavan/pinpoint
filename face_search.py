@@ -302,9 +302,13 @@ def crop_face(image_path: str, face_idx: int, conn: Any = None) -> dict[str, Any
         face_data = _extract_face_data(raw_faces[face_idx], face_idx)
         face_meta = _face_to_api(face_data)
 
-    # Crop with padding
+    # Crop with padding — scale bbox back to original dimensions if image was downsized for detection
     pil_img = Image.open(image_path).convert("RGB")
-    w, h = pil_img.size
+    orig_w, orig_h = pil_img.size
+    if max(orig_w, orig_h) > MAX_FACE_DIM:
+        scale = MAX_FACE_DIM / max(orig_w, orig_h)
+        bbox = [int(c / scale) for c in bbox]
+    w, h = orig_w, orig_h
     x1, y1, x2, y2 = bbox
     pad = int((x2 - x1) * 0.25)  # 25% padding
     x1 = max(0, x1 - pad)
@@ -384,7 +388,7 @@ def find_person(reference_image: str, folder: str, conn: Any = None, threshold: 
         return {"error": f"Folder not found: {folder}"}
 
     app = _get_model()
-    ref_img = np.array(Image.open(reference_image).convert("RGB"))[:, :, ::-1]
+    ref_img = _preprocess_for_face(reference_image)
     ref_faces = app.get(ref_img)
 
     if not ref_faces:

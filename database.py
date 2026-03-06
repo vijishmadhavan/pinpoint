@@ -455,35 +455,29 @@ def chunk_document(conn: sqlite3.Connection, document_id: int, text: str) -> int
     Returns number of chunks created.
 
     Short documents (<3000 chars) are stored as a single chunk.
+    Chunks are prepared BEFORE deleting old data — if chunking fails, old chunks remain intact.
     """
-    # Delete existing chunks for this document
-    conn.execute("DELETE FROM chunks WHERE document_id = ?", (document_id,))
-
     if not text or not text.strip():
+        conn.execute("DELETE FROM chunks WHERE document_id = ?", (document_id,))
         conn.commit()
         return 0
 
-    # Short docs: store as single chunk (no splitting needed)
+    # Prepare chunks first (can fail safely without touching DB)
     if len(text) < 3000:
-        conn.execute(
-            "INSERT INTO chunks(document_id, chunk_num, text, start_index, end_index) VALUES (?, 0, ?, 0, ?)",
-            (document_id, text, len(text)),
-        )
-        conn.commit()
-        return 1
+        new_chunks = [(document_id, 0, text, 0, len(text))]
+    else:
+        chunker = _get_chunker()
+        raw = chunker.chunk(text)
+        new_chunks = [(document_id, i, c.text, c.start_index, c.end_index) for i, c in enumerate(raw)]
 
-    # Use Chonkie to chunk
-    chunker = _get_chunker()
-    chunks = chunker.chunk(text)
-
-    for i, chunk in enumerate(chunks):
-        conn.execute(
-            "INSERT INTO chunks(document_id, chunk_num, text, start_index, end_index) VALUES (?, ?, ?, ?, ?)",
-            (document_id, i, chunk.text, chunk.start_index, chunk.end_index),
-        )
-
+    # Atomic DB operation: delete old + insert new
+    conn.execute("DELETE FROM chunks WHERE document_id = ?", (document_id,))
+    conn.executemany(
+        "INSERT INTO chunks(document_id, chunk_num, text, start_index, end_index) VALUES (?, ?, ?, ?, ?)",
+        new_chunks,
+    )
     conn.commit()
-    return len(chunks)
+    return len(new_chunks)
 
 
 # --- LLM cache operations ---

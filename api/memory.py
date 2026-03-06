@@ -183,7 +183,7 @@ def _memory_fts_search(conn: sqlite3.Connection, query: str, limit: int = 10, us
             keywords = [w for w in words if len(w) > 1][:3]
         if not keywords:
             return []
-        fts_query = " OR ".join(f'"{k}"' for k in keywords)
+        fts_query = " OR ".join(f'"{k.replace(chr(34), "")}"' for k in keywords)
         rows = conn.execute(
             """SELECT m.id, m.fact, m.category, bm25(memories_fts) AS rank
                FROM memories_fts f
@@ -427,9 +427,10 @@ def memory_delete(memory_id: int) -> dict:
     """Delete a memory by ID."""
     conn = _get_conn()
     cursor = conn.execute("DELETE FROM memories WHERE id = ?", (memory_id,))
-    conn.commit()
     if cursor.rowcount == 0:
         raise HTTPException(status_code=404, detail="Memory not found")
+    conn.execute("DELETE FROM memories_fts WHERE rowid = ?", (memory_id,))
+    conn.commit()
     return {"success": True, "deleted_id": memory_id}
 
 
