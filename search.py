@@ -102,7 +102,10 @@ def _get_gemini() -> Any | None:
     """Lazy-load Gemini client."""
     global _gemini_client
     if _gemini_client is None:
-        from google import genai
+        try:
+            from google import genai
+        except ImportError:
+            return None
 
         api_key = os.environ.get("GEMINI_API_KEY")
         if not api_key:
