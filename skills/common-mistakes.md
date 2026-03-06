@@ -3,7 +3,7 @@
 - **Don't** jump straight to search_images_visual for finding photos. **Instead** try search_documents(query, file_type="image", folder=...) FIRST — indexed captions are free and instant. Only use search_images_visual if search_documents returns no results.
 - **Don't** process 10+ images one by one with read_file. **Instead** use search_images_visual with folder param (SigLIP2, cached batch processing).
 - **Don't** retry a failed search with the same query. **Instead** reformulate with synonyms, broader terms, or try search_facts.
-- **Don't** give up silently when you can't find a file or document. **Instead** ask the user — "Do you remember where it's saved?" or "Any idea which folder?" People often know roughly where things are. Also try search_generated_files if it might be something you created before.
+- **Don't** give up silently when you can't find a file or document. **Instead** (1) ask the user for hints — "Do you remember roughly where it's saved?". (2) Use their clue to search that area with list_files/grep_files. (3) Confirm with the user — "Is this the one?". (4) Once confirmed, index_file it so search_documents finds it next time. Also try search_generated_files if it might be something you created before.
 - **Don't** process a whole folder without checking its size first. **Instead** call list_files to survey the folder, then decide.
 - **Don't** call search_documents AND search_facts with the same query. **Instead** pick one — search_documents for full text, search_facts for quick factual lookups.
 - **Don't** skip analyze_data(operation=columns) and go straight to filter/groupby. **Instead** always call columns FIRST to see sheet names, column types, and sample values.
