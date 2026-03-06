@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import os
-import shutil
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from api.helpers import _check_safe
+from api.helpers import _check_safe, _check_url_safe
 
 router = APIRouter()
 
@@ -366,30 +365,35 @@ def resize_image_endpoint(req: ResizeImageRequest) -> dict:
         raise HTTPException(status_code=404, detail=f"File not found: {path}")
 
     img = Image.open(path)
-    orig_size = img.size
+    try:
+        orig_size = img.size
 
-    if req.width and req.height:
-        img = img.resize((req.width, req.height), Image.LANCZOS)
-    elif req.width:
-        ratio = req.width / img.width
-        img = img.resize((req.width, int(img.height * ratio)), Image.LANCZOS)
-    elif req.height:
-        ratio = req.height / img.height
-        img = img.resize((int(img.width * ratio), req.height), Image.LANCZOS)
+        if req.width and req.height:
+            img = img.resize((req.width, req.height), Image.LANCZOS)
+        elif req.width:
+            ratio = req.width / img.width
+            img = img.resize((req.width, int(img.height * ratio)), Image.LANCZOS)
+        elif req.height:
+            ratio = req.height / img.height
+            img = img.resize((int(img.width * ratio), req.height), Image.LANCZOS)
 
-    output = os.path.abspath(req.output_path) if req.output_path else path
-    _check_safe(output)
-    os.makedirs(os.path.dirname(output), exist_ok=True)
-    if img.mode == "RGBA" and output.lower().endswith((".jpg", ".jpeg")):
-        img = img.convert("RGB")
-    img.save(output, quality=req.quality)
-    return {
-        "success": True,
-        "path": output,
-        "original_size": list(orig_size),
-        "new_size": list(img.size),
-        "file_size": os.path.getsize(output),
-    }
+        output = os.path.abspath(req.output_path) if req.output_path else path
+        _check_safe(output)
+        os.makedirs(os.path.dirname(output), exist_ok=True)
+        if img.mode == "RGBA" and output.lower().endswith((".jpg", ".jpeg")):
+            orig_img = img
+            img = img.convert("RGB")
+            orig_img.close()
+        img.save(output, quality=req.quality)
+        return {
+            "success": True,
+            "path": output,
+            "original_size": list(orig_size),
+            "new_size": list(img.size),
+            "file_size": os.path.getsize(output),
+        }
+    finally:
+        img.close()
 
 
 class ConvertImageRequest(BaseModel):
@@ -426,10 +430,15 @@ def convert_image_endpoint(req: ConvertImageRequest) -> dict:
     os.makedirs(os.path.dirname(output), exist_ok=True)
 
     img = Image.open(path)
-    if img.mode == "RGBA" and fmt in ("jpg", "jpeg"):
-        img = img.convert("RGB")
-    img.save(output, quality=req.quality)
-    return {"success": True, "path": output, "format": fmt, "size": os.path.getsize(output)}
+    try:
+        if img.mode == "RGBA" and fmt in ("jpg", "jpeg"):
+            orig_img = img
+            img = img.convert("RGB")
+            orig_img.close()
+        img.save(output, quality=req.quality)
+        return {"success": True, "path": output, "format": fmt, "size": os.path.getsize(output)}
+    finally:
+        img.close()
 
 
 class CropImageRequest(BaseModel):
@@ -774,6 +783,7 @@ def download_url_endpoint(req: DownloadUrlRequest) -> dict:
     url = req.url.strip()
     if not url.startswith(("http://", "https://")):
         raise HTTPException(status_code=400, detail="URL must start with http:// or https://")
+    _check_url_safe(url)
 
     # Determine save path
     if req.save_path:
@@ -791,10 +801,21 @@ def download_url_endpoint(req: DownloadUrlRequest) -> dict:
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
     try:
+        _MAX_DOWNLOAD = 1024 * 1024 * 1024  # 1GB limit
         req_obj = urllib.request.Request(url, headers={"User-Agent": "Pinpoint/1.0"})
         with urllib.request.urlopen(req_obj, timeout=60) as resp:
             with open(save_path, "wb") as f:
-                shutil.copyfileobj(resp, f)  # stream in chunks, not buffer entire file in RAM
+                downloaded = 0
+                while True:
+                    chunk = resp.read(65536)
+                    if not chunk:
+                        break
+                    downloaded += len(chunk)
+                    if downloaded > _MAX_DOWNLOAD:
+                        f.close()
+                        os.remove(save_path)
+                        raise HTTPException(status_code=400, detail=f"Download exceeds {_MAX_DOWNLOAD // (1024**3)}GB limit")
+                    f.write(chunk)
         return {
             "success": True,
             "path": save_path,

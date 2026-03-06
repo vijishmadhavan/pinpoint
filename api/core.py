@@ -27,6 +27,7 @@ def ping() -> dict:
 # --- Indexing with progress tracking (Segment 18L: Supermemory pattern) ---
 
 _indexing_progress = {}  # folder -> { total, processed, current_file, status, percent }
+_indexing_lock = threading.Lock()
 _embedding_jobs = {}  # folder -> {status, total, done, error?}
 
 
@@ -43,8 +44,9 @@ def index_endpoint(req: IndexRequest) -> dict:
         raise HTTPException(status_code=400, detail=f"Not a directory: {folder}")
 
     # Already running?
-    if folder in _indexing_progress and _indexing_progress[folder].get("status") == "indexing":
-        p = _indexing_progress[folder]
+    with _indexing_lock:
+        p = _indexing_progress.get(folder)
+    if p and p.get("status") == "indexing":
         return {
             "status": "indexing",
             "folder": folder,

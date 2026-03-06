@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import re
+import threading
 from urllib.parse import parse_qs, unquote, urlparse
 
 from fastapi import APIRouter, HTTPException, Query
 
-from api.helpers import _get_conn
+from api.helpers import _check_url_safe, _get_conn
 from database import DB_PATH
 from search import search
 
@@ -84,21 +85,22 @@ def document_endpoint(doc_id: int) -> dict:
 
 _WEB_READ_MAX = 8000  # max chars per chunk
 
-# Lazy-loaded html2text converter
-_h2t = None
+# Thread-local html2text converter (each thread gets its own instance)
+_h2t_local = threading.local()
 
 
 def _get_html2text() -> object:
-    global _h2t
-    if _h2t is None:
+    h = getattr(_h2t_local, "h2t", None)
+    if h is None:
         import html2text
 
-        _h2t = html2text.HTML2Text()
-        _h2t.ignore_images = True
-        _h2t.body_width = 0  # no line wrapping
-        _h2t.ignore_emphasis = False
-        _h2t.protect_links = True
-    return _h2t
+        h = html2text.HTML2Text()
+        h.ignore_images = True
+        h.body_width = 0  # no line wrapping
+        h.ignore_emphasis = False
+        h.protect_links = True
+        _h2t_local.h2t = h
+    return h
 
 
 def _paginate(text: str, start: int) -> dict:
@@ -129,6 +131,7 @@ def web_read(
         from readability import Document
     except ImportError:
         return {"url": url, "title": "", "content": "", "error": "Missing deps: pip install readability-lxml html2text"}
+    _check_url_safe(url)
     try:
         resp = req.get(
             url,

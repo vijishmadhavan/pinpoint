@@ -412,12 +412,12 @@ def memory_list(
     conn = _get_conn()
     if category:
         rows = conn.execute(
-            "SELECT id, fact, category, created_at FROM memories WHERE category = ? ORDER BY updated_at DESC LIMIT ?",
+            "SELECT id, fact, category, created_at FROM memories WHERE category = ? AND superseded_by IS NULL ORDER BY updated_at DESC LIMIT ?",
             (category.lower(), limit),
         ).fetchall()
     else:
         rows = conn.execute(
-            "SELECT id, fact, category, created_at FROM memories ORDER BY updated_at DESC LIMIT ?", (limit,)
+            "SELECT id, fact, category, created_at FROM memories WHERE superseded_by IS NULL ORDER BY updated_at DESC LIMIT ?", (limit,)
         ).fetchall()
     return {"count": len(rows), "memories": [dict(r) for r in rows]}
 

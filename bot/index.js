@@ -1382,6 +1382,7 @@ async function runGemini(userMessage, sock, chatJid, opts = {}) {
         // Action Ledger: record every mutating tool's REAL outcome (OpenClaw pattern)
         // This gets injected into every subsequent LLM call as "## Actions Taken"
         if (MUTATING_TOOLS.has(fc.name)) {
+          toolCache.clear(); // Invalidate cached results — filesystem may have changed
           recordAction(chatJid, fc.name, fc.args, result);
           // Independent result verification (isToolResultError — OpenClaw 4-layer check)
           // Detect "success but nothing done" — the root cause of Gemini lying
@@ -1811,7 +1812,8 @@ async function startBot() {
         global._reminderInterval = setInterval(async () => {
           if (!currentSock) return;
           const now = Date.now();
-          const due = reminders.filter((r) => r.triggerAt <= now);
+          const due = reminders.filter((r) => r.triggerAt <= now && !r._firing);
+          for (const r of due) r._firing = true; // Mark to prevent double-fire
           for (const r of due) {
             try {
               const label = r.repeat ? `⏰ *Reminder (${r.repeat}):* ${r.message}` : `⏰ *Reminder:* ${r.message}`;
@@ -1823,6 +1825,7 @@ async function startBot() {
           }
           // Handle sent reminders: reschedule recurring, remove one-time
           for (const r of due) {
+            delete r._firing;
             const idx = reminders.indexOf(r);
             if (idx === -1) continue;
             if (r.repeat) {
@@ -2153,6 +2156,9 @@ async function handleMessage(sock, msg) {
       /\b(bye|by|stop|exit|quit|close)\b.*\bpinpoint\b|\bpinpoint\b.*\b(bye|by|stop|exit|quit|close)\b/.test(peekText);
     if (hasSession && isEndCmd) {
       allowedSessions.delete(chatJid);
+      lastImage.delete(chatJid);
+      activeRequests.delete(chatJid);
+      clearIntentCache(chatJid);
       const endMsg = `${PREFIX} Session ended. Say "pinpoint" anytime to start again.`;
       await sock.sendMessage(chatJid, { text: endMsg });
       rememberSent(endMsg);

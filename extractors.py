@@ -411,10 +411,17 @@ IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tiff", ".tif", "
 TEXT_EXTENSIONS = {".txt", ".csv", ".log", ".md"}
 
 
+_MAX_TEXT_SIZE = 50 * 1024 * 1024  # 50MB limit for text files
+
+
 def extract_text(path: str) -> dict | None:
     """Read a plain text or CSV file. Handles encoding fallback."""
     if not os.path.exists(path):
         print(f"[SKIP] File not found: {path}")
+        return None
+
+    if os.path.getsize(path) > _MAX_TEXT_SIZE:
+        print(f"[SKIP] File too large ({os.path.getsize(path)} bytes): {path}")
         return None
 
     ext = os.path.splitext(path)[1].lower()

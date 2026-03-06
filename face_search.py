@@ -294,7 +294,7 @@ def crop_face(image_path: str, face_idx: int, conn: Any = None) -> dict[str, Any
 
     if bbox is None:
         app = _get_model()
-        img = np.array(Image.open(image_path).convert("RGB"))[:, :, ::-1]
+        img = _preprocess_for_face(image_path)
         raw_faces = app.get(img)
         if face_idx >= len(raw_faces):
             return {"error": f"Face {face_idx} not found (only {len(raw_faces)} faces)"}

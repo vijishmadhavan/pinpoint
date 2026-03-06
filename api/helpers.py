@@ -28,24 +28,27 @@ def _get_conn() -> sqlite3.Connection:
         with _migrations_lock:
             if not _migrations_done:
                 try:
-                    conn.execute("SELECT superseded_by FROM memories LIMIT 1")
-                except Exception:
                     try:
-                        conn.execute("ALTER TABLE memories ADD COLUMN superseded_by INTEGER DEFAULT NULL")
+                        conn.execute("SELECT superseded_by FROM memories LIMIT 1")
                     except Exception:
-                        pass
-                try:
-                    conn.execute("SELECT 1 FROM facts LIMIT 1")
-                except Exception:
-                    conn.execute("""CREATE TABLE IF NOT EXISTS facts (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        document_id INTEGER NOT NULL,
-                        fact_text TEXT NOT NULL,
-                        category TEXT DEFAULT 'general',
-                        created_at TEXT NOT NULL
-                    )""")
-                    conn.commit()
-                _migrations_done = True
+                        try:
+                            conn.execute("ALTER TABLE memories ADD COLUMN superseded_by INTEGER DEFAULT NULL")
+                        except Exception:
+                            pass
+                    try:
+                        conn.execute("SELECT 1 FROM facts LIMIT 1")
+                    except Exception:
+                        conn.execute("""CREATE TABLE IF NOT EXISTS facts (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            document_id INTEGER NOT NULL,
+                            fact_text TEXT NOT NULL,
+                            category TEXT DEFAULT 'general',
+                            created_at TEXT NOT NULL
+                        )""")
+                        conn.commit()
+                    _migrations_done = True
+                except Exception as e:
+                    print(f"[Migration] Failed: {e}")
     return conn
 
 
@@ -79,16 +82,28 @@ BLOCKED_PREFIXES = (
     "/dev",
     "/var/run",
     "/var/lock",
+    "/var/lib",
+    "/root",
     "C:\\Windows",
     "C:\\Program Files",
+    "C:\\Program Files (x86)",
+    "C:\\ProgramData",
 )
 
 
+_BLOCKED_BASENAMES = {".ssh", ".gnupg", ".env", ".git", "auth"}
+
+
 def _is_safe_path(path: str) -> bool:
-    """Check if a path is safe to operate on (not a system directory)."""
+    """Check if a path is safe to operate on (not a system directory or sensitive dotfile)."""
     abs_path = os.path.realpath(os.path.abspath(path))
     for prefix in BLOCKED_PREFIXES:
         if abs_path.startswith(prefix):
+            return False
+    # Block sensitive dotfiles/directories anywhere in the path
+    parts = abs_path.replace("\\", "/").split("/")
+    for part in parts:
+        if part in _BLOCKED_BASENAMES:
             return False
     return True
 
@@ -100,6 +115,44 @@ def _check_safe(path: str) -> None:
             status_code=403,
             detail="Access denied: path is in a protected system directory",
         )
+
+
+# --- URL safety (SSRF prevention) ---
+
+_PRIVATE_RANGES = None
+
+
+def _check_url_safe(url: str) -> None:
+    """Raise 403 if URL resolves to a private/loopback IP (SSRF prevention)."""
+    import ipaddress
+    import socket
+    from urllib.parse import urlparse
+
+    global _PRIVATE_RANGES
+    if _PRIVATE_RANGES is None:
+        _PRIVATE_RANGES = [
+            ipaddress.ip_network("127.0.0.0/8"),
+            ipaddress.ip_network("10.0.0.0/8"),
+            ipaddress.ip_network("172.16.0.0/12"),
+            ipaddress.ip_network("192.168.0.0/16"),
+            ipaddress.ip_network("169.254.0.0/16"),
+            ipaddress.ip_network("::1/128"),
+            ipaddress.ip_network("fc00::/7"),
+            ipaddress.ip_network("fe80::/10"),
+        ]
+
+    parsed = urlparse(url)
+    hostname = parsed.hostname
+    if not hostname:
+        raise HTTPException(status_code=400, detail="Invalid URL: no hostname")
+    try:
+        addr = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM)[0][4][0]
+        ip = ipaddress.ip_address(addr)
+        for net in _PRIVATE_RANGES:
+            if ip in net:
+                raise HTTPException(status_code=403, detail="Access denied: URL resolves to private/loopback address")
+    except socket.gaierror:
+        pass  # DNS failure is fine — the actual request will fail naturally
 
 
 # --- File type constants ---

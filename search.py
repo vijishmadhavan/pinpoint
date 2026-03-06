@@ -276,10 +276,15 @@ def search(
       }
     """
     conn = init_db(db_path)
+    try:
+        return _search_inner(conn, query, limit, file_type, folder)
+    finally:
+        conn.close()
 
+
+def _search_inner(conn: Any, query: str, limit: int, file_type: str | None, folder: str | None) -> dict[str, Any]:
     fts5_query = build_fts5_query(query)
     if not fts5_query:
-        conn.close()
         return {"query": query, "fts5_query": "", "results": [], "strong_signal": False, "expanded": False}
 
     # Step 1: BM25 probe with original query
@@ -315,7 +320,6 @@ def search(
         strong_signal = top >= 0.85 and (top - second) >= 0.15
 
     if strong_signal:
-        conn.close()
         return {
             "query": query,
             "fts5_query": fts5_query,
@@ -329,7 +333,6 @@ def search(
 
     if not variants:
         # Expansion failed or not available — return probe results
-        conn.close()
         return {
             "query": query,
             "fts5_query": fts5_query,
@@ -369,8 +372,6 @@ def search(
             )
     else:
         results = probe_results[:limit]
-
-    conn.close()
 
     return {
         "query": query,

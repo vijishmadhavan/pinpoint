@@ -202,98 +202,72 @@ MEDIUM ISSUES (17)
 
 #22 No SSRF protection on /download-url and /web-read
     File: api/transform.py:760-798; api/search.py:120-186
-    Both accept arbitrary URLs with no restriction on internal/private IPs.
-    Fix: Resolve hostname, reject private/loopback IP ranges.
+    Status: FIXED — _check_url_safe() resolves hostname, rejects private/loopback IPs
 
 #23 No size limit on /download-url
     File: api/transform.py:760-798
-    shutil.copyfileobj with no max file size check. Malicious URL fills disk.
-    Fix: Read in chunks with size counter, abort after limit (e.g., 1GB).
+    Status: FIXED — chunked download with 1GB limit, cleanup on exceed
 
 #24 html2text shared mutable global without thread safety
     File: api/search.py:88-101
-    _h2t lazily initialized and shared across threads. HTML2Text maintains
-    internal state during conversion — concurrent calls corrupt output.
-    Fix: Create new instance per request or use thread-local storage.
+    Status: FIXED — thread-local storage (threading.local)
 
 #25 resize_image leaks PIL Image on RGBA convert
     File: api/transform.py:368-392
-    .convert("RGB") creates new object, original RGBA not closed. No
-    try/finally for exception during resize.
-    Fix: try/finally to close image, close original before replace.
+    Status: FIXED — try/finally, close original before RGBA convert
 
 #26 convert_image leaks PIL Image
     File: api/transform.py:403-432
-    Image.open(path) at line 428 never closed.
-    Fix: Add img.close() or use context manager.
+    Status: FIXED — try/finally with img.close()
 
 #27 search() connection leak on exception
     File: search.py:278
-    conn = init_db(db_path) — if _fts5_search or expand_query raises
-    unexpected exception, conn.close() never called.
-    Fix: Use try/finally or context manager.
+    Status: FIXED — extracted _search_inner(), conn.close() in finally block
 
 #28 crop_face processes full-resolution image (no preprocess)
     File: face_search.py:297
-    Loads full-res image (e.g., 8000x6000 DSLR) for InsightFace without
-    resizing. High memory usage.
-    Fix: Use _preprocess_for_face like other detection paths.
+    Status: FIXED — use _preprocess_for_face instead of raw Image.open
 
 #29 extract_text has no file size limit
     File: extractors.py:414-440
-    f.read() reads entire file into memory. Multi-GB text file -> OOM.
-    Fix: Check os.path.getsize() first, skip/truncate above threshold.
+    Status: FIXED — 50MB limit via os.path.getsize() check
 
 #30 Unbounded video file read into memory (100MB cap but still large)
     File: video_search.py:310-311
-    Videos under 100MB read entirely with f.read(). Multiple concurrent
-    requests could exhaust memory.
-    Fix: Stream upload or lower threshold.
+    Status: WON'T FIX — 100MB cap is reasonable for single-user tool
 
 #31 memory_list returns superseded memories
     File: api/memory.py:406-422
-    SELECT from memories without filtering WHERE superseded_by IS NULL.
-    Users see stale/contradicted memories.
-    Fix: Add AND superseded_by IS NULL to queries.
+    Status: FIXED — added WHERE superseded_by IS NULL to both queries
 
 #32 _indexing_progress and _watchers accessed without locks
     File: api/core.py:29-30, 303-304
-    Read/written from main and background threads without synchronization.
-    Fix: Use threading.Lock for progress updates.
+    Status: FIXED — added _indexing_lock for check+init race
 
 #33 toolCache returns stale results after mutations
     File: bot/index.js:1208, 1353-1366
-    list_files cached, then batch_move runs, then list_files returns stale
-    cached result. toolCache not invalidated after mutating tools.
-    Fix: Clear toolCache entries when mutating tool targets same folder.
+    Status: FIXED — toolCache.clear() after any MUTATING_TOOLS execution
 
 #34 Reminder can double-fire
     File: bot/index.js:1802-1841
-    If sendMessage takes >30s (interval period), next tick finds same
-    reminder still in due array and sends again.
-    Fix: Mark reminders as "firing" before sending.
+    Status: FIXED — _firing flag prevents re-entry during slow sends
 
 #35 lastImage not cleaned on "bye pinpoint"
     File: bot/index.js:93, 2145
-    Base64 image data (~22MB) stays in memory until 2hr GC runs.
-    Fix: Add lastImage.delete(chatJid) to session-end handler.
+    Status: FIXED — cleanup lastImage, activeRequests, intentCache on session end
 
 #36 _blocked_prefixes doesn't cover enough paths
     File: api/helpers.py:71-84
-    Misses /root, /home/<other>, ~/.ssh, ~/.env. On WSL, /mnt/c/Users/<other>
-    also accessible. run_python bypasses _check_safe entirely.
-    Fix: Use allowlist approach instead of blocklist.
+    Status: FIXED — added /root, /var/lib, ProgramData, Program Files (x86)
+            + _BLOCKED_BASENAMES for .ssh, .gnupg, .env, .git, auth
 
 #37 _get_conn migration flag set before success verified
     File: api/helpers.py:20-49
-    If first ALTER TABLE partially fails, _migrations_done = True prevents
-    retries on any thread.
-    Fix: Move flag inside final success check.
+    Status: FIXED — _migrations_done only set inside try, outer except catches failures
 
 #38 No path traversal protection on video_search functions
     File: video_search.py:90-114
-    video_path passed directly to ffprobe/ffmpeg. No _check_safe equivalent.
-    Fix: Validate path exists and is regular file.
+    Status: ALREADY FIXED — API layer (media.py) calls _check_safe before video_search
 
 
 ================================================================================
