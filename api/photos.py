@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import os
+
 from fastapi import APIRouter, Query
 from pydantic import BaseModel
+
+from api.helpers import _check_safe
 
 router = APIRouter()
 
@@ -26,6 +30,7 @@ def api_score_photo(req: ScorePhotoRequest) -> dict:
     """Score a photo's technical + aesthetic quality (Gemini vision, /100)."""
     from photo_cull import score_photo
 
+    _check_safe(os.path.abspath(req.path))
     return score_photo(req.path)
 
 
@@ -34,6 +39,9 @@ def api_cull_photos(req: CullPhotosRequest) -> dict:
     """Auto-cull photos: score all, move bottom rejects to _rejects folder. Background job."""
     from photo_cull import cull_photos
 
+    _check_safe(os.path.abspath(req.folder))
+    if req.rejects_folder:
+        _check_safe(os.path.abspath(req.rejects_folder))
     return cull_photos(req.folder, req.keep_pct, req.rejects_folder)
 
 
@@ -60,6 +68,7 @@ def api_suggest_categories(req: SuggestCategoriesRequest) -> dict:
     """Sample photos and suggest grouping categories via Gemini vision."""
     from photo_cull import suggest_categories
 
+    _check_safe(os.path.abspath(req.folder))
     return suggest_categories(req.folder)
 
 
@@ -74,6 +83,9 @@ def api_group_photos(req: GroupPhotosRequest) -> dict:
     """Auto-group photos: classify ALL images via Gemini vision, move to category subfolders. Background job."""
     from photo_cull import group_photos
 
+    _check_safe(os.path.abspath(req.folder))
+    if req.uncategorized_folder:
+        _check_safe(os.path.abspath(req.uncategorized_folder))
     return group_photos(req.folder, req.categories, req.uncategorized_folder)
 
 

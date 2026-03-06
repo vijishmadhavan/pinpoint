@@ -39,8 +39,15 @@ VIDEO_MIME = {
 DEFAULT_FPS = 1  # 1 frame per second
 
 
+_db_conn = None
+
+
 def _get_conn() -> sqlite3.Connection:
-    return get_db(DB_PATH)
+    """Get or create a shared DB connection."""
+    global _db_conn
+    if _db_conn is None:
+        _db_conn = get_db(DB_PATH)
+    return _db_conn
 
 
 # --- Reuse SigLIP2 from image_search ---

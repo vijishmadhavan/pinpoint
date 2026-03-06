@@ -92,6 +92,7 @@ console.error = (...a) => {
 const activeRequests = new Map(); // chatJid → { msg, startTime, id }
 const lastImage = new Map(); // chatJid → { mimeType, data (base64), path, ts } — for follow-up re-injection (2 min TTL)
 let requestCounter = 0;
+let currentSock = null; // Module-level sock reference for reminders (survives reconnects)
 
 // Persistent memory: on by default (all local, single user)
 let memoryEnabled = true;
@@ -1045,8 +1046,9 @@ Conversation:
     llm.trackTokens(sessionId, response);
     const summary = response.text || "Previous conversation context unavailable.";
 
-    // Reset session and re-save: summary + kept messages
-    await resetSession(sessionId);
+    // DB-only reset: clear messages but DON'T clear in-memory state (actionLedger, sessionCosts, etc.)
+    // because runGemini() may still be active for this chat
+    try { await apiPost("/conversation/reset", { session_id: sessionId }); } catch {}
     await saveMessage(sessionId, "user", `[Previous conversation context]\n${summary}`);
     for (const m of toKeep) {
       await saveMessage(sessionId, m.role, m.content);
@@ -1761,6 +1763,12 @@ async function startBot() {
       });
   };
 
+  // Clear stale reminder interval before creating new socket (prevents stale sock reference)
+  if (global._reminderInterval) {
+    clearInterval(global._reminderInterval);
+    global._reminderInterval = null;
+  }
+
   const sock = makeWASocket({
     auth: {
       creds: state.creds,
@@ -1773,6 +1781,7 @@ async function startBot() {
     syncFullHistory: false,
     markOnlineOnConnect: false,
   });
+  currentSock = sock; // Update module-level reference for reminders
 
   // Handle WebSocket errors to prevent unhandled exceptions (OpenClaw pattern)
   if (sock.ws && typeof sock.ws.on === "function") {
@@ -1800,12 +1809,13 @@ async function startBot() {
       // Start reminder checker (every 30 seconds)
       if (!global._reminderInterval) {
         global._reminderInterval = setInterval(async () => {
+          if (!currentSock) return;
           const now = Date.now();
           const due = reminders.filter((r) => r.triggerAt <= now);
           for (const r of due) {
             try {
               const label = r.repeat ? `⏰ *Reminder (${r.repeat}):* ${r.message}` : `⏰ *Reminder:* ${r.message}`;
-              await sock.sendMessage(r.chatJid, { text: label });
+              await currentSock.sendMessage(r.chatJid, { text: label });
               console.log(`[Reminder] Sent: "${r.message}" to ${r.chatJid}${r.repeat ? ` (${r.repeat})` : ""}`);
             } catch (e) {
               console.error(`[Reminder] Failed to send: ${e.message}`);

@@ -735,14 +735,22 @@ def extract_archive_endpoint(req: ExtractArchiveRequest) -> dict:
     _check_safe(output)
 
     try:
+        _MAX_EXTRACT_SIZE = 2 * 1024 * 1024 * 1024  # 2GB uncompressed limit
         with zipfile.ZipFile(path, "r") as zf:
-            # Security: check for path traversal (compute output abspath once)
+            # Security: check for path traversal, symlinks, and zip bomb
             output_abs = os.path.abspath(output)
-            for name in zf.namelist():
-                target = os.path.join(output_abs, name)
+            total_size = 0
+            for info in zf.infolist():
+                target = os.path.join(output_abs, info.filename)
                 # normpath resolves .. without hitting disk (faster than abspath)
                 if not os.path.normpath(target).startswith(output_abs):
-                    raise HTTPException(status_code=400, detail=f"Unsafe path in archive: {name}")
+                    raise HTTPException(status_code=400, detail=f"Unsafe path in archive: {info.filename}")
+                # Block symlinks (external_attr >> 28 == 0xA for symlinks on Unix)
+                if info.external_attr >> 28 == 0xA:
+                    raise HTTPException(status_code=400, detail=f"Symlink in archive not allowed: {info.filename}")
+                total_size += info.file_size
+                if total_size > _MAX_EXTRACT_SIZE:
+                    raise HTTPException(status_code=400, detail=f"Archive too large (>{_MAX_EXTRACT_SIZE // (1024**3)}GB uncompressed)")
             zf.extractall(output)
             return {"success": True, "path": output_abs, "files_extracted": len(zf.namelist())}
     except zipfile.BadZipFile:

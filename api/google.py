@@ -9,6 +9,8 @@ import subprocess
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
+from api.helpers import _check_safe
+
 router = APIRouter(prefix="/google")
 
 GWS_BIN = shutil.which("gws")
@@ -62,6 +64,7 @@ def gmail_send(req: GmailSendRequest) -> dict:
         import os
 
         path = os.path.abspath(req.attach)
+        _check_safe(path)
         if not os.path.exists(path):
             raise HTTPException(status_code=404, detail=f"Attachment not found: {path}")
         args.extend(["--attach", path])
@@ -216,6 +219,7 @@ def drive_upload(
     import os
 
     path = os.path.abspath(path)
+    _check_safe(path)
     if not os.path.exists(path):
         raise HTTPException(status_code=404, detail=f"File not found: {path}")
     args = ["drive", "+upload", path]

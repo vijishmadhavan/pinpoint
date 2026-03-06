@@ -76,6 +76,7 @@ def detect_faces_endpoint(req: DetectFacesRequest) -> dict:
     conn = _get_conn()
 
     if req.folder:
+        _check_safe(os.path.abspath(req.folder))
         images = _get_images_in_folder(req.folder)
         if not images:
             raise HTTPException(status_code=404, detail=f"No images found in: {req.folder}")
@@ -94,6 +95,7 @@ def detect_faces_endpoint(req: DetectFacesRequest) -> dict:
             resp["_hint"] = f"Face detection complete for {len(results)} images. Report results directly."
         return resp
 
+    _check_safe(os.path.abspath(req.image_path))
     result = detect_faces(req.image_path, conn)
     if isinstance(result, dict) and "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
@@ -111,6 +113,7 @@ def crop_face_endpoint(req: CropFaceRequest) -> dict:
     from face_search import crop_face
 
     conn = _get_conn()
+    _check_safe(os.path.abspath(req.image_path))
     result = crop_face(req.image_path, req.face_idx, conn)
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
@@ -123,6 +126,8 @@ def find_person_endpoint(req: FindPersonRequest) -> dict:
     from face_search import find_person
 
     conn = _get_conn()
+    _check_safe(os.path.abspath(req.reference_image))
+    _check_safe(os.path.abspath(req.folder))
     result = find_person(req.reference_image, req.folder, conn, req.threshold)
     if isinstance(result, dict) and "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
@@ -141,6 +146,8 @@ def find_person_by_face_endpoint(req: FindPersonByFaceRequest) -> dict:
     from face_search import find_person_by_face
 
     conn = _get_conn()
+    _check_safe(os.path.abspath(req.reference_image))
+    _check_safe(os.path.abspath(req.folder))
     result = find_person_by_face(req.reference_image, req.face_idx, req.folder, conn, req.threshold)
     if isinstance(result, dict) and "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
@@ -173,6 +180,7 @@ def count_faces_endpoint(req: CountFacesRequest) -> dict:
         return {"images_processed": len(results), "results": results}
 
     if req.folder:
+        _check_safe(os.path.abspath(req.folder))
         images = _get_images_in_folder(req.folder)
         if not images:
             raise HTTPException(status_code=404, detail=f"No images found in: {req.folder}")
@@ -185,6 +193,7 @@ def count_faces_endpoint(req: CountFacesRequest) -> dict:
         resp["_hint"] = f"Face counts complete for {len(results)} images. Report results directly."
         return resp
 
+    _check_safe(os.path.abspath(req.image_path))
     result = count_faces(req.image_path, conn)
     if isinstance(result, dict) and "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
@@ -198,6 +207,8 @@ def compare_faces_endpoint(req: CompareFacesRequest) -> dict:
     from face_search import compare_faces
 
     conn = _get_conn()
+    _check_safe(os.path.abspath(req.image_path_1))
+    _check_safe(os.path.abspath(req.image_path_2))
     result = compare_faces(req.image_path_1, req.face_idx_1, req.image_path_2, req.face_idx_2, conn)
     if isinstance(result, dict) and "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
@@ -214,6 +225,7 @@ def remember_face_endpoint(req: RememberFaceRequest) -> dict:
     from face_search import remember_face
 
     conn = _get_conn()
+    _check_safe(os.path.abspath(req.image_path))
     result = remember_face(req.image_path, req.face_idx, req.name, conn)
     if isinstance(result, dict) and "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
@@ -241,6 +253,7 @@ def recognize_faces_endpoint(req: RecognizeFacesRequest) -> dict:
     from face_search import recognize_faces
 
     conn = _get_conn()
+    _check_safe(os.path.abspath(req.image_path))
     result = recognize_faces(req.image_path, conn)
     if isinstance(result, dict) and "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])

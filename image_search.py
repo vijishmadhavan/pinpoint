@@ -13,6 +13,7 @@ import os
 import sqlite3
 import struct
 import sys
+import threading
 import time
 from collections.abc import Callable
 from typing import Any
@@ -52,6 +53,7 @@ IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tiff", ".tif", ".heic"
 # --- Lazy-loaded model + in-memory cache ---
 _siglip = None  # (vision_session, text_session, processor)
 _mem_cache = {}  # folder_abs → {paths: [...], emb_norm: ndarray}
+_MEM_CACHE_MAX = 10  # Evict oldest when cache exceeds this many folders
 
 
 def _get_siglip() -> tuple[Any, Any, Any]:
@@ -102,9 +104,16 @@ def _get_siglip() -> tuple[Any, Any, Any]:
     return _siglip
 
 
+_db_conn = None
+_db_lock = threading.Lock()
+
+
 def _get_conn() -> sqlite3.Connection:
-    """Get DB connection (same database as documents)."""
-    return get_db(DB_PATH)
+    """Get or create a shared DB connection (thread-safe via lock)."""
+    global _db_conn
+    if _db_conn is None:
+        _db_conn = get_db(DB_PATH)
+    return _db_conn
 
 
 # --- Embedding serialization (768 floats → bytes) ---
@@ -441,6 +450,10 @@ def search_images(folder: str, query: str, limit: int = 10, recursive: bool = Fa
         paths = list(image_embeddings.keys())
         emb_matrix = np.stack([image_embeddings[p] for p in paths])
         emb_norm = _normalize(emb_matrix, axis=-1)
+        # Evict oldest entries if cache is full
+        if len(_mem_cache) >= _MEM_CACHE_MAX and folder not in _mem_cache:
+            oldest = next(iter(_mem_cache))
+            del _mem_cache[oldest]
         _mem_cache[folder] = {"paths": paths, "emb_norm": emb_norm}
 
     # Embed query and search

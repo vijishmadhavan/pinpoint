@@ -336,6 +336,7 @@ def ocr_endpoint(req: OcrRequest) -> dict:
 
     if not req.path:
         raise HTTPException(status_code=400, detail="Provide path or folder")
+    _check_safe(os.path.abspath(req.path))
     result = _ocr_single(req.path)
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])

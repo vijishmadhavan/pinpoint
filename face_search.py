@@ -326,7 +326,8 @@ def crop_face(image_path: str, face_idx: int, conn: Any = None) -> dict[str, Any
 
 
 def _cosine_sim(a: Any, b: Any) -> float:
-    return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)))
+    denom = max(np.linalg.norm(a) * np.linalg.norm(b), 1e-12)
+    return float(np.dot(a, b) / denom)
 
 
 def _scan_folder_for_faces(app: Any, folder: str, conn: Any = None) -> tuple[dict[str, list[dict[str, Any]]], int, int]:

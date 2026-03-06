@@ -102,6 +102,10 @@ def list_files_endpoint(
 
         _found_via_native = False
         try:
+            # Sanitize name_contains to prevent command injection
+            import re as _re
+            _safe_name = _re.sub(r'[&|;$`"\'\\<>()!^%]', '', name_contains)
+
             # WSL: /mnt/X/ paths -> use Windows cmd.exe dir /s /b (NTFS-native, fast)
             # Linux paths -> use find command
             wsl_match = re.match(r"^/mnt/([a-zA-Z])/(.*)$", folder)
@@ -109,7 +113,7 @@ def list_files_endpoint(
                 drive = wsl_match.group(1).upper()
                 win_rest = wsl_match.group(2).rstrip("/").replace("/", "\\")
                 win_folder = f"{drive}:\\{win_rest}" if win_rest else f"{drive}:\\"
-                dir_cmd = f"dir /s /b {win_folder}\\*{name_contains}*"
+                dir_cmd = f"dir /s /b {win_folder}\\*{_safe_name}*"
                 r = subprocess.run(
                     ["/mnt/c/Windows/System32/cmd.exe", "/c", dir_cmd], capture_output=True, text=True, timeout=30
                 )
@@ -512,17 +516,22 @@ def _ocr_single(path: str) -> dict:
 
             from extractors import _HAS_TESSERACT, _get_gemini, _ocr_gemini, _ocr_tesseract, _preprocess_image
 
-            img = Image.open(path).convert("RGB")
-            img = _preprocess_image(img)
-            _gemini = _get_gemini()
-            text = _ocr_gemini([img]) if _gemini else (_ocr_tesseract([img]) if _HAS_TESSERACT else "")
-            method = "gemini_ocr" if _gemini else ("tesseract_ocr" if _HAS_TESSERACT else "none")
-            return {
-                "path": path,
-                "text": text,
-                "method": method,
-                "_hint": "Use index_file to make this text searchable, or search_documents if already indexed.",
-            }
+            img_orig = Image.open(path).convert("RGB")
+            try:
+                img = _preprocess_image(img_orig)
+                _gemini = _get_gemini()
+                text = _ocr_gemini([img]) if _gemini else (_ocr_tesseract([img]) if _HAS_TESSERACT else "")
+                method = "gemini_ocr" if _gemini else ("tesseract_ocr" if _HAS_TESSERACT else "none")
+                return {
+                    "path": path,
+                    "text": text,
+                    "method": method,
+                    "_hint": "Use index_file to make this text searchable, or search_documents if already indexed.",
+                }
+            finally:
+                img_orig.close()
+                if img is not img_orig:
+                    img.close()
         except Exception as e:
             return {"error": f"OCR failed: {e}"}
     else:

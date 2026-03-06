@@ -1588,7 +1588,7 @@ function buildToolRoutes(maxResults) {
     },
     pdf_to_word: { m: "POST", p: "/pdf-to-word", b: (a) => ({ path: a.path, output_path: a.output_path || null }) },
     organize_pdf: { m: "POST", p: "/organize-pdf", b: (a) => ({ path: a.path, pages: a.pages, output_path: a.output_path }) },
-    pdf_to_excel: { m: "GET", p: "/pdf-to-excel", q: (a) => ({ path: a.path, output_path: a.output_path || "", pages: a.pages || "" }) },
+    pdf_to_excel: { m: "GET", p: (a) => `/pdf-to-excel?path=${enc(a.path)}${a.output_path ? "&output_path=" + enc(a.output_path) : ""}${a.pages ? "&pages=" + enc(a.pages) : ""}` },
     resize_image: {
       m: "POST",
       p: "/resize-image",

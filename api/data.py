@@ -443,7 +443,7 @@ def analyze_data_endpoint(req: AnalyzeDataRequest) -> dict:
                 raise HTTPException(status_code=400, detail=f"Blocked expression: '{b}' not allowed in eval queries")
         try:
             # Use pd.eval for simple expressions (arithmetic, comparisons)
-            eval_result = pd.eval(req.query, local_dict={"df": df}, engine="python")
+            eval_result = pd.eval(req.query, local_dict={"df": df})
             if hasattr(eval_result, "to_string"):
                 result["data"] = (
                     eval_result.head(req.head).to_string() if hasattr(eval_result, "head") else eval_result.to_string()

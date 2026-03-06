@@ -449,7 +449,15 @@ def cull_photos(folder: str, keep_pct: int = 80, rejects_folder: str | None = No
             os.makedirs(rejects_folder, exist_ok=True)
             for s in rejected:
                 try:
-                    shutil.move(s["path"], os.path.join(rejects_folder, os.path.basename(s["path"])))
+                    dest = os.path.join(rejects_folder, os.path.basename(s["path"]))
+                    # Avoid overwriting files with duplicate basenames
+                    if os.path.exists(dest):
+                        base, ext = os.path.splitext(os.path.basename(s["path"]))
+                        counter = 1
+                        while os.path.exists(dest):
+                            dest = os.path.join(rejects_folder, f"{base}_{counter}{ext}")
+                            counter += 1
+                    shutil.move(s["path"], dest)
                     moved += 1
                 except Exception as e:
                     print(f"[Cull] Move failed: {s['path']} — {e}")
@@ -1135,7 +1143,15 @@ def group_photos(folder: str, categories: list[str], uncategorized_folder: str |
 
             os.makedirs(dest_folder, exist_ok=True)
             try:
-                shutil.move(item["path"], os.path.join(dest_folder, os.path.basename(item["path"])))
+                dest = os.path.join(dest_folder, os.path.basename(item["path"]))
+                # Avoid overwriting files with duplicate basenames
+                if os.path.exists(dest):
+                    base, ext = os.path.splitext(os.path.basename(item["path"]))
+                    counter = 1
+                    while os.path.exists(dest):
+                        dest = os.path.join(dest_folder, f"{base}_{counter}{ext}")
+                        counter += 1
+                shutil.move(item["path"], dest)
                 group_counts[cat_name] = group_counts.get(cat_name, 0) + 1
                 moved += 1
             except Exception as e:

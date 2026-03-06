@@ -38,6 +38,7 @@ class IndexRequest(BaseModel):
 def index_endpoint(req: IndexRequest) -> dict:
     """Index all supported files in a folder. Large folders run in background automatically."""
     folder = os.path.abspath(req.folder)
+    _check_safe(folder)
     if not os.path.isdir(folder):
         raise HTTPException(status_code=400, detail=f"Not a directory: {folder}")
 
