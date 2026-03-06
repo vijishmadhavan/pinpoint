@@ -72,3 +72,6 @@ from api.core import restore_watchers_on_startup
 @app.on_event("startup")
 def _on_startup():
     restore_watchers_on_startup()
+    # Auto-scan common folders for path registry (background, non-blocking)
+    from api.files import scan_paths_background
+    scan_paths_background()

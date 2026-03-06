@@ -49,12 +49,13 @@ const CORE_TOOLS = new Set([
   "read_document",
   "read_file",
   "list_files",
+  "find_file",
   "send_file",
   "get_status",
   "calculate",
 ]);
 const TOOL_GROUPS = {
-  search: ["search_history", "grep_files", "index_file", "search_generated_files"],
+  search: ["search_history", "grep_files", "index_file", "find_file", "search_generated_files"],
   image: [
     "detect_faces",
     "crop_face",
@@ -87,6 +88,7 @@ const TOOL_GROUPS = {
     "compress_files",
     "extract_archive",
     "search_generated_files",
+    "find_file",
   ],
   write: [
     "write_file",
@@ -283,6 +285,25 @@ const TOOL_DECLARATIONS = [
         },
       },
       required: ["folder"],
+    },
+  },
+  {
+    name: "find_file",
+    description:
+      "Find any file on the computer by filename. Searches a pre-built path registry of all files in common folders (Documents, Desktop, Downloads, Pictures, Videos). INSTANT — no folder scanning needed. Use this FIRST when a user asks about a file and you don't know which folder it's in. Can filter by extension. For files YOU created, also try search_generated_files.",
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        query: {
+          type: "STRING",
+          description: "Filename to search for (case-insensitive). E.g. 'rent', 'invoice', 'budget'.",
+        },
+        ext: {
+          type: "STRING",
+          description: "Filter by extension: '.pdf', '.xlsx', '.docx'. Optional.",
+        },
+      },
+      required: ["query"],
     },
   },
   {
@@ -1493,6 +1514,14 @@ function buildToolRoutes(maxResults) {
         return u;
       },
     },
+    find_file: {
+      m: "GET",
+      p: (a) => {
+        let u = `/find-file?query=${enc(a.query)}`;
+        if (a.ext) u += `&ext=${enc(a.ext)}`;
+        return u;
+      },
+    },
     search_generated_files: {
       m: "GET",
       p: (a) => {
@@ -1845,6 +1874,10 @@ function summarizeToolResult(name, args, result) {
     case "list_files": {
       const n = result.total || result.total_items || result.showing || 0;
       return `list_files: ${n} item(s) in ${args?.folder || "folder"}`;
+    }
+    case "find_file": {
+      const n = result.count || 0;
+      return `find_file: ${n} file(s) matching '${args?.query || ""}'`;
     }
     case "search_generated_files": {
       const n = result.count || 0;

@@ -1406,10 +1406,11 @@ async function runGemini(userMessage, sock, chatJid, opts = {}) {
             (n === "search_facts" && (result?.results?.length ?? result?.count ?? 0) === 0) ||
             (n === "list_files" && (result?.total ?? 0) === 0) ||
             (n === "search_generated_files" && (result?.count ?? 0) === 0) ||
+            (n === "find_file" && (result?.count ?? 0) === 0) ||
             (n === "grep_files" && (result?.total_matches ?? 0) === 0);
           if (isEmpty) {
             result._hint =
-              "0 results. Before giving up: try broader terms, a different folder, or search_generated_files. If still nothing, ASK the user — they may know where it is.";
+              "0 results. Before giving up: try find_file (searches all common folders by filename), search_generated_files, or broader terms. If still nothing, ASK the user — they may know where it is.";
           }
         }
 

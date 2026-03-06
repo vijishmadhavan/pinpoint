@@ -1,9 +1,12 @@
-"""File operation endpoints: list, info, read, move, batch move, create, delete, grep, duplicates, batch rename."""
+"""File operation endpoints: list, info, read, move, batch move, create, delete, grep, duplicates, batch rename, path registry."""
 
 from __future__ import annotations
 
 import os
+import pathlib
 import shutil
+import threading
+from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
@@ -899,4 +902,146 @@ def search_generated_files_endpoint(
         "results": results,
         "count": len(results),
         "_hint": f"{len(results)} generated file(s) found." if results else "No generated files match your query.",
+    }
+
+
+# --- File path registry (auto-scan common folders on startup) ---
+
+_SKIP_DIRS = {
+    ".git", "node_modules", "__pycache__", ".cache", ".venv", "venv",
+    ".tox", ".mypy_cache", ".pytest_cache", "AppData", "$Recycle.Bin",
+    "System Volume Information", ".Trash", ".local", ".config",
+}
+
+_scan_status = {"running": False, "total": 0, "folders": []}
+
+
+_SKIP_USERS = {"All Users", "Default", "Default User", "Public", "TEMP"}
+
+
+def _get_common_folders() -> list[str]:
+    """Detect OS-standard user folders."""
+    home = pathlib.Path.home()
+    candidates = ["Documents", "Desktop", "Downloads", "Pictures", "Videos", "Music"]
+    folders = []
+    for name in candidates:
+        p = home / name
+        if p.is_dir():
+            folders.append(str(p))
+    # On WSL/Windows, also check mounted drives for real user folders
+    for drive in ["/mnt/c", "/mnt/d", "/mnt/e"]:
+        users = os.path.join(drive, "Users")
+        if os.path.isdir(users):
+            for user_dir in os.listdir(users):
+                if user_dir in _SKIP_USERS or user_dir.startswith("TEMP"):
+                    continue
+                for name in candidates:
+                    p = os.path.join(users, user_dir, name)
+                    if os.path.isdir(p) and p not in folders:
+                        folders.append(p)
+    return folders
+
+
+def scan_paths_background():
+    """Walk common folders and store all file paths in DB. Runs in background thread."""
+    if _scan_status["running"]:
+        return
+    _scan_status["running"] = True
+    folders = _get_common_folders()
+    _scan_status["folders"] = folders
+    _scan_status["total"] = 0
+
+    def _scan():
+        try:
+            conn = _get_conn()
+            now = datetime.now().isoformat()
+            batch = []
+            count = 0
+            for folder in folders:
+                try:
+                    for root, dirs, files in os.walk(folder):
+                        # Skip hidden/junk directories
+                        dirs[:] = [d for d in dirs if d not in _SKIP_DIRS and not d.startswith(".")]
+                        for fname in files:
+                            fpath = os.path.join(root, fname)
+                            ext = os.path.splitext(fname)[1].lower()
+                            try:
+                                st = os.stat(fpath)
+                                batch.append((fpath, fname, ext, st.st_size, st.st_mtime, now))
+                            except OSError:
+                                continue
+                            if len(batch) >= 1000:
+                                conn.executemany(
+                                    "INSERT OR REPLACE INTO file_paths (path, filename, ext, size_bytes, modified_at, scanned_at) VALUES (?, ?, ?, ?, ?, ?)",
+                                    batch,
+                                )
+                                conn.commit()
+                                count += len(batch)
+                                _scan_status["total"] = count
+                                batch = []
+                except OSError:
+                    continue
+            if batch:
+                conn.executemany(
+                    "INSERT OR REPLACE INTO file_paths (path, filename, ext, size_bytes, modified_at, scanned_at) VALUES (?, ?, ?, ?, ?, ?)",
+                    batch,
+                )
+                conn.commit()
+                count += len(batch)
+            _scan_status["total"] = count
+            print(f"[PathRegistry] Scanned {count} files from {len(folders)} folders")
+        except Exception as e:
+            print(f"[PathRegistry] Scan failed: {e}")
+        finally:
+            _scan_status["running"] = False
+
+    threading.Thread(target=_scan, daemon=True, name="path-scanner").start()
+
+
+@router.get("/find-file")
+def find_file_endpoint(
+    query: str = Query(..., description="Filename to search for (case-insensitive)"),
+    ext: str = Query("", description="Filter by extension: .pdf, .xlsx, .docx"),
+    limit: int = Query(50, ge=1, le=200),
+) -> dict:
+    """Search the file path registry by filename. Instant — no folder scanning needed."""
+    conn = _get_conn()
+    conditions = ["filename LIKE ?"]
+    params: list = [f"%{query}%"]
+
+    if ext:
+        conditions.append("ext = ?")
+        params.append(ext.lower() if ext.startswith(".") else f".{ext.lower()}")
+
+    where = " AND ".join(conditions)
+    rows = conn.execute(
+        f"SELECT path, filename, ext, size_bytes, modified_at FROM file_paths WHERE {where} ORDER BY modified_at DESC LIMIT ?",
+        params + [limit],
+    ).fetchall()
+
+    results = []
+    for r in rows:
+        results.append({
+            "path": r[0],
+            "filename": r[1],
+            "ext": r[2],
+            "size": r[3],
+            "modified": datetime.fromtimestamp(r[4]).strftime("%d %b %Y, %I:%M %p") if r[4] else "",
+            "exists": os.path.exists(r[0]),
+        })
+
+    return {
+        "results": results,
+        "count": len(results),
+        "_hint": f"{len(results)} file(s) found matching '{query}'." if results else f"No files matching '{query}' in path registry. Try list_files with recursive=true on a specific folder.",
+    }
+
+
+@router.get("/path-scan-status")
+def path_scan_status_endpoint() -> dict:
+    """Check the status of the background path scan."""
+    return {
+        "running": _scan_status["running"],
+        "files_indexed": _scan_status["total"],
+        "folders": _scan_status["folders"],
     }

@@ -180,6 +180,18 @@ def init_db(db_path: str = DB_PATH) -> sqlite3.Connection:
         );
         CREATE INDEX IF NOT EXISTS idx_known_faces_name ON known_faces(name);
 
+        -- File path registry (lightweight index of filenames in common folders)
+        CREATE TABLE IF NOT EXISTS file_paths (
+            path TEXT PRIMARY KEY,
+            filename TEXT NOT NULL,
+            ext TEXT DEFAULT '',
+            size_bytes INTEGER DEFAULT 0,
+            modified_at REAL DEFAULT 0,
+            scanned_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_file_paths_filename ON file_paths(filename);
+        CREATE INDEX IF NOT EXISTS idx_file_paths_ext ON file_paths(ext);
+
         -- Generated files (track files created by tools for future retrieval)
         CREATE TABLE IF NOT EXISTS generated_files (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
