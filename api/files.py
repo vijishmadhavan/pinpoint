@@ -859,3 +859,44 @@ def batch_rename_endpoint(req: BatchRenameRequest) -> dict:
     if req.dry_run and renamed:
         resp["_hint"] = f"Preview: {len(renamed)} files would be renamed. Call again with dry_run=false to execute."
     return resp
+
+
+# --- Search generated files ---
+
+
+@router.get("/search-generated-files")
+def search_generated_files_endpoint(
+    query: str = Query("", description="Search term (matches path and description)"),
+    tool_name: str = Query("", description="Filter by tool name"),
+    limit: int = Query(50, ge=1, le=200),
+) -> dict:
+    """Search files previously created by Pinpoint tools."""
+    conn = _get_conn()
+    conditions = []
+    params: list = []
+
+    if query:
+        like = f"%{query}%"
+        conditions.append("(path LIKE ? OR description LIKE ?)")
+        params.extend([like, like])
+    if tool_name:
+        conditions.append("tool_name = ?")
+        params.append(tool_name)
+
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    rows = conn.execute(
+        f"SELECT id, path, tool_name, description, created_at FROM generated_files {where} ORDER BY created_at DESC LIMIT ?",
+        params + [limit],
+    ).fetchall()
+
+    results = []
+    for r in rows:
+        entry = {"id": r[0], "path": r[1], "tool_name": r[2], "description": r[3], "created_at": r[4]}
+        entry["exists"] = os.path.exists(r[1])
+        results.append(entry)
+
+    return {
+        "results": results,
+        "count": len(results),
+        "_hint": f"{len(results)} generated file(s) found." if results else "No generated files match your query.",
+    }

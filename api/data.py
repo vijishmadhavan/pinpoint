@@ -11,7 +11,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
-from api.helpers import _check_safe
+from api.helpers import _check_safe, record_generated_file
 
 router = APIRouter()
 
@@ -624,6 +624,7 @@ def pdf_to_excel_endpoint(
         }
 
     wb.save(output)
+    record_generated_file(output, "pdf_to_excel", f"Excel from PDF: {table_count} tables")
     return {
         "success": True,
         "path": output,

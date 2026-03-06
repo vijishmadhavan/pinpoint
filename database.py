@@ -180,6 +180,16 @@ def init_db(db_path: str = DB_PATH) -> sqlite3.Connection:
         );
         CREATE INDEX IF NOT EXISTS idx_known_faces_name ON known_faces(name);
 
+        -- Generated files (track files created by tools for future retrieval)
+        CREATE TABLE IF NOT EXISTS generated_files (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            path TEXT NOT NULL,
+            tool_name TEXT NOT NULL,
+            description TEXT DEFAULT '',
+            created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_generated_files_path ON generated_files(path);
+
         -- Settings (key-value store for toggles like memory on/off)
         CREATE TABLE IF NOT EXISTS settings (
             key TEXT PRIMARY KEY,

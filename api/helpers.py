@@ -52,6 +52,22 @@ def _get_conn() -> sqlite3.Connection:
     return conn
 
 
+# --- Generated file tracking ---
+
+
+def record_generated_file(path: str, tool_name: str, description: str = "") -> None:
+    """Record a file created by a tool for future retrieval."""
+    try:
+        conn = _get_conn()
+        conn.execute(
+            "INSERT INTO generated_files (path, tool_name, description, created_at) VALUES (?, ?, ?, ?)",
+            (path, tool_name, description, datetime.now().isoformat()),
+        )
+        conn.commit()
+    except Exception:
+        pass  # best-effort — don't break the tool
+
+
 # --- Formatting helpers ---
 
 

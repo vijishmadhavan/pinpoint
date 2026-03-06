@@ -54,7 +54,7 @@ const CORE_TOOLS = new Set([
   "calculate",
 ]);
 const TOOL_GROUPS = {
-  search: ["search_history", "grep_files", "index_file"],
+  search: ["search_history", "grep_files", "index_file", "search_generated_files"],
   image: [
     "detect_faces",
     "crop_face",
@@ -86,6 +86,7 @@ const TOOL_GROUPS = {
     "batch_rename",
     "compress_files",
     "extract_archive",
+    "search_generated_files",
   ],
   write: [
     "write_file",
@@ -282,6 +283,25 @@ const TOOL_DECLARATIONS = [
         },
       },
       required: ["folder"],
+    },
+  },
+  {
+    name: "search_generated_files",
+    description:
+      "Search files previously CREATED by Pinpoint tools (write_file, generate_excel, run_python, download_url, merge_pdf, etc.). Use when user asks about a file they asked you to create in a previous conversation — these files are NOT indexed in documents, so search_documents won't find them. Search by filename, description, or tool name.",
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        query: {
+          type: "STRING",
+          description: "Search term — matches filename and description. E.g. 'rent', 'chart', 'excel'.",
+        },
+        tool_name: {
+          type: "STRING",
+          description: "Filter by tool: write_file, generate_excel, generate_chart, run_python, download_url, merge_pdf, split_pdf, etc. Optional.",
+        },
+      },
+      required: ["query"],
     },
   },
   {
@@ -1473,6 +1493,14 @@ function buildToolRoutes(maxResults) {
         return u;
       },
     },
+    search_generated_files: {
+      m: "GET",
+      p: (a) => {
+        let u = `/search-generated-files?query=${enc(a.query || "")}`;
+        if (a.tool_name) u += `&tool_name=${enc(a.tool_name)}`;
+        return u;
+      },
+    },
     file_info: { m: "GET", p: (a) => `/file_info?path=${enc(a.path)}` },
     get_status: { m: "GET", p: () => "/status" },
     search_history: { m: "GET", p: (a) => `/conversation/search?q=${enc(a.query || "")}&limit=10` },
@@ -1817,6 +1845,10 @@ function summarizeToolResult(name, args, result) {
     case "list_files": {
       const n = result.total || result.total_items || result.showing || 0;
       return `list_files: ${n} item(s) in ${args?.folder || "folder"}`;
+    }
+    case "search_generated_files": {
+      const n = result.count || 0;
+      return `search_generated_files: ${n} file(s) found`;
     }
     case "detect_faces": {
       const n = result.images_processed || result.face_count || 0;

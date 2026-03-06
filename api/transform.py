@@ -7,7 +7,7 @@ import os
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from api.helpers import _check_safe, _check_url_safe
+from api.helpers import _check_safe, _check_url_safe, record_generated_file
 
 router = APIRouter()
 
@@ -30,6 +30,7 @@ def write_file_endpoint(req: WriteFileRequest) -> dict:
     mode = "a" if req.append else "w"
     with open(path, mode, encoding="utf-8") as f:
         f.write(req.content)
+    record_generated_file(path, "write_file", os.path.basename(path))
     return {"success": True, "path": path, "size": os.path.getsize(path), "append": req.append}
 
 
@@ -51,6 +52,7 @@ def generate_excel_endpoint(req: GenerateExcelRequest) -> dict:
     try:
         df = pd.DataFrame(req.data, columns=req.columns)
         df.to_excel(path, sheet_name=req.sheet_name, index=False)
+        record_generated_file(path, "generate_excel", f"Excel: {len(df)} rows, {len(df.columns)} cols")
         return {"success": True, "path": path, "rows": len(df), "columns": list(df.columns)}
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to create Excel: {e}")
@@ -112,6 +114,7 @@ def generate_chart_endpoint(req: GenerateChartRequest) -> dict:
         plt.tight_layout()
         fig.savefig(output, dpi=150)
         plt.close(fig)
+        record_generated_file(output, "generate_chart", req.title or "chart")
         return {"success": True, "path": output}
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Chart generation failed: {e}")
@@ -150,6 +153,7 @@ def merge_pdf_endpoint(req: MergePdfRequest) -> dict:
         total_pages = len(merged)
     finally:
         merged.close()
+    record_generated_file(output, "merge_pdf", f"Merged {len(req.paths)} PDFs, {total_pages} pages")
     return {"success": True, "path": output, "total_pages": total_pages, "files_merged": len(req.paths)}
 
 
@@ -201,6 +205,7 @@ def split_pdf_endpoint(req: SplitPdfRequest) -> dict:
             new_doc.close()
     finally:
         doc.close()
+    record_generated_file(output, "split_pdf", f"Extracted {extracted} pages from {source_pages}")
     return {"success": True, "path": output, "pages_extracted": extracted, "source_pages": source_pages}
 
 
@@ -240,6 +245,7 @@ def organize_pdf_endpoint(req: OrganizePdfRequest) -> dict:
             new_doc.close()
     finally:
         doc.close()
+    record_generated_file(output, "organize_pdf", f"Reordered {result_pages} pages")
     return {"success": True, "path": output, "output_pages": result_pages, "source_pages": total}
 
 
@@ -298,6 +304,8 @@ def pdf_to_images_endpoint(req: PdfToImagesRequest) -> dict:
         saved.append(img_path)
 
     doc.close()
+    for img_path in saved:
+        record_generated_file(img_path, "pdf_to_images", "Page image from PDF")
     return {"success": True, "images": saved, "count": len(saved), "output_folder": out_folder}
 
 
@@ -340,6 +348,7 @@ def images_to_pdf_endpoint(req: ImagesToPdfRequest) -> dict:
         for img in images:
             img.close()
 
+    record_generated_file(output, "images_to_pdf", f"PDF from {len(images)} images")
     return {"success": True, "path": output, "pages": len(images)}
 
 
@@ -385,6 +394,8 @@ def resize_image_endpoint(req: ResizeImageRequest) -> dict:
             img = img.convert("RGB")
             orig_img.close()
         img.save(output, quality=req.quality)
+        if output != path:
+            record_generated_file(output, "resize_image", f"Resized to {img.size[0]}x{img.size[1]}")
         return {
             "success": True,
             "path": output,
@@ -436,6 +447,7 @@ def convert_image_endpoint(req: ConvertImageRequest) -> dict:
             img = img.convert("RGB")
             orig_img.close()
         img.save(output, quality=req.quality)
+        record_generated_file(output, "convert_image", f"Converted to {fmt}")
         return {"success": True, "path": output, "format": fmt, "size": os.path.getsize(output)}
     finally:
         img.close()
@@ -469,6 +481,8 @@ def crop_image_endpoint(req: CropImageRequest) -> dict:
             _check_safe(output)
             os.makedirs(os.path.dirname(output), exist_ok=True)
             cropped.save(output)
+            if output != path:
+                record_generated_file(output, "crop_image", f"Cropped to {cropped.size[0]}x{cropped.size[1]}")
             result = {"success": True, "path": output, "crop_box": list(box), "new_size": list(cropped.size)}
         finally:
             cropped.close()
@@ -722,6 +736,7 @@ def compress_files_endpoint(req: CompressFilesRequest) -> dict:
                 zf.write(p, os.path.basename(p))
                 added += 1
 
+    record_generated_file(output, "compress_files", f"Archive with {added} files")
     return {"success": True, "path": output, "files_added": added, "archive_size": os.path.getsize(output)}
 
 
@@ -761,6 +776,7 @@ def extract_archive_endpoint(req: ExtractArchiveRequest) -> dict:
                 if total_size > _MAX_EXTRACT_SIZE:
                     raise HTTPException(status_code=400, detail=f"Archive too large (>{_MAX_EXTRACT_SIZE // (1024**3)}GB uncompressed)")
             zf.extractall(output)
+            record_generated_file(output_abs, "extract_archive", f"Extracted {len(zf.namelist())} files")
             return {"success": True, "path": output_abs, "files_extracted": len(zf.namelist())}
     except zipfile.BadZipFile:
         raise HTTPException(status_code=400, detail="Not a valid zip file")
@@ -823,6 +839,7 @@ def download_url_endpoint(req: DownloadUrlRequest) -> dict:
                         os.remove(save_path)
                         raise HTTPException(status_code=400, detail=f"Download exceeds {_MAX_DOWNLOAD // (1024**3)}GB limit")
                     f.write(chunk)
+        record_generated_file(save_path, "download_url", f"Downloaded from {url[:100]}")
         return {
             "success": True,
             "path": save_path,
@@ -933,6 +950,8 @@ except ImportError:
         result["files_created"] = new_files[:50]  # cap to prevent huge JSON responses
         if len(new_files) > 50:
             result["files_created_total"] = len(new_files)
+        for fp in new_files[:50]:
+            record_generated_file(fp, "run_python", os.path.basename(fp))
     return result
 
 
@@ -967,6 +986,8 @@ def compress_pdf_endpoint(req: CompressPdfRequest) -> dict:
 
     new_size = os.path.getsize(output)
     reduction = round((1 - new_size / original_size) * 100, 1) if original_size > 0 else 0
+    if output != path:
+        record_generated_file(output, "compress_pdf", f"Compressed PDF ({reduction}% smaller)")
     return {
         "success": True,
         "path": output,
@@ -1023,6 +1044,8 @@ def add_page_numbers_endpoint(req: AddPageNumbersRequest) -> dict:
         doc.save(output)
     finally:
         doc.close()
+    if output != path:
+        record_generated_file(output, "add_page_numbers", f"PDF with page numbers ({total} pages)")
     return {"success": True, "path": output, "pages_numbered": total}
 
 
@@ -1098,6 +1121,7 @@ def pdf_to_word_endpoint(req: PdfToWordRequest) -> dict:
     finally:
         pdf.close()
     doc.save(output)
+    record_generated_file(output, "pdf_to_word", f"Word doc from {total_pages}-page PDF")
     result = {"success": True, "path": output, "pages_converted": total_pages}
     if ocr_pages:
         result["ocr_pages"] = ocr_pages
