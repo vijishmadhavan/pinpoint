@@ -52,6 +52,7 @@ def client(test_db):
         patch.object(api.helpers, "_get_conn", lambda: test_db),
         patch.object(api.helpers, "DB_PATH", db_path),
         patch("api.search.DB_PATH", db_path),
+        patch("search.DB_PATH", db_path),
         patch.object(api, "API_SECRET", ""),
     ):
         from api import app

@@ -2091,6 +2091,9 @@ async function handleMessage(sock, msg) {
   const isSelfChat =
     !isGroup && ((myNumber && chatNumber && myNumber === chatNumber) || (myLid && chatNumber && myLid === chatNumber));
 
+  // Layer 0: Skip our own messages in non-self chats (prevents infinite echo loops)
+  if (key.fromMe && !isSelfChat) return;
+
   if (!isSelfChat && !isAllowedUser(chatJid)) {
     if (!isGroup)
       console.log(
