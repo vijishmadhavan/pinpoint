@@ -146,13 +146,16 @@ class TestWebRead:
         r = client.get("/web-read")
         assert r.status_code == 422
 
-    def test_web_read_http_error(self, client):
+    def test_web_read_dns_failure(self, client):
         import socket
         import unittest.mock as mock
 
-        # Mock DNS failure to guarantee 403 from SSRF protection
-        with mock.patch("socket.getaddrinfo", side_effect=socket.gaierror("Name resolution failed")):
-            r = client.get("/web-read", params={"url": "https://unreachable.example.com/"})
+        # Patch socket.getaddrinfo globally to simulate DNS failure → SSRF check returns 403
+        original = socket.getaddrinfo
+        def fake_getaddrinfo(*args, **kwargs):
+            raise socket.gaierror("Mocked DNS failure")
+        with mock.patch.object(socket, "getaddrinfo", side_effect=fake_getaddrinfo):
+            r = client.get("/web-read", params={"url": "https://unreachable.test.invalid/"})
         assert r.status_code == 403
 
 
