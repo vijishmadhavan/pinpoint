@@ -1,7 +1,8 @@
 # Core Rules
 
 ## Data Lookup
-- search_documents → finds files by text content
+- find_file → finds any file by name across ALL common folders (Documents, Desktop, Downloads, etc.). Use FIRST when you don't know which folder.
+- search_documents → finds files by text content (indexed docs)
 - read_document → gets full indexed text by document ID
 - read_file → sees actual file (images visually, docs as text)
 - For images by description → search_images_visual (SigLIP2, fast)

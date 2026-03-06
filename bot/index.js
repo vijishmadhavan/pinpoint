@@ -1409,8 +1409,9 @@ async function runGemini(userMessage, sock, chatJid, opts = {}) {
             (n === "find_file" && (result?.count ?? 0) === 0) ||
             (n === "grep_files" && (result?.total_matches ?? 0) === 0);
           if (isEmpty) {
-            result._hint =
-              "0 results. Before giving up: try find_file (searches all common folders by filename), search_generated_files, or broader terms. If still nothing, ASK the user — they may know where it is.";
+            result._hint = n === "search_documents"
+              ? "0 results. Try: find_file (searches all common folders by filename), memory_search (user may have mentioned it before), search_generated_files (if you created it). If still nothing, ASK the user."
+              : "0 results. Try find_file (searches all common folders by filename), broader terms, or ASK the user — they may know where it is.";
           }
         }
 
