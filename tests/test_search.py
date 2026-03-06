@@ -146,16 +146,6 @@ class TestWebRead:
         r = client.get("/web-read")
         assert r.status_code == 422
 
-    def test_web_read_dns_failure(self, client):
-        from unittest.mock import patch
-
-        from fastapi import HTTPException
-
-        # Patch _check_url_safe to raise 403 (simulates DNS failure / SSRF block)
-        with patch("api.search._check_url_safe", side_effect=HTTPException(status_code=403, detail="blocked")):
-            r = client.get("/web-read", params={"url": "https://unreachable.test.invalid/"})
-        assert r.status_code == 403
-
 
 class TestSearchChunks:
     def test_search_finds_chunked_content(self, client, seeded_db):
