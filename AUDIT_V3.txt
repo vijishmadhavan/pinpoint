@@ -279,3 +279,10 @@ FIX LOG
     #28 FIXED — bot/index.js: null check on response.candidates[0].content (safety block → graceful error)
     #33 FIXED — video_search.py: added threading.Lock + double-checked locking in _get_conn()
     #34 FIXED — bot/index.js: temp resized image cleaned up after send (unlinkSync in finally)
+
+2026-03-06 — Batch 4: 4 remaining high/medium issues fixed (267/267 tests pass)
+
+    #24 FIXED — api/files.py: batch_move collects DB updates, single commit after all moves
+    #25 FIXED — api/files.py: batch_rename now updates documents/video_embeddings/photo_classifications/photo_scores
+    #27 FIXED — bot/index.js: compactHistory awaited (prevents race with saveMessage)
+    #29 FIXED — bot/src/tools.js: preValidate checks paths[] for merge_pdf/images_to_pdf + image_path_2 for compare_faces

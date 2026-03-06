@@ -1756,6 +1756,22 @@ function preValidate(name, args) {
     } catch (_) {}
   }
 
+  // Array path validation (merge_pdf, images_to_pdf use paths[])
+  if ((name === "merge_pdf" || name === "images_to_pdf") && Array.isArray(args.paths)) {
+    for (const p of args.paths) {
+      try {
+        if (!existsSync(p)) return `File not found: ${p}. Check the path and try again.`;
+      } catch (_) {}
+    }
+  }
+
+  // compare_faces: validate both image paths
+  if (name === "compare_faces" && args.image_path_2) {
+    try {
+      if (!existsSync(args.image_path_2)) return `File not found: ${args.image_path_2}. Check the path and try again.`;
+    } catch (_) {}
+  }
+
   // Video tools need valid video path
   if ((name === "search_video" || name === "extract_frame") && args.video_path) {
     try {

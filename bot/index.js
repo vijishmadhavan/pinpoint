@@ -1149,8 +1149,8 @@ ${summaryParts.join("\n")}${ledgerForCompaction}`;
     for (const entry of toKeep) contents.push(entry);
 
     console.log(`[Memory] Token compaction: ${toSummarize.length} entries → summary + ${toKeep.length} recent`);
-    // Also compact DB history in background
-    compactHistory(chatJid).catch(() => {});
+    // Compact DB history (awaited to prevent race with saveMessage)
+    await compactHistory(chatJid).catch(() => {});
     return true;
   } catch (err) {
     console.error("[Memory] Token compaction failed:", err.message);
@@ -1186,9 +1186,9 @@ async function runGemini(userMessage, sock, chatJid, opts = {}) {
     history.messages = [];
   }
 
-  // Compact if history is getting long (runs in background, doesn't block this request)
+  // Compact if history is getting long (awaited to prevent race with saveMessage)
   if (history.message_count > COMPACT_THRESHOLD) {
-    compactHistory(chatJid).catch(() => {});
+    await compactHistory(chatJid).catch(() => {});
   }
 
   // Build contents: history + current message

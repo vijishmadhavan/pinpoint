@@ -621,6 +621,8 @@ def batch_move_endpoint(req: BatchMoveRequest) -> dict:
     results = {"moved": [], "skipped": [], "errors": []}
     conn = _get_conn()
 
+    db_updates = []  # collect (dest, src) pairs for single commit
+
     for src_path in req.sources:
         src = os.path.abspath(src_path)
         _check_safe(src)
@@ -636,22 +638,28 @@ def batch_move_endpoint(req: BatchMoveRequest) -> dict:
                 shutil.copy2(src, dest)
             else:
                 shutil.move(src, dest)
-                try:
-                    conn.execute("UPDATE documents SET path = ? WHERE path = ?", (dest, src))
-                    for stmt in [
-                        ("UPDATE video_embeddings SET video_path = ? WHERE video_path = ?", (dest, src)),
-                        ("UPDATE photo_classifications SET path = ? WHERE path = ?", (dest, src)),
-                    ]:
-                        try:
-                            conn.execute(*stmt)
-                        except Exception:
-                            pass
-                    conn.commit()
-                except Exception:
-                    conn.rollback()
+                db_updates.append((dest, src))
             results["moved"].append(os.path.basename(src))
         except Exception as e:
             results["errors"].append(f"{os.path.basename(src)}: {e}")
+
+    # Single DB commit after all filesystem moves succeed
+    if db_updates and not req.is_copy:
+        try:
+            for dest, src in db_updates:
+                conn.execute("UPDATE documents SET path = ? WHERE path = ?", (dest, src))
+                for stmt in [
+                    ("UPDATE video_embeddings SET video_path = ? WHERE video_path = ?", (dest, src)),
+                    ("UPDATE photo_classifications SET path = ? WHERE path = ?", (dest, src)),
+                    ("UPDATE photo_scores SET path = ? WHERE path = ?", (dest, src)),
+                ]:
+                    try:
+                        conn.execute(*stmt)
+                    except Exception:
+                        pass
+            conn.commit()
+        except Exception:
+            conn.rollback()
     action = "copied" if req.is_copy else "moved"
     moved_count = len(results["moved"])
     skipped_count = len(results["skipped"])
@@ -804,6 +812,8 @@ def batch_rename_endpoint(req: BatchRenameRequest) -> dict:
     except re.error as e:
         raise HTTPException(status_code=400, detail=f"Invalid regex pattern: {e}")
 
+    db_updates = []  # collect (new_path, old_path) for single DB commit
+
     for name in os.listdir(folder):
         new_name = regex.sub(req.replace, name)
         if new_name != name:
@@ -816,8 +826,28 @@ def batch_rename_endpoint(req: BatchRenameRequest) -> dict:
                     try:
                         os.rename(old_path, new_path)
                         renamed.append({"old": name, "new": new_name})
+                        db_updates.append((new_path, old_path))
                     except OSError as e:
                         errors.append({"file": name, "error": str(e)})
+
+    # Update DB paths in single commit (same as batch_move)
+    if db_updates:
+        conn = _get_conn()
+        try:
+            for new_path, old_path in db_updates:
+                conn.execute("UPDATE documents SET path = ? WHERE path = ?", (new_path, old_path))
+                for stmt in [
+                    ("UPDATE video_embeddings SET video_path = ? WHERE video_path = ?", (new_path, old_path)),
+                    ("UPDATE photo_classifications SET path = ? WHERE path = ?", (new_path, old_path)),
+                    ("UPDATE photo_scores SET path = ? WHERE path = ?", (new_path, old_path)),
+                ]:
+                    try:
+                        conn.execute(*stmt)
+                    except Exception:
+                        pass
+            conn.commit()
+        except Exception:
+            conn.rollback()
 
     resp = {
         "folder": folder,
