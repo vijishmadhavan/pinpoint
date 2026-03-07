@@ -149,6 +149,9 @@ def score_photo(path: str) -> dict[str, Any]:
         img = _preprocess_image(img, 384)
         buf = io.BytesIO()
         img.save(buf, format="JPEG", quality=80)
+        img_bytes = buf.getvalue()
+        buf.close()
+        img.close()
 
         model = os.environ.get("GEMINI_MODEL_LITE", os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite-preview"))
         response = _gemini_call_with_retry(
@@ -157,7 +160,7 @@ def score_photo(path: str) -> dict[str, Any]:
             contents=[
                 types.Content(
                     parts=[
-                        types.Part.from_bytes(data=buf.getvalue(), mime_type="image/jpeg"),
+                        types.Part.from_bytes(data=img_bytes, mime_type="image/jpeg"),
                         types.Part.from_text(text=_SCORE_PROMPT),
                     ]
                 )
@@ -235,9 +238,12 @@ def _make_thumbnail_b64(path: str, size: int = 160) -> str | None:
         img.thumbnail((size, size), Image.LANCZOS)
         buf = io.BytesIO()
         img.save(buf, format="JPEG", quality=60)
+        img.close()
         import base64
 
-        return base64.b64encode(buf.getvalue()).decode("ascii")
+        b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+        buf.close()
+        return b64
     except Exception:
         return None
 
@@ -625,6 +631,9 @@ def _classify_photo(path: str, categories: list[str], categories_lower: list[str
         img = _preprocess_image(img, 384)
         buf = io.BytesIO()
         img.save(buf, format="JPEG", quality=80)
+        img_bytes = buf.getvalue()
+        buf.close()
+        img.close()
 
         prompt = _CLASSIFY_PROMPT_TEMPLATE.format(categories=cat_list)
 
@@ -634,7 +643,7 @@ def _classify_photo(path: str, categories: list[str], categories_lower: list[str
             contents=[
                 types.Content(
                     parts=[
-                        types.Part.from_bytes(data=buf.getvalue(), mime_type="image/jpeg"),
+                        types.Part.from_bytes(data=img_bytes, mime_type="image/jpeg"),
                         types.Part.from_text(text=prompt),
                     ]
                 )
@@ -739,6 +748,8 @@ def _classify_batch_vision(
             buf = io.BytesIO()
             img.save(buf, format="JPEG", quality=80)
             parts.append(types.Part.from_bytes(data=buf.getvalue(), mime_type="image/jpeg"))
+            buf.close()
+            img.close()
             valid_items.append((abs_path, mtime, os.path.basename(abs_path)))
         except Exception as e:
             print(f"[GroupBatch] Skip {abs_path}: {e}")
@@ -933,6 +944,8 @@ def suggest_categories(folder: str) -> dict[str, Any]:
                 buf = io.BytesIO()
                 img.save(buf, format="JPEG", quality=60)
                 parts.append(types.Part.from_bytes(data=buf.getvalue(), mime_type="image/jpeg"))
+                buf.close()
+                img.close()
             parts.append(types.Part.from_text(text=_SUGGEST_PROMPT))
 
         model = os.environ.get("GEMINI_MODEL_LITE", os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite-preview"))

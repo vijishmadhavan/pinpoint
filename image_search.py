@@ -135,11 +135,13 @@ def _bytes_to_embedding(data: bytes) -> Any:
 
 
 def _load_image_fast(path: str) -> Any:
-    """Load image with fast JPEG draft decoding + resize."""
-    img = Image.open(path)
-    img.draft("RGB", (MAX_LOAD_DIM, MAX_LOAD_DIM))
-    img.load()
-    img = img.convert("RGB")
+    """Load image with fast JPEG draft decoding + resize. Caller must close returned image."""
+    raw = Image.open(path)
+    raw.draft("RGB", (MAX_LOAD_DIM, MAX_LOAD_DIM))
+    raw.load()
+    img = raw.convert("RGB")
+    if img is not raw:
+        raw.close()
     img.thumbnail((MAX_LOAD_DIM, MAX_LOAD_DIM), Image.LANCZOS)
     return img
 
@@ -245,16 +247,20 @@ def embed_images(folder: str, progress_callback: Callable[[int, int], None] | No
             if not batch_imgs:
                 continue
 
-            inputs = processor(images=batch_imgs, return_tensors="np", padding=True)
-            pixel_values = inputs["pixel_values"].astype(np.float32)
+            try:
+                inputs = processor(images=batch_imgs, return_tensors="np", padding=True)
+                pixel_values = inputs["pixel_values"].astype(np.float32)
 
-            # Run vision model
-            input_name = vision_session.get_inputs()[0].name
-            outputs = vision_session.run(None, {input_name: pixel_values})
-            embs = outputs[1]  # pooler_output [batch, embed_dim]
-            if len(embs) != len(batch_valid):
-                print(f"[SigLIP2] Shape mismatch: got {len(embs)} embeddings for {len(batch_valid)} images, skipping batch")
-                continue
+                # Run vision model
+                input_name = vision_session.get_inputs()[0].name
+                outputs = vision_session.run(None, {input_name: pixel_values})
+                embs = outputs[1]  # pooler_output [batch, embed_dim]
+                if len(embs) != len(batch_valid):
+                    print(f"[SigLIP2] Shape mismatch: got {len(embs)} embeddings for {len(batch_valid)} images, skipping batch")
+                    continue
+            finally:
+                for im in batch_imgs:
+                    im.close()
 
             for j, fpath in enumerate(batch_valid):
                 emb = embs[j].astype(np.float32)
@@ -342,6 +348,8 @@ def _search_images_gemini(
                 parts.append(types.Part.from_bytes(data=buf.getvalue(), mime_type="image/jpeg"))
                 parts.append(types.Part.from_text(text=f"[{os.path.basename(fpath)}]"))
                 names.append(fpath)
+                buf.close()
+                img.close()
             except Exception:
                 continue
         if not names:

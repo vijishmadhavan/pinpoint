@@ -37,8 +37,12 @@ def _preprocess_for_face(img_path: str) -> Any:
     w, h = img.size
     if max(w, h) > MAX_FACE_DIM:
         scale = MAX_FACE_DIM / max(w, h)
-        img = img.resize((int(w * scale), int(h * scale)), Image.LANCZOS)
-    return np.array(img)[:, :, ::-1]  # RGB→BGR for InsightFace
+        resized = img.resize((int(w * scale), int(h * scale)), Image.LANCZOS)
+        img.close()
+        img = resized
+    arr = np.array(img)[:, :, ::-1]  # RGB→BGR for InsightFace
+    img.close()
+    return arr
 
 
 # --- Lazy model loading ---
@@ -304,24 +308,27 @@ def crop_face(image_path: str, face_idx: int, conn: Any = None) -> dict[str, Any
 
     # Crop with padding — scale bbox back to original dimensions if image was downsized for detection
     pil_img = Image.open(image_path).convert("RGB")
-    orig_w, orig_h = pil_img.size
-    if max(orig_w, orig_h) > MAX_FACE_DIM:
-        scale = MAX_FACE_DIM / max(orig_w, orig_h)
-        bbox = [int(c / scale) for c in bbox]
-    w, h = orig_w, orig_h
-    x1, y1, x2, y2 = bbox
-    pad = int((x2 - x1) * 0.25)  # 25% padding
-    x1 = max(0, x1 - pad)
-    y1 = max(0, y1 - pad)
-    x2 = min(w, x2 + pad)
-    y2 = min(h, y2 + pad)
-    crop = pil_img.crop((x1, y1, x2, y2))
+    try:
+        orig_w, orig_h = pil_img.size
+        if max(orig_w, orig_h) > MAX_FACE_DIM:
+            scale = MAX_FACE_DIM / max(orig_w, orig_h)
+            bbox = [int(c / scale) for c in bbox]
+        w, h = orig_w, orig_h
+        x1, y1, x2, y2 = bbox
+        pad = int((x2 - x1) * 0.25)  # 25% padding
+        x1 = max(0, x1 - pad)
+        y1 = max(0, y1 - pad)
+        x2 = min(w, x2 + pad)
+        y2 = min(h, y2 + pad)
+        crop = pil_img.crop((x1, y1, x2, y2))
 
-    # Save to temp
-    temp_dir = os.path.join(tempfile.gettempdir(), "pinpoint_faces")
-    os.makedirs(temp_dir, exist_ok=True)
-    crop_path = os.path.join(temp_dir, f"face_{face_idx}_{os.path.basename(image_path)}")
-    crop.save(crop_path, "JPEG", quality=90)
+        # Save to temp
+        temp_dir = os.path.join(tempfile.gettempdir(), "pinpoint_faces")
+        os.makedirs(temp_dir, exist_ok=True)
+        crop_path = os.path.join(temp_dir, f"face_{face_idx}_{os.path.basename(image_path)}")
+        crop.save(crop_path, "JPEG", quality=90)
+    finally:
+        pil_img.close()
 
     result = {"path": crop_path, "bbox": bbox}
     if face_meta:
@@ -451,7 +458,9 @@ def find_person_by_face(
     folder = os.path.abspath(folder)
 
     app = _get_model()
-    ref_img = np.array(Image.open(reference_image).convert("RGB"))[:, :, ::-1]
+    _ref_pil = Image.open(reference_image).convert("RGB")
+    ref_img = np.array(_ref_pil)[:, :, ::-1]
+    _ref_pil.close()
     ref_faces = app.get(ref_img)
 
     if face_idx >= len(ref_faces):
@@ -539,7 +548,9 @@ def compare_faces(
                     if f["face_idx"] == fidx:
                         return f["embedding"], _face_to_api(f)
         app = _get_model()
-        img = np.array(Image.open(img_path).convert("RGB"))[:, :, ::-1]
+        _pil = Image.open(img_path).convert("RGB")
+        img = np.array(_pil)[:, :, ::-1]
+        _pil.close()
         raw_faces = app.get(img)
         if fidx >= len(raw_faces):
             return None, {"error": f"Face {fidx} not found"}

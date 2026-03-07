@@ -792,10 +792,10 @@ async function executeTool(functionCall, sock, chatJid) {
         const restPromises = queries
           .slice(1)
           .map((q) => apiPost("/search-images-visual", { folder: args.folder, query: q, limit: groupLimit }));
-        const restResults = await Promise.all(restPromises);
+        const restSettled = await Promise.allSettled(restPromises);
         const allResults = { [queries[0]]: firstResult };
         queries.slice(1).forEach((q, i) => {
-          allResults[q] = restResults[i];
+          allResults[q] = restSettled[i].status === "fulfilled" ? restSettled[i].value : { results: [] };
         });
 
         // Deduplicate: each image → best matching category only
@@ -1851,8 +1851,12 @@ async function startBot() {
       // Load reminders from DB on connect
       loadReminders().catch((e) => console.error("[Reminder] Load failed:", e.message));
 
-      // Start reminder checker (every 30 seconds)
-      if (!global._reminderInterval) {
+      // Start reminder checker (every 30 seconds) — always clear+set to prevent duplicates
+      if (global._reminderInterval) {
+        clearInterval(global._reminderInterval);
+        global._reminderInterval = null;
+      }
+      {
         global._reminderInterval = setInterval(async () => {
           if (!currentSock) return;
           const now = Date.now();

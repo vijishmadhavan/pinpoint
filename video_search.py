@@ -261,12 +261,16 @@ def embed_video(
             if not batch_imgs:
                 continue
 
-            inputs = processor(images=batch_imgs, return_tensors="np", padding=True)
-            pixel_values = inputs["pixel_values"].astype(np.float32)
+            try:
+                inputs = processor(images=batch_imgs, return_tensors="np", padding=True)
+                pixel_values = inputs["pixel_values"].astype(np.float32)
 
-            input_name = vision_session.get_inputs()[0].name
-            outputs = vision_session.run(None, {input_name: pixel_values})
-            embs = outputs[1]  # pooler_output [batch, embed_dim]
+                input_name = vision_session.get_inputs()[0].name
+                outputs = vision_session.run(None, {input_name: pixel_values})
+                embs = outputs[1]  # pooler_output [batch, embed_dim]
+            finally:
+                for im in batch_imgs:
+                    im.close()
 
             for j, sec in enumerate(batch_secs):
                 emb = embs[j].astype(np.float32)
