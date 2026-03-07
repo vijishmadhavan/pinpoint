@@ -564,6 +564,8 @@ def move_file_endpoint(req: MoveFileRequest) -> dict:
         for stmt in [
             ("UPDATE video_embeddings SET video_path = ? WHERE video_path = ?", (dest, src)),
             ("UPDATE photo_classifications SET path = ? WHERE path = ?", (dest, src)),
+            ("UPDATE photo_scores SET path = ? WHERE path = ?", (dest, src)),
+            ("UPDATE image_embeddings SET path = ? WHERE path = ?", (dest, src)),
         ]:
             try:
                 conn.execute(*stmt)
@@ -630,6 +632,7 @@ def batch_move_endpoint(req: BatchMoveRequest) -> dict:
                     ("UPDATE video_embeddings SET video_path = ? WHERE video_path = ?", (dest, src)),
                     ("UPDATE photo_classifications SET path = ? WHERE path = ?", (dest, src)),
                     ("UPDATE photo_scores SET path = ? WHERE path = ?", (dest, src)),
+                    ("UPDATE image_embeddings SET path = ? WHERE path = ?", (dest, src)),
                 ]:
                     try:
                         conn.execute(*stmt)

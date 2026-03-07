@@ -473,8 +473,10 @@ def cull_photos(folder: str, keep_pct: int = 80, rejects_folder: str | None = No
                         while os.path.exists(dest):
                             dest = os.path.join(rejects_folder, f"{base}_{counter}{ext}")
                             counter += 1
-                    shutil.move(s["path"], dest)
+                    old_path = s["path"]
+                    shutil.move(old_path, dest)
                     moved += 1
+                    _update_db_path(old_path, dest)
                 except Exception as e:
                     print(f"[Cull] Move failed: {s['path']} — {e}")
                     progress["errors"] += 1
