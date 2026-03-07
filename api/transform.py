@@ -354,7 +354,8 @@ def pdf_to_images_endpoint(req: PdfToImagesRequest) -> dict:
     )
     os.makedirs(out_folder, exist_ok=True)
 
-    zoom = req.dpi / 72
+    dpi = max(72, min(req.dpi, 600))  # clamp to [72, 600] to prevent OOM
+    zoom = dpi / 72
     mat = fitz.Matrix(zoom, zoom)
     saved = []
     for page_no in zero_based:

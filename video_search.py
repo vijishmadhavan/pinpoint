@@ -436,9 +436,14 @@ def search_video(video_path: str, query: str, fps: float = DEFAULT_FPS, limit: i
     if not frame_embeddings:
         return {"error": "No frames could be extracted/embedded", "results": []}
 
-    # Build matrix
+    # Build matrix — filter out NaN embeddings from corrupted frames
     secs = sorted(frame_embeddings.keys())
     emb_matrix = np.stack([frame_embeddings[s] for s in secs])
+    valid_mask = ~np.isnan(emb_matrix).any(axis=-1)
+    if not valid_mask.any():
+        return {"error": "All frame embeddings are invalid (NaN)", "results": []}
+    secs = [s for s, v in zip(secs, valid_mask, strict=True) if v]
+    emb_matrix = emb_matrix[valid_mask]
     emb_norm = _normalize(emb_matrix, axis=-1)
 
     # Embed query and search
