@@ -705,7 +705,7 @@ def _save_classification(abs_path: str, mtime: float, category: str) -> None:
 def _update_db_path(old_path: str, new_path: str) -> None:
     """Update file path in all DB tables after a move (documents, photo_classifications, photo_scores)."""
     try:
-        from database import get_db, DB_PATH
+        from database import DB_PATH, get_db
         conn = get_db(DB_PATH)
         for table in ("documents", "photo_classifications", "photo_scores", "image_embeddings"):
             try:
@@ -720,7 +720,7 @@ def _update_db_path(old_path: str, new_path: str) -> None:
 def _index_caption(abs_path: str, caption: str) -> None:
     """Index a photo caption into the documents table for FTS search."""
     try:
-        from database import get_db, DB_PATH, upsert_document
+        from database import DB_PATH, get_db, upsert_document
         conn = get_db(DB_PATH)
         upsert_document(conn, abs_path, caption, file_type="image")
     except Exception as e:
