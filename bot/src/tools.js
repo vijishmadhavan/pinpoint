@@ -14,7 +14,7 @@ const INTENT_KEYWORDS = {
   files: /move|copy|rename|delete|duplicate|folder|list|organize|clean.*up|batch|zip|unzip|compress|extract|archive/i,
   write: /write|create|save|put.*file|store|\.txt|\.csv|\.json|\.md|pdf|merge|split|combine|generate/i,
   media: /video|mp4|clip|frame|scene|audio|mp3|wav|voice|transcri|podcast|recording|speech|listen/i,
-  web: /download|url|web|search.*online|internet|website/i,
+  web: /download|url|web|search.*online|internet|website|news|weather|score|playing|match|price|stock|latest|current|today|tomorrow|yesterday|live|trending|release/i,
   memory: /remember|forget|memory|preference/i,
   code: /python|code|script|run|execute|program/i,
   google: /email|mail|gmail|send.*mail|inbox|calendar|event|meeting|schedule|appointment|drive|upload.*drive|google/i,
