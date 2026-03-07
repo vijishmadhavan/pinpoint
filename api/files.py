@@ -945,6 +945,51 @@ def _get_common_folders() -> list[str]:
     return folders
 
 
+def _walk_folder(folder: str):
+    """Walk a folder yielding (path, filename, ext, size, mtime). Falls back to `find` on WSL I/O errors."""
+    found_any = False
+    try:
+        for root, dirs, files in os.walk(folder):
+            dirs[:] = [d for d in dirs if d not in _SKIP_DIRS and not d.startswith(".")]
+            for fname in files:
+                fpath = os.path.join(root, fname)
+                ext = os.path.splitext(fname)[1].lower()
+                try:
+                    st = os.stat(fpath)
+                    found_any = True
+                    yield fpath, fname, ext, st.st_size, st.st_mtime
+                except OSError:
+                    continue
+    except OSError:
+        pass
+
+    # Fallback: WSL can't os.walk some Windows folders (I/O error) but `find` works
+    if not found_any:
+        try:
+            import subprocess
+
+            result = subprocess.run(
+                ["find", folder, "-type", "f"],
+                capture_output=True, text=True, timeout=60,
+            )
+            for line in result.stdout.strip().split("\n"):
+                if not line:
+                    continue
+                # Skip hidden/junk dirs
+                parts = line.split("/")
+                if any(p in _SKIP_DIRS or p.startswith(".") for p in parts):
+                    continue
+                fname = os.path.basename(line)
+                ext = os.path.splitext(fname)[1].lower()
+                try:
+                    st = os.stat(line)
+                    yield line, fname, ext, st.st_size, st.st_mtime
+                except OSError:
+                    continue
+        except Exception:
+            pass
+
+
 def scan_paths_background():
     """Walk common folders, store paths, auto-index text docs. Repeats every 60 min."""
     if _scan_status["running"]:
@@ -968,31 +1013,20 @@ def scan_paths_background():
                 to_index = []  # files to auto-index content
 
                 for folder in folders:
-                    try:
-                        for root, dirs, files in os.walk(folder):
-                            dirs[:] = [d for d in dirs if d not in _SKIP_DIRS and not d.startswith(".")]
-                            for fname in files:
-                                fpath = os.path.join(root, fname)
-                                ext = os.path.splitext(fname)[1].lower()
-                                try:
-                                    st = os.stat(fpath)
-                                except OSError:
-                                    continue
-                                batch.append((fpath, fname, ext, st.st_size, st.st_mtime, now))
-                                # Queue text-extractable docs for content indexing
-                                if ext in _AUTO_INDEX_EXTS and st.st_size <= _MAX_AUTO_INDEX_SIZE:
-                                    to_index.append(fpath)
-                                if len(batch) >= 1000:
-                                    conn.executemany(
-                                        "INSERT OR REPLACE INTO file_paths (path, filename, ext, size_bytes, modified_at, scanned_at) VALUES (?, ?, ?, ?, ?, ?)",
-                                        batch,
-                                    )
-                                    conn.commit()
-                                    count += len(batch)
-                                    _scan_status["total"] = count
-                                    batch = []
-                    except OSError:
-                        continue
+                    folder_files = list(_walk_folder(folder))
+                    for fpath, fname, ext, size, mtime in folder_files:
+                        batch.append((fpath, fname, ext, size, mtime, now))
+                        if ext in _AUTO_INDEX_EXTS and size <= _MAX_AUTO_INDEX_SIZE:
+                            to_index.append(fpath)
+                        if len(batch) >= 1000:
+                            conn.executemany(
+                                "INSERT OR REPLACE INTO file_paths (path, filename, ext, size_bytes, modified_at, scanned_at) VALUES (?, ?, ?, ?, ?, ?)",
+                                batch,
+                            )
+                            conn.commit()
+                            count += len(batch)
+                            _scan_status["total"] = count
+                            batch = []
                 if batch:
                     conn.executemany(
                         "INSERT OR REPLACE INTO file_paths (path, filename, ext, size_bytes, modified_at, scanned_at) VALUES (?, ?, ?, ?, ?, ?)",
