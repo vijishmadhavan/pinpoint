@@ -29,7 +29,7 @@ from extractors import IMAGE_EXTENSIONS, _get_gemini, _preprocess_image, gemini_
 
 # --- SQLite cache ---
 
-_db_lock = threading.Lock()
+_db_lock = threading.RLock()  # RLock: reentrant — _get_conn() + callers both acquire
 
 
 def _init_table(conn: Any) -> None:
@@ -548,7 +548,7 @@ _group_lock = threading.Lock()
 _CLASSIFY_PROMPT_TEMPLATE = """Classify this photo into EXACTLY ONE of these categories:
 {categories}
 
-Return ONLY the category name from the list above. Nothing else."""
+Also write a short caption (10-20 words) describing what's in the photo."""
 
 
 def _cached_classification(conn: Any, path: str, mtime: float) -> str | None:
@@ -599,8 +599,11 @@ def _classify_photo(path: str, categories: list[str], categories_lower: list[str
     model = os.environ.get("GEMINI_MODEL_LITE", os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite-preview"))
     single_schema = {
         "type": "OBJECT",
-        "properties": {"category": {"type": "STRING", "enum": list(categories)}},
-        "required": ["category"],
+        "properties": {
+            "category": {"type": "STRING", "enum": list(categories)},
+            "caption": {"type": "STRING"},
+        },
+        "required": ["category", "caption"],
     }
 
     # 2b. If caption exists → text-only Gemini call (much cheaper than vision)
@@ -655,10 +658,14 @@ def _classify_photo(path: str, categories: list[str], categories_lower: list[str
             ),
         )
 
-        cat = json.loads(response.text).get("category")
+        result_data = json.loads(response.text)
+        cat = result_data.get("category")
+        caption_out = result_data.get("caption", "")
         _save_classification(abs_path, mtime, cat or "_uncategorized")
+        if caption_out:
+            _index_caption(abs_path, caption_out)
 
-        return {"path": abs_path, "category": cat, "cached": False}
+        return {"path": abs_path, "category": cat, "caption": caption_out, "cached": False}
 
     except Exception as e:
         return {"error": str(e), "path": abs_path}
@@ -689,12 +696,23 @@ def _save_classification(abs_path: str, mtime: float, category: str) -> None:
         conn.commit()
 
 
+def _index_caption(abs_path: str, caption: str) -> None:
+    """Index a photo caption into the documents table for FTS search."""
+    try:
+        from database import get_db, DB_PATH, upsert_document
+        conn = get_db(DB_PATH)
+        upsert_document(conn, abs_path, caption, file_type="image")
+    except Exception as e:
+        print(f"[Group] Index caption failed for {os.path.basename(abs_path)}: {e}")
+
+
 _VISION_BATCH_SIZE = 5  # images per Gemini vision call
 _CAPTION_BATCH_SIZE = 20  # captions per text-only call
 
 
 def _classify_schema(categories: list[str]) -> dict[str, Any]:
-    """Build structured output schema for batch classification — category enum enforced by Gemini."""
+    """Build structured output schema for batch classification — category enum enforced by Gemini.
+    Also captures a short caption for indexing (free — Gemini already sees the image)."""
     return {
         "type": "OBJECT",
         "properties": {
@@ -705,8 +723,9 @@ def _classify_schema(categories: list[str]) -> dict[str, Any]:
                     "properties": {
                         "filename": {"type": "STRING"},
                         "category": {"type": "STRING", "enum": list(categories)},
+                        "caption": {"type": "STRING"},
                     },
-                    "required": ["filename", "category"],
+                    "required": ["filename", "category", "caption"],
                 },
             },
         },
@@ -760,11 +779,12 @@ def _classify_batch_vision(
     filenames = [v[2] for v in valid_items]
     # If cached_content holds the system prompt, only send filenames
     if cached_content:
-        prompt = f"Photos in order: {', '.join(filenames)}"
+        prompt = f"Photos in order: {', '.join(filenames)}\nFor each: classify + write a short caption (what's in the photo, 10-20 words)."
     else:
         prompt = (
             f"Classify each photo into EXACTLY ONE of these categories:\n{cat_list}\n\n"
-            f"Photos in order: {', '.join(filenames)}"
+            f"Photos in order: {', '.join(filenames)}\n"
+            f"For each: classify + write a short caption describing what's in the photo (10-20 words)."
         )
     parts.append(types.Part.from_text(text=prompt))
 
@@ -784,7 +804,9 @@ def _classify_batch_vision(
             config=config,
         )
         data = json.loads(response.text)
-        mapping = {c["filename"]: c["category"] for c in data.get("classifications", [])}
+        classifications = data.get("classifications", [])
+        mapping = {c["filename"]: c["category"] for c in classifications}
+        captions = {c["filename"]: c.get("caption", "") for c in classifications}
     except Exception as e:
         print(f"[GroupBatch] Vision batch failed ({len(valid_items)} images): {e}")
         # Fallback: classify individually
@@ -799,7 +821,10 @@ def _classify_batch_vision(
     for abs_path, mtime, fname in valid_items:
         cat = mapping.get(fname)
         _save_classification(abs_path, mtime, cat or "_uncategorized")
-        results.append({"path": abs_path, "category": cat, "cached": False})
+        caption = captions.get(fname, "")
+        if caption:
+            _index_caption(abs_path, caption)
+        results.append({"path": abs_path, "category": cat, "caption": caption, "cached": False})
 
     return results
 
@@ -834,11 +859,12 @@ def _classify_batch_captions(
         lines.append(f'- {fname}: "{caption[:200]}"')
 
     if cached_content:
-        prompt = f"Photo descriptions:\n{''.join(chr(10) + l for l in lines)}"
+        prompt = f"Photo descriptions:\n{''.join(chr(10) + l for l in lines)}\nClassify each. For caption, reuse the description given."
     else:
         prompt = (
             f"Photo descriptions:\n{''.join(chr(10) + l for l in lines)}\n\n"
-            f"Classify each into EXACTLY ONE of:\n{cat_list}"
+            f"Classify each into EXACTLY ONE of:\n{cat_list}\n"
+            f"For caption, reuse the description given."
         )
 
     config = types.GenerateContentConfig(
@@ -1018,36 +1044,14 @@ def group_photos(folder: str, categories: list[str], uncategorized_folder: str |
         classified = []
         categories_lower = [c.lower() for c in categories]
         start = time.time()
-        gemini_cache_name = None
-
-        # Create Gemini context cache for category prompt (reused across all calls)
-        try:
-            client = _get_gemini()
-            if client:
-                from google.genai import types
-
-                cat_list = "\n".join(f"- {c}" for c in categories)
-                model = os.environ.get(
-                    "GEMINI_MODEL_LITE", os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite-preview")
-                )
-                cache = client.caches.create(
-                    model=model,
-                    config=types.CreateCachedContentConfig(
-                        display_name=f"pinpoint_group_{int(start)}",
-                        system_instruction=f"Classify each photo into EXACTLY ONE of these categories:\n{cat_list}",
-                        ttl="600s",
-                    ),
-                )
-                gemini_cache_name = cache.name
-                print(f"[Group] Created Gemini cache: {gemini_cache_name}")
-        except Exception as e:
-            print(f"[Group] Cache creation failed (proceeding without): {e}")
+        gemini_cache_name = None  # caching removed — lite/preview models don't support it and it can hang
 
         # Phase 1: Check cache + gather captions for all images
         cached_items = []
         caption_items = []  # (abs_path, mtime, caption)
         vision_items = []  # (abs_path, mtime)
 
+        print(f"[Group] Phase 1: scanning {len(images)} images for cache/captions...")
         with _db_lock:
             conn = _get_conn()
             for img_path in images:
@@ -1075,6 +1079,7 @@ def group_photos(folder: str, categories: list[str], uncategorized_folder: str |
                 else:
                     vision_items.append((abs_path, mtime))
 
+        print(f"[Group] Phase 1 done: {len(cached_items)} cached, {len(caption_items)} captions, {len(vision_items)} need vision")
         classified.extend(cached_items)
         if cached_items:
             print(
@@ -1082,13 +1087,7 @@ def group_photos(folder: str, categories: list[str], uncategorized_folder: str |
             )
 
         def _cleanup_cache() -> None:
-            if gemini_cache_name:
-                try:
-                    cl = _get_gemini()
-                    if cl:
-                        cl.caches.delete(gemini_cache_name)
-                except Exception:
-                    pass
+            pass  # no-op — caching removed
 
         # Phase 2: Batch-classify captioned images (text-only, cheap)
         for i in range(0, len(caption_items), _CAPTION_BATCH_SIZE):
@@ -1113,6 +1112,7 @@ def group_photos(folder: str, categories: list[str], uncategorized_folder: str |
             progress["eta_seconds"] = round(remaining / max(rate, 0.01))
 
         # Phase 3: Batch-classify remaining via vision (5 images per call, concurrent)
+        print(f"[Group] Phase 3: {len(vision_items)} images to classify via vision...")
         vision_batches = [
             vision_items[i : i + _VISION_BATCH_SIZE] for i in range(0, len(vision_items), _VISION_BATCH_SIZE)
         ]
@@ -1188,15 +1188,7 @@ def group_photos(folder: str, categories: list[str], uncategorized_folder: str |
         progress["report_path"] = report_path
         progress["elapsed_seconds"] = round(time.time() - start, 1)
 
-        # Cleanup Gemini cache
-        if gemini_cache_name:
-            try:
-                client = _get_gemini()
-                if client:
-                    client.caches.delete(gemini_cache_name)
-                    print(f"[Group] Deleted Gemini cache: {gemini_cache_name}")
-            except Exception:
-                pass
+        # (Gemini caching removed — category prompt sent inline with each call)
 
     thread = threading.Thread(target=_run, daemon=True)
     thread.start()
