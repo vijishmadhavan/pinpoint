@@ -848,9 +848,12 @@ async function executeTool(functionCall, sock, chatJid) {
         return allResults;
       }
       case "web_search": {
-        const q = enc(args.query);
-        const webUrl = args.url || `https://search.brave.com/search?q=${q}`;
-        return await apiGet(`/web-read?url=${enc(webUrl)}${args.start ? `&start=${args.start}` : ""}`);
+        if (args.url) {
+          // Read a specific URL
+          return await apiGet(`/web-read?url=${enc(args.url)}${args.start ? `&start=${args.start}` : ""}`);
+        }
+        // Search the web via LangSearch/Jina
+        return await apiPost("/web-search", { query: args.query, count: args.count || 10, freshness: args.freshness || "noLimit" });
       }
       case "memory_save": {
         if (!(isMemoryEnabled(chatJid))) return { error: "Memory is disabled. User can enable it with /memory on." };

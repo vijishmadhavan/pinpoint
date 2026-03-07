@@ -1,12 +1,14 @@
-"""Search endpoints: full-text search, facts search, document lookup, web read."""
+"""Search endpoints: full-text search, facts search, document lookup, web search, web read."""
 
 from __future__ import annotations
 
+import os
 import re
 import threading
 from urllib.parse import parse_qs, unquote, urlparse
 
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel, Field
 
 from api.helpers import _check_url_safe, _get_conn
 from database import DB_PATH
@@ -79,6 +81,80 @@ def document_endpoint(doc_id: int) -> dict:
     if not row:
         raise HTTPException(status_code=404, detail=f"Document {doc_id} not found")
     return dict(row)
+
+
+# --- Web Search (LangSearch API, Jina fallback) ---
+
+
+class WebSearchRequest(BaseModel):
+    query: str = Field(..., description="Search query")
+    count: int = Field(10, ge=1, le=20, description="Number of results")
+    freshness: str = Field("noLimit", description="Time filter: noLimit, day, week, month")
+
+
+@router.post("/web-search")
+def web_search(req: WebSearchRequest) -> dict:
+    """Search the web using LangSearch API. Falls back to Jina Reader + Brave scraping."""
+    import requests as http
+
+    api_key = os.getenv("LANGSEARCH_API_KEY")
+    if api_key:
+        try:
+            resp = http.post(
+                "https://api.langsearch.com/v1/web-search",
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json={"query": req.query, "count": req.count, "freshness": req.freshness, "summary": True},
+                timeout=15,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            results = []
+            for item in data.get("data", {}).get("webPages", {}).get("value", []):
+                results.append({
+                    "title": item.get("name", ""),
+                    "url": item.get("url", ""),
+                    "snippet": item.get("summary", item.get("snippet", ""))[:500],
+                })
+            return {
+                "query": req.query,
+                "count": len(results),
+                "results": results,
+                "source": "langsearch",
+                "_hint": f"{len(results)} web result(s). Answer from these. Use web_read on a URL for full content.",
+            }
+        except Exception as e:
+            print(f"[WebSearch] LangSearch failed: {e}, falling back to Jina/Brave")
+
+    # Fallback: Jina Reader search
+    jina_key = os.getenv("JINA_API_KEY")
+    if jina_key:
+        try:
+            resp = http.get(
+                f"https://s.jina.ai/{req.query}",
+                headers={"Authorization": f"Bearer {jina_key}", "Accept": "application/json", "X-Retain-Images": "none"},
+                timeout=15,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            results = []
+            for item in data.get("data", []):
+                results.append({
+                    "title": item.get("title", ""),
+                    "url": item.get("url", ""),
+                    "snippet": item.get("description", item.get("content", ""))[:500],
+                })
+            return {
+                "query": req.query,
+                "count": len(results),
+                "results": results,
+                "source": "jina",
+                "_hint": f"{len(results)} web result(s). Answer from these. Use web_read on a URL for full content.",
+            }
+        except Exception as e:
+            print(f"[WebSearch] Jina failed: {e}, falling back to Brave scrape")
+
+    # Last resort: Brave HTML scraping (no API key needed)
+    return {"error": "No web search API key configured. Set LANGSEARCH_API_KEY or JINA_API_KEY in .env."}
 
 
 # --- Web Read (Segment 18U: browser tool, readability + html2text) ---

@@ -1123,7 +1123,7 @@ const TOOL_DECLARATIONS = [
   {
     name: "web_search",
     description:
-      "Search the web for real-world information. Use for news, weather, sports, people, products, prices, current events, comparisons — anything NOT in local files. Returns search results with titles, snippets, and URLs. The results are reliable and current — answer directly from them. Do NOT fall back to search_documents or search_facts for web queries. If you need more detail on a specific result, call again with that result's full URL.",
+      "Search the web for real-world information. Use for news, weather, sports, people, products, prices, current events, comparisons — anything NOT in local files. Returns structured search results with titles, snippets, and URLs. The results are reliable and current — answer directly from them. Do NOT fall back to search_documents or search_facts for web queries. To read full content of a result, call again with that result's URL.",
     parameters: {
       type: "OBJECT",
       properties: {
@@ -1131,11 +1131,13 @@ const TOOL_DECLARATIONS = [
         url: {
           type: "STRING",
           description:
-            "Optional: a specific URL to read instead of searching. Use to read full content of a search result.",
+            "Optional: a specific URL to read full content. Use to get details from a search result.",
         },
+        count: { type: "INTEGER", description: "Number of results (default 10, max 20)." },
+        freshness: { type: "STRING", description: "Time filter: noLimit (default), day, week, month." },
         start: {
           type: "INTEGER",
-          description: "Character offset for long pages. Use the end value from previous response to continue reading.",
+          description: "Character offset for long pages (when reading a URL). Use the end value from previous response.",
         },
       },
       required: ["query"],
