@@ -969,7 +969,7 @@ def _walk_folder(folder: str):
             import subprocess
 
             result = subprocess.run(
-                ["find", folder, "-type", "f"],
+                ["find", folder, "-maxdepth", "3", "-type", "f"],
                 capture_output=True, text=True, timeout=60,
             )
             for line in result.stdout.strip().split("\n"):
