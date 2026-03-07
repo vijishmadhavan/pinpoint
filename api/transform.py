@@ -39,21 +39,82 @@ class GenerateExcelRequest(BaseModel):
     data: list  # list of dicts or list of lists
     columns: list | None = None
     sheet_name: str = "Sheet1"
+    title: str | None = None  # optional title row above data
 
 
 @router.post("/generate-excel")
 def generate_excel_endpoint(req: GenerateExcelRequest) -> dict:
-    """Create an Excel file from data."""
+    """Create a formatted Excel file from data."""
     import pandas as pd
+    from openpyxl import load_workbook
+    from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+    from openpyxl.utils import get_column_letter
 
     path = os.path.abspath(req.path)
     _check_safe(path)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     try:
         df = pd.DataFrame(req.data, columns=req.columns)
-        df.to_excel(path, sheet_name=req.sheet_name, index=False)
+        # Write raw data first
+        start_row = 3 if req.title else 1
+        df.to_excel(path, sheet_name=req.sheet_name, index=False, startrow=start_row - 1)
+
+        # Auto-format with openpyxl
+        wb = load_workbook(path)
+        ws = wb[req.sheet_name]
+
+        # --- Title row ---
+        if req.title:
+            ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(df.columns))
+            title_cell = ws.cell(row=1, column=1, value=req.title)
+            title_cell.font = Font(size=14, bold=True, color="1F4E79")
+            title_cell.alignment = Alignment(horizontal="center", vertical="center")
+            ws.row_dimensions[1].height = 30
+            ws.row_dimensions[2].height = 6  # spacer row
+
+        # --- Header styling ---
+        header_row = start_row
+        header_fill = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
+        header_font = Font(bold=True, color="FFFFFF", size=11)
+        thin_border = Border(
+            bottom=Side(style="thin", color="D9D9D9"),
+        )
+        for col_idx in range(1, len(df.columns) + 1):
+            cell = ws.cell(row=header_row, column=col_idx)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+        ws.row_dimensions[header_row].height = 28
+
+        # --- Data rows: alternating colors + borders ---
+        stripe_fill = PatternFill(start_color="F2F7FB", end_color="F2F7FB", fill_type="solid")
+        for row_idx in range(header_row + 1, header_row + 1 + len(df)):
+            for col_idx in range(1, len(df.columns) + 1):
+                cell = ws.cell(row=row_idx, column=col_idx)
+                cell.border = thin_border
+                cell.alignment = Alignment(vertical="center")
+                if (row_idx - header_row) % 2 == 0:
+                    cell.fill = stripe_fill
+
+        # --- Auto-fit column widths ---
+        for col_idx in range(1, len(df.columns) + 1):
+            max_len = len(str(df.columns[col_idx - 1]))
+            for row_idx in range(header_row + 1, header_row + 1 + min(len(df), 100)):
+                val = ws.cell(row=row_idx, column=col_idx).value
+                if val is not None:
+                    max_len = max(max_len, len(str(val)))
+            ws.column_dimensions[get_column_letter(col_idx)].width = min(max_len + 4, 50)
+
+        # --- Freeze header row ---
+        ws.freeze_panes = ws.cell(row=header_row + 1, column=1)
+
+        # --- Auto-filter ---
+        ws.auto_filter.ref = f"A{header_row}:{get_column_letter(len(df.columns))}{header_row + len(df)}"
+
+        wb.save(path)
         record_generated_file(path, "generate_excel", f"Excel: {len(df)} rows, {len(df.columns)} cols")
-        return {"success": True, "path": path, "rows": len(df), "columns": list(df.columns)}
+        return {"success": True, "path": path, "rows": len(df), "columns": list(df.columns),
+                "_hint": f"Excel created with {len(df)} rows. File ready to send."}
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to create Excel: {e}")
 

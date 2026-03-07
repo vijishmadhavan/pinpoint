@@ -758,16 +758,18 @@ const TOOL_DECLARATIONS = [
   },
   {
     name: "generate_excel",
-    description: "Create an Excel file from data. Use for expense reports, data exports, aggregated results.",
+    description:
+      'Create a professionally formatted Excel file. Auto-applies: dark header with white text, alternating row stripes, auto-fit column widths, freeze panes, auto-filter. Optional title row above data.\n\nExample — expense report:\n  title: "March 2026 Expenses"\n  data: [{"Category":"Food","Amount":1200,"Date":"2026-03-01"},{"Category":"Transport","Amount":450,"Date":"2026-03-05"}]\n\nExample — contact list:\n  data: [{"Name":"Alice","Phone":"555-1234","Email":"alice@example.com"}]\n\nTips: Use descriptive column names (not "col1"). Group related data. Add a title for context.',
     parameters: {
       type: "OBJECT",
       properties: {
         path: { type: "STRING", description: "Output path for .xlsx file." },
         data: {
           type: "ARRAY",
-          description: 'List of row objects (e.g. [{"name":"A","amount":100}]).',
+          description: 'List of row objects. Keys become column headers. E.g. [{"Name":"Alice","Amount":100}].',
           items: { type: "OBJECT" },
         },
+        title: { type: "STRING", description: "Optional title displayed above the table (merged across columns, large bold text). E.g. 'Q1 Sales Report'." },
         sheet_name: { type: "STRING", description: "Sheet name. Default: Sheet1." },
       },
       required: ["path", "data"],
@@ -1615,7 +1617,7 @@ function buildToolRoutes(maxResults) {
     generate_excel: {
       m: "POST",
       p: "/generate-excel",
-      b: (a) => ({ path: a.path, data: a.data, sheet_name: a.sheet_name || "Sheet1" }),
+      b: (a) => ({ path: a.path, data: a.data, sheet_name: a.sheet_name || "Sheet1", title: a.title || null }),
     },
     generate_chart: {
       m: "POST",
