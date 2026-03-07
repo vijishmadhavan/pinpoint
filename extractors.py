@@ -192,6 +192,7 @@ def extract_pdf(path: str) -> dict | None:
                     for page_num in range(batch_start, batch_end):
                         pix = doc_render[page_num].get_pixmap(dpi=OCR_DPI)
                         img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                        pix = None  # release pixmap memory immediately
                         images.append(img)
                     batch_text = (
                         _ocr_gemini(images) if _get_gemini() else (_ocr_tesseract(images) if _HAS_TESSERACT else "")

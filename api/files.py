@@ -105,43 +105,18 @@ def list_files_endpoint(
 
         _found_via_native = False
         try:
-            # Sanitize name_contains to prevent command injection
-            import re as _re
-            _safe_name = _re.sub(r'[&|;$`"\'\\<>()!^%*?\[\]\r\n\t]', '', name_contains)
+            # Sanitize name_contains — strip shell metacharacters
+            _safe_name = re.sub(r'[&|;$`"\'\\<>()!^%*?\[\]\r\n\t]', '', name_contains)
 
-            # WSL: /mnt/X/ paths -> use Windows cmd.exe dir /s /b (NTFS-native, fast)
-            # Linux paths -> use find command
-            wsl_match = re.match(r"^/mnt/([a-zA-Z])/(.*)$", folder)
-            if wsl_match:
-                drive = wsl_match.group(1).upper()
-                win_rest = wsl_match.group(2).rstrip("/").replace("/", "\\")
-                win_folder = f"{drive}:\\{win_rest}" if win_rest else f"{drive}:\\"
-                dir_cmd = f"dir /s /b {win_folder}\\*{_safe_name}*"
-                r = subprocess.run(
-                    ["/mnt/c/Windows/System32/cmd.exe", "/c", dir_cmd], capture_output=True, text=True, timeout=30
-                )
-                if r.returncode != 0 and not r.stdout.strip():
-                    pass  # dir /s returns non-zero for empty results; only skip if no output
-                for line in r.stdout.strip().split("\n"):
-                    line = line.strip()
-                    if not line:
-                        continue
-                    # Convert Windows path -> WSL: C:\Users\x -> /mnt/c/Users/x
-                    wsl_path = re.sub(r"^([A-Za-z]):\\", lambda m: f"/mnt/{m.group(1).lower()}/", line)
-                    wsl_path = wsl_path.replace("\\", "/")
-                    _process_entry(os.path.basename(wsl_path), wsl_path)
+            # Use find command (safe: list args, no shell) for both WSL and Linux paths
+            cmd = ["find", folder, "-maxdepth", "5", "-iname", f"*{_safe_name}*", "-not", "-path", "*/.*"]
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            for line in r.stdout.strip().split("\n"):
+                if line:
+                    _process_entry(os.path.basename(line), line)
                     if len(entries) >= limit:
                         break
-                _found_via_native = True
-            else:
-                cmd = ["find", folder, "-iname", f"*{_safe_name}*", "-not", "-path", "*/.*"]
-                r = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-                for line in r.stdout.strip().split("\n"):
-                    if line:
-                        _process_entry(os.path.basename(line), line)
-                        if len(entries) >= limit:
-                            break
-                _found_via_native = True
+            _found_via_native = True
         except Exception:
             pass
         if not _found_via_native:

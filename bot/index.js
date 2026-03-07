@@ -463,12 +463,15 @@ setInterval(() => {
   const staleMs = 2 * 60 * 60 * 1000; // 2 hours
   for (const [jid, ts] of allowedSessions) {
     if (now - ts > staleMs) {
+      // Skip if a request is actively running — don't yank state mid-processing
+      if (activeRequests.has(jid)) continue;
       allowedSessions.delete(jid);
       lastImage.delete(jid);
-      activeRequests.delete(jid);
       delete sessionCosts[jid];
       delete actionLedger[jid];
       clearIntentCache(jid);
+      memoryEnabled.delete(jid);
+      memoryContext.delete(jid);
     }
   }
 }, 15 * 60 * 1000); // Check every 15 min
