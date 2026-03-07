@@ -41,7 +41,7 @@ DEFAULT_FPS = 1  # 1 frame per second
 
 
 _db_conn = None
-_db_lock = threading.Lock()
+_db_lock = threading.RLock()
 
 
 def _get_conn() -> sqlite3.Connection:

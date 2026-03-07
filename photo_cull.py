@@ -214,6 +214,10 @@ def score_photo(path: str) -> dict[str, Any]:
             )
             conn.commit()
 
+        # Index reasoning as caption for future search (free — Gemini already saw the image)
+        if scores.get("reasoning"):
+            _index_caption(path, scores["reasoning"])
+
         scores["path"] = path
         scores["cached"] = False
         scores["_hint"] = f"Score: {scores['total']}/100 — {scores['reasoning']}"

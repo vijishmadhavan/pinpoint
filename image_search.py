@@ -105,7 +105,7 @@ def _get_siglip() -> tuple[Any, Any, Any]:
 
 
 _db_conn = None
-_db_lock = threading.Lock()
+_db_lock = threading.RLock()
 
 
 def _get_conn() -> sqlite3.Connection:
