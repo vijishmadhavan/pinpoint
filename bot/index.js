@@ -1179,8 +1179,14 @@ async function runGemini(userMessage, sock, chatJid, opts = {}) {
   const history = await loadHistory(chatJid);
 
   // Auto-reset if idle for 60+ minutes
+  // Note: use lightweight reset here — don't call resetSession() which clears activeRequests
+  // (we ARE the active request, clearing our own lock would cause "Stopped by user" at round 0)
   if (history.updated_at && isSessionIdle(history.updated_at)) {
-    const deleted = await resetSession(chatJid);
+    let deleted = 0;
+    try {
+      const data = await apiPost("/conversation/reset", { session_id: chatJid });
+      deleted = data.deleted_count || 0;
+    } catch (_) {}
     delete sessionCosts[chatJid];
     clearIntentCache(chatJid);
     delete actionLedger[chatJid];
