@@ -700,6 +700,21 @@ def _save_classification(abs_path: str, mtime: float, category: str) -> None:
         conn.commit()
 
 
+def _update_db_path(old_path: str, new_path: str) -> None:
+    """Update file path in all DB tables after a move (documents, photo_classifications, photo_scores)."""
+    try:
+        from database import get_db, DB_PATH
+        conn = get_db(DB_PATH)
+        for table in ("documents", "photo_classifications", "photo_scores", "image_embeddings"):
+            try:
+                conn.execute(f"UPDATE {table} SET path = ? WHERE path = ?", (new_path, old_path))
+            except Exception:
+                pass  # table may not exist
+        conn.commit()
+    except Exception as e:
+        print(f"[Group] DB path update failed {os.path.basename(old_path)}: {e}")
+
+
 def _index_caption(abs_path: str, caption: str) -> None:
     """Index a photo caption into the documents table for FTS search."""
     try:
@@ -1174,9 +1189,12 @@ def group_photos(folder: str, categories: list[str], uncategorized_folder: str |
                     while os.path.exists(dest):
                         dest = os.path.join(dest_folder, f"{base}_{counter}{ext}")
                         counter += 1
-                shutil.move(item["path"], dest)
+                old_path = item["path"]
+                shutil.move(old_path, dest)
                 group_counts[cat_name] = group_counts.get(cat_name, 0) + 1
                 moved += 1
+                # Update DB paths so searches return correct location
+                _update_db_path(old_path, dest)
             except Exception as e:
                 print(f"[Group] Move failed: {item['path']} — {e}")
                 progress["errors"] += 1
