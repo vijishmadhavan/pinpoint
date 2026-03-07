@@ -1364,7 +1364,7 @@ const TOOL_DECLARATIONS = [
   {
     name: "group_photos",
     description:
-      "Auto-group ALL photos in a folder by Gemini vision classification. Each photo is sent to Gemini with the category list — Gemini picks the best match. Photos moved to category subfolders. Generates HTML report. Classifications cached in DB — re-runs are free. WORKFLOW: 1) list_files to survey 2) suggest_categories to auto-discover groups 3) confirm with user 4) group_photos 5) poll group_status 6) report. Background job — use group_status to poll.",
+      "Auto-group ALL photos in a folder by Gemini vision classification. Each photo is sent to Gemini with the category list — Gemini picks the best match. Photos MOVED to category subfolders (destructive). Generates HTML report. Classifications cached in DB — re-runs are free. IMPORTANT: NEVER call this without user confirmation of categories first. Always show suggest_categories results and WAIT for user approval before calling this. Background job — use group_status to poll.",
     parameters: {
       type: "OBJECT",
       properties: {

@@ -1001,7 +1001,7 @@ def suggest_categories(folder: str) -> dict[str, Any]:
             "total_images": len(images),
             "sampled": sampled,
             "categories": categories,
-            "_hint": f"Suggested {len(categories)} categories for {len(images)} photos: {', '.join(categories)}. Confirm with user, then call group_photos.",
+            "_hint": f"Suggested {len(categories)} categories for {len(images)} photos: {', '.join(categories)}. STOP and show these to the user. Do NOT call group_photos until user confirms or modifies the categories.",
         }
 
     except Exception as e:
@@ -1224,7 +1224,8 @@ def _generate_group_report(
             continue
 
         cards = []
-        for item in items:
+        _MAX_THUMBS_PER_GROUP = 50  # cap thumbnails to keep report generation fast
+        for item in items[:_MAX_THUMBS_PER_GROUP]:
             moved_path = os.path.join(folder, cat, os.path.basename(item["path"]))
             display_path = moved_path if os.path.exists(moved_path) else item["path"]
             thumb = _make_thumbnail_b64(display_path)
@@ -1239,8 +1240,9 @@ def _generate_group_report(
 
         count = group_counts.get(cat, len(items))
         esc_cat = html_mod.escape(cat)
+        truncated = f" (showing {_MAX_THUMBS_PER_GROUP} of {len(items)})" if len(items) > _MAX_THUMBS_PER_GROUP else ""
         sections.append(f"""<div class="group">
-  <h2>{esc_cat} ({count})</h2>
+  <h2>{esc_cat} ({count}){truncated}</h2>
   <div class="grid">{"".join(cards)}</div>
 </div>""")
 
@@ -1293,8 +1295,10 @@ def get_group_status(folder: str, cancel: bool = False) -> dict[str, Any]:
     result = dict(progress)
     if result["status"] == "done":
         counts_str = ", ".join(f"{k}: {v}" for k, v in result.get("group_counts", {}).items())
+        report = result.get("report_path", "")
         result["_hint"] = (
-            f"Done! {result['moved']} photos grouped. {counts_str}. Report: {result.get('report_path', 'N/A')}"
+            f"Done! {result['moved']} photos grouped. {counts_str}."
+            + (f" Send the report to user: {report}" if report else "")
         )
     elif result["status"] == "classifying":
         pct = round(result["classified"] / max(result["total"], 1) * 100)
