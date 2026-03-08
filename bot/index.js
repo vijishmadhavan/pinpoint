@@ -1447,12 +1447,13 @@ async function runGemini(userMessage, sock, chatJid, opts = {}) {
         }
 
         // Tail tool calls: auto-send generated files to user without LLM round-trip
-        // (extract_frame, crop_face, generate_chart → auto send_file)
+        // (extract_frame, crop_face, generate_chart, cull/group reports → auto send_file)
         if (!result?.error) {
           const autoSendPath =
             (fc.name === "extract_frame" && result.path) ||
             (fc.name === "crop_face" && result.path) ||
-            (fc.name === "generate_chart" && result.path);
+            (fc.name === "generate_chart" && result.path) ||
+            ((fc.name === "cull_status" || fc.name === "group_status") && result.status === "done" && result.report_path);
           if (autoSendPath) {
             const sent = await sendFile(sock, chatJid, autoSendPath, `${PREFIX} ${pathModule.basename(autoSendPath)}`);
             if (sent) {

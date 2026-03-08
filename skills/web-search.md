@@ -7,5 +7,6 @@ Search the web for real-time information. Returns search results with titles, sn
 Cannot access login-protected pages. Cannot execute JavaScript. Cannot submit forms.
 
 ## Tools
-- **web_search(query)** → Search the web. Returns results with titles, snippets, and URLs.
+- **web_search(query)** → Search the web (LangSearch API). Returns results with titles, snippets, and URLs.
 - **web_search(query, url)** → Read a specific URL for full content (e.g. to get details from a search result).
+- **web_search(query, freshness)** → Filter by time: noLimit, day, week, month.
