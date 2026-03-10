@@ -821,6 +821,7 @@ def batch_rename_endpoint(req: BatchRenameRequest) -> dict:
                     ("UPDATE video_embeddings SET video_path = ? WHERE video_path = ?", (new_path, old_path)),
                     ("UPDATE photo_classifications SET path = ? WHERE path = ?", (new_path, old_path)),
                     ("UPDATE photo_scores SET path = ? WHERE path = ?", (new_path, old_path)),
+                    ("UPDATE image_embeddings SET path = ? WHERE path = ?", (new_path, old_path)),
                 ]:
                     try:
                         conn.execute(*stmt)

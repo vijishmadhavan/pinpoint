@@ -14,7 +14,16 @@ import sqlite3
 from datetime import UTC, datetime
 from typing import Any
 
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pinpoint.db")
+_DEFAULT_DB_DIR = os.path.expanduser("~/.pinpoint")
+os.makedirs(_DEFAULT_DB_DIR, exist_ok=True)
+DB_PATH = os.path.join(_DEFAULT_DB_DIR, "pinpoint.db")
+
+# Auto-migrate: move old DB from project directory to ~/.pinpoint/
+_OLD_DB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pinpoint.db")
+if os.path.exists(_OLD_DB) and not os.path.exists(DB_PATH):
+    import shutil
+    shutil.move(_OLD_DB, DB_PATH)
+    print(f"[DB] Migrated database from {_OLD_DB} -> {DB_PATH}")
 
 
 def _now() -> str:
@@ -34,6 +43,7 @@ def get_db(db_path: str = DB_PATH) -> sqlite3.Connection:
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
     conn.execute("PRAGMA busy_timeout=5000")
+    conn.execute("PRAGMA wal_autocheckpoint=1000")
     return conn
 
 
@@ -147,6 +157,23 @@ def init_db(db_path: str = DB_PATH) -> sqlite3.Connection:
             created_at TEXT NOT NULL,
             FOREIGN KEY (document_id) REFERENCES documents(id)
         );
+
+        CREATE VIRTUAL TABLE IF NOT EXISTS facts_fts USING fts5(
+            fact_text,
+            content='facts',
+            content_rowid='id',
+            tokenize='porter unicode61'
+        );
+
+        -- Triggers to keep facts_fts in sync
+        CREATE TRIGGER IF NOT EXISTS trg_facts_insert
+        AFTER INSERT ON facts BEGIN
+            INSERT INTO facts_fts(rowid, fact_text) VALUES (NEW.id, NEW.fact_text);
+        END;
+        CREATE TRIGGER IF NOT EXISTS trg_facts_delete
+        AFTER DELETE ON facts BEGIN
+            INSERT INTO facts_fts(facts_fts, rowid, fact_text) VALUES ('delete', OLD.id, OLD.fact_text);
+        END;
 
         -- Video frame embeddings (Segment 18H: on-demand video search)
         CREATE TABLE IF NOT EXISTS video_embeddings (
@@ -349,6 +376,13 @@ def init_db(db_path: str = DB_PATH) -> sqlite3.Connection:
             created_at TEXT NOT NULL
         )
     """)
+
+    # Migrate: backfill facts_fts for existing facts
+    fts_count = conn.execute("SELECT COUNT(*) FROM facts_fts").fetchone()[0]
+    facts_count = conn.execute("SELECT COUNT(*) FROM facts").fetchone()[0]
+    if facts_count > 0 and fts_count == 0:
+        conn.execute("INSERT INTO facts_fts(rowid, fact_text) SELECT id, fact_text FROM facts")
+        print(f"[DB] Backfilled {facts_count} facts into FTS5 index")
 
     conn.commit()
     return conn

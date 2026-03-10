@@ -763,9 +763,14 @@ async function executeTool(functionCall, sock, chatJid) {
     switch (name) {
       case "send_file": {
         const filePath = args.path;
+        // Dedup: don't send the same file twice in one Gemini run
+        if (sentFiles.has(filePath)) {
+          return { success: true, file: pathModule.basename(filePath), _hint: "Already sent this file." };
+        }
         const caption = args.caption || `${PREFIX} ${pathModule.basename(filePath)}`;
         const sent = await sendFile(sock, chatJid, filePath, `${PREFIX} ${caption}`);
         if (sent) {
+          sentFiles.add(filePath);
           console.log(`[Pinpoint] Sent: ${pathModule.basename(filePath)}`);
           return { success: true, file: pathModule.basename(filePath) };
         }
@@ -1249,6 +1254,7 @@ async function runGemini(userMessage, sock, chatJid, opts = {}) {
   let lastCallHash = null;
   let lastCallCount = 0;
   let didTokenCompact = false; // Only compact once per runGemini call
+  let sentFiles = new Set(); // Dedup: prevent sending same file twice
 
   for (let round = 0; round < MAX_ROUNDS; round++) {
     // Check if user sent "stop" / "cancel" (lock was released)

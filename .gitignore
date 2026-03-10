@@ -47,5 +47,13 @@ claude-code/
 # Logs
 pinpoint.log
 
+# Test/audit artifacts
+.coverage
+AUDIT_V4.md
+
+# Downloaded reference repos
+nanobot-main/
+gws-cli/
+
 # Old monolith backup
 api_old.py

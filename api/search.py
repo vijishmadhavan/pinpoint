@@ -46,14 +46,25 @@ def search_facts_endpoint(
     q: str = Query(..., description="Search query"),
     limit: int = Query(10, ge=1, le=50),
 ) -> dict:
-    """Search extracted facts from documents."""
+    """Search extracted facts from documents using FTS5."""
     conn = _get_conn()
-    rows = conn.execute(
-        """SELECT f.id, f.fact_text, f.category, d.path, d.file_type
-           FROM facts f JOIN documents d ON f.document_id = d.id
-           WHERE f.fact_text LIKE ? LIMIT ?""",
-        (f"%{q}%", limit),
-    ).fetchall()
+    # Use FTS5 for fast full-text search, fall back to LIKE if FTS table missing
+    try:
+        rows = conn.execute(
+            """SELECT f.id, f.fact_text, f.category, d.path, d.file_type
+               FROM facts_fts fts
+               JOIN facts f ON f.id = fts.rowid
+               JOIN documents d ON f.document_id = d.id
+               WHERE facts_fts MATCH ? LIMIT ?""",
+            (q, limit),
+        ).fetchall()
+    except Exception:
+        rows = conn.execute(
+            """SELECT f.id, f.fact_text, f.category, d.path, d.file_type
+               FROM facts f JOIN documents d ON f.document_id = d.id
+               WHERE f.fact_text LIKE ? LIMIT ?""",
+            (f"%{q}%", limit),
+        ).fetchall()
     resp = {"query": q, "count": len(rows), "results": [dict(r) for r in rows]}
     if not rows:
         resp["_hint"] = "No facts match. Try search_documents for full-text search across document content."
