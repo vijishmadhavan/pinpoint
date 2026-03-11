@@ -1052,6 +1052,7 @@ def group_photos(folder: str, categories: list[str], uncategorized_folder: str |
         "folder": folder,
         "total": len(images),
         "classified": 0,
+        "embedded": 0,
         "errors": 0,
         "categories": categories,
         "started_at": time.time(),
@@ -1157,6 +1158,7 @@ def group_photos(folder: str, categories: list[str], uncategorized_folder: str |
                     embs = _embed_images_batch(batch_bytes)
                     for j, fpath in enumerate(batch_valid):
                         image_embeddings[fpath] = embs[j]
+                        progress["embedded"] += 1
                 except Exception as e:
                     print(f"[Group] Embedding batch error: {e}")
                     for fpath in batch_valid:
@@ -1341,10 +1343,17 @@ def get_group_status(folder: str, cancel: bool = False) -> dict[str, Any]:
             + (f" Send the report to user: {report}" if report else "")
         )
     elif result["status"] == "classifying":
-        pct = round(result["classified"] / max(result["total"], 1) * 100)
+        total = result["total"]
+        embedded = result.get("embedded", 0)
+        classified = result["classified"]
         eta = result.get("eta_seconds")
         eta_str = f", ~{eta}s left" if eta else ""
-        result["_hint"] = f"Classifying: {result['classified']}/{result['total']} ({pct}%){eta_str}"
+        if embedded > 0 and embedded < total:
+            pct = round(embedded / max(total, 1) * 100)
+            result["_hint"] = f"Embedding: {embedded}/{total} ({pct}%){eta_str}"
+        else:
+            pct = round(classified / max(total, 1) * 100)
+            result["_hint"] = f"Classifying: {classified}/{total} ({pct}%){eta_str}"
     elif result["status"] == "moving":
         result["_hint"] = "Moving photos to category folders..."
     elif result["status"] == "report":
