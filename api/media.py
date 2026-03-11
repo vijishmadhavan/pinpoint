@@ -64,7 +64,7 @@ def search_images_visual_endpoint(req: VisualSearchRequest) -> dict:
     if not os.path.isdir(folder):
         raise HTTPException(status_code=404, detail=f"Folder not found: {folder}")
 
-    from image_search import _HAS_SIGLIP, _get_image_files, _load_cached_embeddings, _mem_cache, search_images
+    from image_search import _get_image_files, _load_cached_embeddings, _mem_cache, search_images
 
     # Check if embedding is needed (folder not in memory cache)
     # Auto-recurse if no images at top level but subfolders exist
@@ -88,69 +88,6 @@ def search_images_visual_endpoint(req: VisualSearchRequest) -> dict:
             "total_images": len(files),
             "_hint": f"Too many images ({len(files)}). Try search_documents with file_type='image' first — it's free and instant.",
         }
-
-    # No SigLIP — dispatch to Gemini vision (no embedding needed)
-    if not _HAS_SIGLIP:
-        from image_search import _search_images_gemini
-
-        if len(files) > 500:
-            # Large folder — run in background
-            if folder in _embedding_jobs:
-                job = _embedding_jobs[folder]
-                if job["status"] == "running":
-                    return {
-                        "status": "scoring",
-                        "total_batches": job["total"],
-                        "done_batches": job["done"],
-                        "_hint": f"Still scoring images with Gemini ({job['done']}/{job['total']} batches). Tell the user to wait and try again.",
-                    }
-                if job["status"] == "done":
-                    result = job.get("result", {})
-                    del _embedding_jobs[folder]
-                    result["_hint"] = (
-                        "Visual search complete. Results are AI-analyzed — trust them to answer, categorize, or group."
-                    )
-                    return result
-                if job["status"] == "error":
-                    del _embedding_jobs[folder]
-
-            import math
-            import threading
-
-            total_batches = math.ceil(len(files) / 200)
-            _embedding_jobs[folder] = {"status": "running", "total": total_batches, "done": 0}
-
-            def _bg_gemini_search() -> None:
-                try:
-
-                    def _progress(done: int, total: int) -> None:
-                        _embedding_jobs[folder]["done"] = done
-
-                    result = _search_images_gemini(
-                        folder, req.query, limit=req.limit, progress_callback=_progress, recursive=recursive
-                    )
-                    _embedding_jobs[folder]["status"] = "done"
-                    _embedding_jobs[folder]["result"] = result
-                except Exception as e:
-                    _embedding_jobs[folder]["status"] = "error"
-                    _embedding_jobs[folder]["error"] = str(e)
-
-            threading.Thread(target=_bg_gemini_search, daemon=True).start()
-            return {
-                "status": "scoring",
-                "total_images": len(files),
-                "total_batches": total_batches,
-                "_hint": f"Scoring {len(files)} images with Gemini vision in {total_batches} batches. Tell the user it's processing and will be ready soon.",
-            }
-
-        # Small folder — do inline
-        result = search_images(folder, req.query, limit=req.limit, recursive=recursive)
-        if "error" in result and not result.get("results"):
-            raise HTTPException(status_code=404, detail=result["error"])
-        result["_hint"] = (
-            "Visual search complete. Results are AI-analyzed — trust them to answer, categorize, or group."
-        )
-        return result
 
     mem = _mem_cache.get(folder)
     if mem and len(mem["paths"]) == len(files):

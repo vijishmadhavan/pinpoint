@@ -115,8 +115,7 @@ class TestSearchImagesVisual:
             "count": 1,
         }
         with (
-            patch("image_search._HAS_SIGLIP", False),
-            patch("image_search._search_images_gemini", return_value=mock_result),
+            patch("image_search.search_images", return_value=mock_result),
             patch("image_search._get_image_files", return_value=["/tmp/sunset.jpg"]),
         ):
             r = client.post("/search-images-visual", json={"folder": folder, "query": "sunset"})

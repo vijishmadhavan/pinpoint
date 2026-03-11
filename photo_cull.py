@@ -1065,14 +1065,12 @@ def group_photos(folder: str, categories: list[str], uncategorized_folder: str |
         classified = []
         categories_lower = [c.lower() for c in categories]
         start = time.time()
-        gemini_cache_name = None  # caching removed — lite/preview models don't support it and it can hang
 
-        # Phase 1: Check cache + gather captions for all images
+        # Phase 1: Check classification cache
         cached_items = []
-        caption_items = []  # (abs_path, mtime, caption)
-        vision_items = []  # (abs_path, mtime)
+        to_embed = []  # paths that need embedding-based classification
 
-        print(f"[Group] Phase 1: scanning {len(images)} images for cache/captions...")
+        print(f"[Group] Phase 1: scanning {len(images)} images for cache...")
         with _db_lock:
             conn = _get_conn()
             for img_path in images:
@@ -1093,75 +1091,97 @@ def group_photos(folder: str, categories: list[str], uncategorized_folder: str |
                         progress["classified"] += 1
                         continue
 
-                # Check indexed caption
-                caption = _get_indexed_caption(conn, abs_path)
-                if caption:
-                    caption_items.append((abs_path, mtime, caption))
-                else:
-                    vision_items.append((abs_path, mtime))
+                to_embed.append(abs_path)
 
-        print(f"[Group] Phase 1 done: {len(cached_items)} cached, {len(caption_items)} captions, {len(vision_items)} need vision")
+        print(f"[Group] Phase 1 done: {len(cached_items)} cached, {len(to_embed)} need embedding")
         classified.extend(cached_items)
-        if cached_items:
-            print(
-                f"[Group] {len(cached_items)} from cache, {len(caption_items)} with captions, {len(vision_items)} need vision"
-            )
 
-        def _cleanup_cache() -> None:
-            pass  # no-op — caching removed
+        if progress.get("stop"):
+            progress["status"] = "cancelled"
+            progress["classified_count"] = len(classified)
+            progress["elapsed_seconds"] = round(time.time() - start, 1)
+            return
 
-        # Phase 2: Batch-classify captioned images (text-only, cheap)
-        for i in range(0, len(caption_items), _CAPTION_BATCH_SIZE):
-            if progress.get("stop"):
-                progress["status"] = "cancelled"
-                progress["classified_count"] = len(classified)
-                progress["elapsed_seconds"] = round(time.time() - start, 1)
-                _cleanup_cache()
-                return
-            batch = caption_items[i : i + _CAPTION_BATCH_SIZE]
-            results = _classify_batch_captions(batch, categories, categories_lower, cached_content=gemini_cache_name)
-            for r in results:
-                if "error" in r:
-                    progress["errors"] += 1
-                else:
-                    classified.append(r)
-                progress["classified"] += 1
-            # ETA
-            elapsed = time.time() - start
-            remaining = progress["total"] - progress["classified"]
-            rate = progress["classified"] / max(elapsed, 0.1)
-            progress["eta_seconds"] = round(remaining / max(rate, 0.01))
+        # Phase 2: Embed images + categories via Gemini Embedding 2, classify by cosine similarity
+        if to_embed:
+            import numpy as np
 
-        # Phase 3: Batch-classify remaining via vision (5 images per call, concurrent)
-        print(f"[Group] Phase 3: {len(vision_items)} images to classify via vision...")
-        vision_batches = [
-            vision_items[i : i + _VISION_BATCH_SIZE] for i in range(0, len(vision_items), _VISION_BATCH_SIZE)
-        ]
-        with ThreadPoolExecutor(max_workers=4) as pool:
-            futures = {
-                pool.submit(_classify_batch_vision, batch, categories, categories_lower, gemini_cache_name): batch
-                for batch in vision_batches
-            }
-            for future in as_completed(futures):
+            from image_search import _embed_images_batch, _image_to_bytes, _load_image_fast, _normalize
+
+            print(f"[Group] Phase 2: embedding {len(to_embed)} images + {len(categories)} categories...")
+
+            # Embed category names as text queries
+            from image_search import _embed_text_query
+            cat_embeddings = []
+            for cat in categories:
+                try:
+                    emb = _embed_text_query(cat)
+                    cat_embeddings.append(emb)
+                except Exception as e:
+                    print(f"[Group] Failed to embed category '{cat}': {e}")
+                    progress["status"] = "error"
+                    progress["error"] = f"Failed to embed category '{cat}': {e}"
+                    return
+            cat_matrix = np.stack(cat_embeddings)  # [num_cats, embed_dim]
+            cat_matrix = _normalize(cat_matrix, axis=-1)
+
+            # Embed images in batches of 6 (Gemini Embedding 2 limit)
+            _EMBED_BATCH = 6
+            image_embeddings = {}  # path → ndarray
+
+            for i in range(0, len(to_embed), _EMBED_BATCH):
                 if progress.get("stop"):
-                    pool.shutdown(wait=False, cancel_futures=True)
                     progress["status"] = "cancelled"
                     progress["classified_count"] = len(classified)
                     progress["elapsed_seconds"] = round(time.time() - start, 1)
-                    _cleanup_cache()
                     return
-                results = future.result()
-                for r in results:
-                    if "error" in r:
+
+                batch_paths = to_embed[i : i + _EMBED_BATCH]
+                batch_bytes = []
+                batch_valid = []
+                for fpath in batch_paths:
+                    try:
+                        img = _load_image_fast(fpath)
+                        batch_bytes.append(_image_to_bytes(img))
+                        batch_valid.append(fpath)
+                        img.close()
+                    except Exception as e:
+                        print(f"[Group] Skip {os.path.basename(fpath)}: {e}")
                         progress["errors"] += 1
-                    else:
-                        classified.append(r)
-                    progress["classified"] += 1
+                        progress["classified"] += 1
+
+                if not batch_bytes:
+                    continue
+
+                try:
+                    embs = _embed_images_batch(batch_bytes)
+                    for j, fpath in enumerate(batch_valid):
+                        image_embeddings[fpath] = embs[j]
+                except Exception as e:
+                    print(f"[Group] Embedding batch error: {e}")
+                    for fpath in batch_valid:
+                        progress["errors"] += 1
+                        progress["classified"] += 1
+                    continue
+
                 # ETA
                 elapsed = time.time() - start
-                remaining = progress["total"] - progress["classified"]
-                rate = progress["classified"] / max(elapsed, 0.1)
+                done_so_far = progress["classified"] + len(image_embeddings)
+                remaining = progress["total"] - done_so_far
+                rate = done_so_far / max(elapsed, 0.1)
                 progress["eta_seconds"] = round(remaining / max(rate, 0.01))
+
+            # Classify by cosine similarity: each image → closest category
+            for fpath, emb in image_embeddings.items():
+                emb_norm = _normalize(emb.reshape(1, -1), axis=-1)  # [1, dim]
+                similarities = (emb_norm @ cat_matrix.T).squeeze()  # [num_cats]
+                best_idx = int(np.argmax(similarities))
+                best_cat = categories[best_idx]
+
+                mtime = os.path.getmtime(fpath)
+                _save_classification(fpath, mtime, best_cat)
+                classified.append({"path": fpath, "category": best_cat, "cached": False})
+                progress["classified"] += 1
 
         if not classified:
             progress["status"] = "error"

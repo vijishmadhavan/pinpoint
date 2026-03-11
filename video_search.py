@@ -1,7 +1,8 @@
 """
-Pinpoint — Video Search using SigLIP2 ONNX embeddings + FFmpeg frame extraction.
-Search inside videos by text description: extract frames, embed with SigLIP2,
-find frames matching a text query. Embeddings cached in SQLite.
+Pinpoint — Video Search using Gemini native video analysis + embedding fallback.
+Primary: Gemini vision analyzes full video directly (no frame extraction).
+Fallback: FFmpeg frame extraction + Gemini Embedding 2 for vector search.
+Embeddings cached in SQLite.
 """
 
 from __future__ import annotations
@@ -21,11 +22,10 @@ import numpy as np
 from PIL import Image
 
 from database import DB_PATH, get_db
-from image_search import _HAS_SIGLIP
 
 # --- Config ---
 EMBED_DIM = 768
-BATCH_SIZE = 16
+BATCH_SIZE = 6  # Gemini Embedding 2 limit: 6 images per request
 MAX_LOAD_DIM = 384
 VIDEO_EXTS = {".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm"}
 VIDEO_MIME = {
@@ -54,14 +54,7 @@ def _get_conn() -> sqlite3.Connection:
     return _db_conn
 
 
-# --- Reuse SigLIP2 from image_search ---
-
-
-def _get_siglip() -> tuple[Any, Any, Any]:
-    """Reuse SigLIP2 model from image_search (shared lazy singleton)."""
-    from image_search import _get_siglip as _img_get_siglip
-
-    return _img_get_siglip()
+# --- Reuse Gemini Embedding 2 from image_search ---
 
 
 def _embed_text(query: str) -> Any:
@@ -69,6 +62,13 @@ def _embed_text(query: str) -> Any:
     from image_search import embed_text
 
     return embed_text(query)
+
+
+def _embed_frames_batch(frame_bytes_list: list[bytes]) -> list[Any]:
+    """Embed a batch of frame images via Gemini Embedding 2."""
+    from image_search import _embed_images_batch
+
+    return _embed_images_batch(frame_bytes_list)
 
 
 from image_search import _normalize
@@ -236,9 +236,10 @@ def embed_video(
         if not frames:
             return {}
 
-        # Embed frames with SigLIP2 ONNX
-        vision_session, _, processor = _get_siglip()
-        print(f"[VideoSearch] Embedding {len(frames)} frames...")
+        # Embed frames with Gemini Embedding 2
+        import io
+
+        print(f"[VideoSearch] Embedding {len(frames)} frames via Gemini Embedding 2...")
         t1 = time.time()
 
         result = {}
@@ -246,34 +247,33 @@ def embed_video(
 
         for i in range(0, len(frames), BATCH_SIZE):
             batch = frames[i : i + BATCH_SIZE]
-            batch_imgs = []
+            batch_bytes = []
             batch_secs = []
 
             for frame_path, sec in batch:
                 try:
                     img = Image.open(frame_path).convert("RGB")
                     img.thumbnail((MAX_LOAD_DIM, MAX_LOAD_DIM), Image.LANCZOS)
-                    batch_imgs.append(img)
+                    buf = io.BytesIO()
+                    img.save(buf, format="JPEG", quality=80)
+                    batch_bytes.append(buf.getvalue())
                     batch_secs.append(sec)
+                    buf.close()
+                    img.close()
                 except Exception as e:
                     print(f"[VideoSearch] Skip frame at {sec}s: {e}")
 
-            if not batch_imgs:
+            if not batch_bytes:
                 continue
 
             try:
-                inputs = processor(images=batch_imgs, return_tensors="np", padding=True)
-                pixel_values = inputs["pixel_values"].astype(np.float32)
-
-                input_name = vision_session.get_inputs()[0].name
-                outputs = vision_session.run(None, {input_name: pixel_values})
-                embs = outputs[1]  # pooler_output [batch, embed_dim]
-            finally:
-                for im in batch_imgs:
-                    im.close()
+                embs = _embed_frames_batch(batch_bytes)
+            except Exception as e:
+                print(f"[VideoSearch] Embedding batch error: {e}")
+                continue
 
             for j, sec in enumerate(batch_secs):
-                emb = embs[j].astype(np.float32)
+                emb = embs[j]
                 result[sec] = emb
                 new_embeddings.append((sec, emb))
 
@@ -411,14 +411,9 @@ def search_video(video_path: str, query: str, fps: float = DEFAULT_FPS, limit: i
     """
     Search a video by text description.
     Returns matching frames with timestamps and similarity scores.
+    Primary: Gemini Embedding 2 (frame-by-frame, cached in DB — repeat searches free).
+    Fallback: Gemini vision (re-analyzes full video each time).
     """
-    # Gemini native video analysis (primary), SigLIP fallback
-    from extractors import _get_gemini
-
-    if _get_gemini():
-        return _search_video_gemini(video_path, query, fps, limit)
-    if not _HAS_SIGLIP:
-        return {"error": "GEMINI_API_KEY not set and SigLIP unavailable", "results": []}
     video_path = os.path.abspath(video_path)
 
     if not os.path.isfile(video_path):
@@ -428,9 +423,13 @@ def search_video(video_path: str, query: str, fps: float = DEFAULT_FPS, limit: i
     if ext not in VIDEO_EXTS:
         return {"error": f"Unsupported video format: {ext}", "results": []}
 
-    # Embed video frames
+    # Embed video frames (Gemini Embedding 2 — cached, cheap)
     t0 = time.time()
-    frame_embeddings = embed_video(video_path, fps)
+    try:
+        frame_embeddings = embed_video(video_path, fps)
+    except Exception as e:
+        print(f"[VideoSearch] Embedding failed ({e}), falling back to Gemini vision...")
+        return _search_video_gemini(video_path, query, fps, limit)
     embed_time = time.time() - t0
 
     if not frame_embeddings:

@@ -1,111 +1,57 @@
 """
-Pinpoint — Visual Image Search using SigLIP2 ONNX embeddings.
-Text-to-image similarity: embed images, search by text description.
+Pinpoint — Visual Image Search using Gemini Embedding 2.
+Text-to-image similarity: embed images via API, search by text description.
 Embeddings stored in SQLite (same DB as documents). No duplicates.
 In-memory cache for instant repeat queries.
 
-Uses ONNX runtime (no torch dependency). Same model as InsightFace runtime.
+Uses Gemini Embedding 2 API (multimodal — text + images in same space).
+Matryoshka truncation to 768 dims for compact storage.
 """
 
 from __future__ import annotations
 
+import io
 import os
 import sqlite3
 import struct
-import sys
 import threading
 import time
 from collections.abc import Callable
+from datetime import UTC, datetime
 from typing import Any
 
 import numpy as np
 from PIL import Image
 
-# Ensure CUDA 12 libs from pip nvidia packages are on LD_LIBRARY_PATH (onnxruntime needs them)
-_site_pkgs = os.path.join(
-    sys.prefix, "lib", f"python{sys.version_info.major}.{sys.version_info.minor}", "site-packages", "nvidia"
-)
-for _subdir in ["cublas/lib", "cudnn/lib", "cuda_runtime/lib"]:
-    _p = os.path.join(_site_pkgs, _subdir)
-    if os.path.isdir(_p):
-        os.environ["LD_LIBRARY_PATH"] = _p + ":" + os.environ.get("LD_LIBRARY_PATH", "")
-from datetime import UTC, datetime
-
 from database import DB_PATH, get_db
 
-# SigLIP2 availability detection
-_HAS_SIGLIP = False
-try:
-    import onnxruntime
-
-    _HAS_SIGLIP = True
-except ImportError:
-    pass
-print(f"[Pinpoint] SigLIP2: {'available' if _HAS_SIGLIP else 'not installed — Gemini vision fallback'}")
-
 # --- Config ---
-SIGLIP_MODEL = "onnx-community/siglip2-base-patch16-224-ONNX"
-EMBED_DIM = 768
-BATCH_SIZE = 16
-MAX_LOAD_DIM = 384  # Pre-resize before SigLIP (saves I/O time)
+EMBED_DIM = 768  # Matryoshka truncation (full: 3072, we use 768 for compact storage)
+EMBED_MODEL = "gemini-embedding-2-preview"
+BATCH_SIZE = 6  # Gemini Embedding 2 limit: 6 images per request
+MAX_LOAD_DIM = 384  # Pre-resize before embedding (saves upload bytes)
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tiff", ".tif", ".heic"}
 
-# --- Lazy-loaded model + in-memory cache ---
-_siglip = None  # (vision_session, text_session, processor)
+# --- Lazy-loaded client + in-memory cache ---
+_gemini_client = None
 _mem_cache = {}  # folder_abs → {paths: [...], emb_norm: ndarray}
 _MEM_CACHE_MAX = 10  # Evict oldest when cache exceeds this many folders
 
-
-def _get_siglip() -> tuple[Any, Any, Any]:
-    """Lazy-load SigLIP2 ONNX sessions and processor."""
-    global _siglip
-    if _siglip is None:
-        import onnxruntime as ort
-        from huggingface_hub import hf_hub_download
-        from transformers import AutoProcessor
-
-        print(f"[SigLIP2] Loading ONNX model {SIGLIP_MODEL}...")
-        t0 = time.time()
-
-        # Pick fp16 for GPU, fp32 for CPU
-        providers = ort.get_available_providers()
-        has_cuda = "CUDAExecutionProvider" in providers
-        suffix = "_fp16" if has_cuda else ""
-        ep = ["CUDAExecutionProvider", "CPUExecutionProvider"] if has_cuda else ["CPUExecutionProvider"]
-
-        # Download ONNX files
-        vision_path = hf_hub_download(SIGLIP_MODEL, f"onnx/vision_model{suffix}.onnx")
-        text_path = hf_hub_download(SIGLIP_MODEL, f"onnx/text_model{suffix}.onnx")
-
-        # Create sessions (fall back to CPU + fp32 if GPU fails)
-        sess_opts = ort.SessionOptions()
-        sess_opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_BASIC
-        try:
-            vision_session = ort.InferenceSession(vision_path, sess_opts, providers=ep)
-            text_session = ort.InferenceSession(text_path, sess_opts, providers=ep)
-        except Exception as gpu_err:
-            if has_cuda:
-                print(f"[SigLIP2] GPU session failed ({gpu_err}), falling back to CPU fp32...")
-                has_cuda = False
-                ep = ["CPUExecutionProvider"]
-                vision_path = hf_hub_download(SIGLIP_MODEL, "onnx/vision_model.onnx")
-                text_path = hf_hub_download(SIGLIP_MODEL, "onnx/text_model.onnx")
-                vision_session = ort.InferenceSession(vision_path, sess_opts, providers=ep)
-                text_session = ort.InferenceSession(text_path, sess_opts, providers=ep)
-            else:
-                raise
-
-        # Processor handles image preprocessing + tokenization (no torch needed)
-        processor = AutoProcessor.from_pretrained(SIGLIP_MODEL, use_fast=False)
-
-        device = "GPU" if has_cuda else "CPU"
-        print(f"[SigLIP2] Loaded on {device} in {time.time() - t0:.1f}s")
-        _siglip = (vision_session, text_session, processor)
-    return _siglip
-
-
 _db_conn = None
 _db_lock = threading.RLock()
+
+
+def _get_client() -> Any:
+    """Lazy-load Gemini client."""
+    global _gemini_client
+    if _gemini_client is None:
+        from google import genai
+
+        api_key = os.environ.get("GEMINI_API_KEY")
+        if not api_key:
+            raise RuntimeError("GEMINI_API_KEY not set — cannot use Gemini Embedding 2")
+        _gemini_client = genai.Client(api_key=api_key)
+    return _gemini_client
 
 
 def _get_conn() -> sqlite3.Connection:
@@ -126,7 +72,7 @@ def _embedding_to_bytes(emb: Any) -> bytes:
     return struct.pack(f"{EMBED_DIM}f", *emb.tolist())
 
 
-def _bytes_to_embedding(data: bytes) -> Any:
+def _bytes_to_embedding(data: bytes) -> bytes:
     """Convert bytes back to 1D float array."""
     return np.array(struct.unpack(f"{EMBED_DIM}f", data), dtype=np.float32)
 
@@ -134,7 +80,7 @@ def _bytes_to_embedding(data: bytes) -> Any:
 # --- Fast image loading ---
 
 
-def _load_image_fast(path: str) -> Any:
+def _load_image_fast(path: str) -> Image.Image:
     """Load image with fast JPEG draft decoding + resize. Caller must close returned image."""
     raw = Image.open(path)
     raw.draft("RGB", (MAX_LOAD_DIM, MAX_LOAD_DIM))
@@ -144,6 +90,15 @@ def _load_image_fast(path: str) -> Any:
         raw.close()
     img.thumbnail((MAX_LOAD_DIM, MAX_LOAD_DIM), Image.LANCZOS)
     return img
+
+
+def _image_to_bytes(img: Image.Image) -> bytes:
+    """Convert PIL Image to JPEG bytes for API upload."""
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=80)
+    data = buf.getvalue()
+    buf.close()
+    return data
 
 
 def _get_image_files(folder: str, recursive: bool = False) -> list[str]:
@@ -208,6 +163,65 @@ def _save_embeddings(path_embeddings: list[tuple[str, Any, float]]) -> None:
     conn.commit()
 
 
+# --- Gemini Embedding 2 API calls ---
+
+
+def _embed_images_batch(image_bytes_list: list[bytes]) -> list[Any]:
+    """Embed a batch of images (max 6) via Gemini Embedding 2. Returns list of numpy arrays."""
+    from google.genai import types
+
+    client = _get_client()
+    contents = [types.Part.from_bytes(data=b, mime_type="image/jpeg") for b in image_bytes_list]
+
+    for attempt in range(3):
+        try:
+            result = client.models.embed_content(
+                model=EMBED_MODEL,
+                contents=contents,
+                config=types.EmbedContentConfig(
+                    output_dimensionality=EMBED_DIM,
+                    task_type="RETRIEVAL_DOCUMENT",
+                ),
+            )
+            return [np.array(e.values, dtype=np.float32) for e in result.embeddings]
+        except Exception as e:
+            err = str(e)
+            if ("429" in err or "503" in err or "RESOURCE_EXHAUSTED" in err) and attempt < 2:
+                wait = 2 ** (attempt + 1)
+                print(f"[GeminiEmbed] Rate limited, retry in {wait}s...")
+                time.sleep(wait)
+                continue
+            raise
+
+
+def _embed_text_query(query: str) -> Any:
+    """Embed a text query via Gemini Embedding 2. Returns normalized numpy array."""
+    from google.genai import types
+
+    client = _get_client()
+
+    for attempt in range(3):
+        try:
+            result = client.models.embed_content(
+                model=EMBED_MODEL,
+                contents=query,
+                config=types.EmbedContentConfig(
+                    output_dimensionality=EMBED_DIM,
+                    task_type="RETRIEVAL_QUERY",
+                ),
+            )
+            emb = np.array(result.embeddings[0].values, dtype=np.float32)
+            return _normalize(emb)
+        except Exception as e:
+            err = str(e)
+            if ("429" in err or "503" in err or "RESOURCE_EXHAUSTED" in err) and attempt < 2:
+                wait = 2 ** (attempt + 1)
+                print(f"[GeminiEmbed] Rate limited, retry in {wait}s...")
+                time.sleep(wait)
+                continue
+            raise
+
+
 # --- Core functions ---
 
 
@@ -227,43 +241,37 @@ def embed_images(folder: str, progress_callback: Callable[[int, int], None] | No
     result = dict(cached)
 
     if to_embed:
-        vision_session, _, processor = _get_siglip()
-        print(f"[SigLIP2] Embedding {len(to_embed)} images ({len(cached)} cached in DB)...")
+        print(f"[GeminiEmbed] Embedding {len(to_embed)} images ({len(cached)} cached in DB)...")
         t0 = time.time()
         new_embeddings = []  # For DB save
 
         for i in range(0, len(to_embed), BATCH_SIZE):
             batch = to_embed[i : i + BATCH_SIZE]
-            batch_imgs = []
+            batch_bytes = []
             batch_valid = []
             for fpath in batch:
                 try:
                     img = _load_image_fast(fpath)
-                    batch_imgs.append(img)
+                    batch_bytes.append(_image_to_bytes(img))
                     batch_valid.append(fpath)
+                    img.close()
                 except Exception as e:
-                    print(f"[SigLIP2] Skip {os.path.basename(fpath)}: {e}")
+                    print(f"[GeminiEmbed] Skip {os.path.basename(fpath)}: {e}")
 
-            if not batch_imgs:
+            if not batch_bytes:
                 continue
 
             try:
-                inputs = processor(images=batch_imgs, return_tensors="np", padding=True)
-                pixel_values = inputs["pixel_values"].astype(np.float32)
-
-                # Run vision model
-                input_name = vision_session.get_inputs()[0].name
-                outputs = vision_session.run(None, {input_name: pixel_values})
-                embs = outputs[1]  # pooler_output [batch, embed_dim]
+                embs = _embed_images_batch(batch_bytes)
                 if len(embs) != len(batch_valid):
-                    print(f"[SigLIP2] Shape mismatch: got {len(embs)} embeddings for {len(batch_valid)} images, skipping batch")
+                    print(f"[GeminiEmbed] Shape mismatch: got {len(embs)} for {len(batch_valid)} images, skipping")
                     continue
-            finally:
-                for im in batch_imgs:
-                    im.close()
+            except Exception as e:
+                print(f"[GeminiEmbed] Batch error: {e}")
+                continue
 
             for j, fpath in enumerate(batch_valid):
-                emb = embs[j].astype(np.float32)
+                emb = embs[j]
                 result[fpath] = emb
                 try:
                     mtime = os.path.getmtime(fpath)
@@ -279,7 +287,7 @@ def embed_images(folder: str, progress_callback: Callable[[int, int], None] | No
 
         elapsed = time.time() - t0
         print(
-            f"[SigLIP2] Embedded {len(to_embed)} images in {elapsed:.1f}s ({elapsed / len(to_embed) * 1000:.0f}ms/img)"
+            f"[GeminiEmbed] Embedded {len(to_embed)} images in {elapsed:.1f}s ({elapsed / max(len(to_embed), 1) * 1000:.0f}ms/img)"
         )
 
     return result
@@ -287,20 +295,7 @@ def embed_images(folder: str, progress_callback: Callable[[int, int], None] | No
 
 def embed_text(query: str) -> Any:
     """Embed a text query. Returns normalized embedding array."""
-    _, text_session, processor = _get_siglip()
-    inputs = processor(text=[query], return_tensors="np", padding="max_length")
-    input_ids = inputs["input_ids"].astype(np.int64)
-
-    # Build feed dict from all processor outputs (input_ids, attention_mask, etc.)
-    feed = {}
-    session_input_names = {inp.name for inp in text_session.get_inputs()}
-    for key, val in inputs.items():
-        if key in session_input_names:
-            feed[key] = np.array(val, dtype=np.int64)
-
-    outputs = text_session.run(None, feed)
-    emb = outputs[1].astype(np.float32)  # pooler_output [1, embed_dim]
-    return _normalize(emb).squeeze(0)
+    return _embed_text_query(query)
 
 
 def _search_images_gemini(
@@ -317,7 +312,6 @@ def _search_images_gemini(
     client = _get_gemini()
     if not client:
         return {"error": "GEMINI_API_KEY not set", "results": []}
-    import io
     import json as _json
     import threading
     from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -343,12 +337,9 @@ def _search_images_gemini(
         for fpath in batch_files:
             try:
                 img = _load_image_fast(fpath)
-                buf = io.BytesIO()
-                img.save(buf, format="JPEG", quality=80)
-                parts.append(types.Part.from_bytes(data=buf.getvalue(), mime_type="image/jpeg"))
+                parts.append(types.Part.from_bytes(data=_image_to_bytes(img), mime_type="image/jpeg"))
                 parts.append(types.Part.from_text(text=f"[{os.path.basename(fpath)}]"))
                 names.append(fpath)
-                buf.close()
                 img.close()
             except Exception:
                 continue
@@ -433,9 +424,12 @@ def search_images(folder: str, query: str, limit: int = 10, recursive: bool = Fa
     """
     Search images in a folder by text description.
     Returns dict with results, timing, and cache info.
+    Uses Gemini Embedding 2 for fast vector search, falls back to Gemini vision scoring.
     """
-    if not _HAS_SIGLIP:
-        return _search_images_gemini(folder, query, limit, recursive=recursive)
+    # Check if Gemini API key is available
+    if not os.environ.get("GEMINI_API_KEY"):
+        return {"error": "GEMINI_API_KEY not set", "results": []}
+
     folder = os.path.abspath(folder)
     files = _get_image_files(folder, recursive=recursive)
     if not files:
@@ -450,7 +444,11 @@ def search_images(folder: str, query: str, limit: int = 10, recursive: bool = Fa
     else:
         # Embed images (uses DB cache for unchanged files)
         t0 = time.time()
-        image_embeddings = embed_images(folder)
+        try:
+            image_embeddings = embed_images(folder)
+        except Exception as e:
+            print(f"[GeminiEmbed] Embedding failed ({e}), falling back to Gemini vision...")
+            return _search_images_gemini(folder, query, limit, recursive=recursive)
         embed_time = time.time() - t0
 
         if not image_embeddings:
@@ -468,7 +466,11 @@ def search_images(folder: str, query: str, limit: int = 10, recursive: bool = Fa
 
     # Embed query and search
     t1 = time.time()
-    query_emb = embed_text(query)
+    try:
+        query_emb = embed_text(query)
+    except Exception as e:
+        print(f"[GeminiEmbed] Text embed failed ({e}), falling back to Gemini vision...")
+        return _search_images_gemini(folder, query, limit, recursive=recursive)
     similarities = emb_norm @ query_emb  # [N]
     search_time = time.time() - t1
 
