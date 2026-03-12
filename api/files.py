@@ -633,6 +633,10 @@ def batch_move_endpoint(req: BatchMoveRequest) -> dict:
                     ("UPDATE photo_classifications SET path = ? WHERE path = ?", (dest, src)),
                     ("UPDATE photo_scores SET path = ? WHERE path = ?", (dest, src)),
                     ("UPDATE image_embeddings SET path = ? WHERE path = ?", (dest, src)),
+                    ("UPDATE face_cache SET image_path = ? WHERE image_path = ?", (dest, src)),
+                    ("UPDATE file_paths SET path = ? WHERE path = ?", (dest, src)),
+                    ("UPDATE generated_files SET path = ? WHERE path = ?", (dest, src)),
+                    ("UPDATE known_faces SET source_image = ? WHERE source_image = ?", (dest, src)),
                 ]:
                     try:
                         conn.execute(*stmt)
@@ -701,9 +705,26 @@ def delete_file_endpoint(req: DeleteFileRequest) -> dict:
 
     os.remove(path)
 
-    # Soft-delete from database if indexed
+    # Soft-delete from database if indexed, clean up related tables
     conn = _get_conn()
+    doc_row = conn.execute("SELECT id FROM documents WHERE path = ?", (path,)).fetchone()
     conn.execute("UPDATE documents SET active = 0 WHERE path = ?", (path,))
+    if doc_row:
+        doc_id = doc_row["id"]
+        conn.execute("DELETE FROM facts WHERE document_id = ?", (doc_id,))
+        conn.execute("DELETE FROM chunks WHERE document_id = ?", (doc_id,))
+    # Clean up path-based tables
+    for stmt in [
+        ("DELETE FROM image_embeddings WHERE path = ?", (path,)),
+        ("DELETE FROM face_cache WHERE image_path = ?", (path,)),
+        ("DELETE FROM file_paths WHERE path = ?", (path,)),
+        ("DELETE FROM photo_scores WHERE path = ?", (path,)),
+        ("DELETE FROM photo_classifications WHERE path = ?", (path,)),
+    ]:
+        try:
+            conn.execute(*stmt)
+        except Exception:
+            pass
     conn.commit()
 
     return {"success": True, "path": path}
@@ -822,6 +843,10 @@ def batch_rename_endpoint(req: BatchRenameRequest) -> dict:
                     ("UPDATE photo_classifications SET path = ? WHERE path = ?", (new_path, old_path)),
                     ("UPDATE photo_scores SET path = ? WHERE path = ?", (new_path, old_path)),
                     ("UPDATE image_embeddings SET path = ? WHERE path = ?", (new_path, old_path)),
+                    ("UPDATE face_cache SET image_path = ? WHERE image_path = ?", (new_path, old_path)),
+                    ("UPDATE file_paths SET path = ? WHERE path = ?", (new_path, old_path)),
+                    ("UPDATE generated_files SET path = ? WHERE path = ?", (new_path, old_path)),
+                    ("UPDATE known_faces SET source_image = ? WHERE source_image = ?", (new_path, old_path)),
                 ]:
                     try:
                         conn.execute(*stmt)

@@ -703,15 +703,25 @@ def _save_classification(abs_path: str, mtime: float, category: str) -> None:
 
 
 def _update_db_path(old_path: str, new_path: str) -> None:
-    """Update file path in all DB tables after a move (documents, photo_classifications, photo_scores)."""
+    """Update file path in all DB tables after a move."""
     try:
         from database import DB_PATH, get_db
         conn = get_db(DB_PATH)
-        for table in ("documents", "photo_classifications", "photo_scores", "image_embeddings"):
+        for table in ("documents", "photo_classifications", "photo_scores", "image_embeddings", "file_paths", "generated_files"):
             try:
                 conn.execute(f"UPDATE {table} SET path = ? WHERE path = ?", (new_path, old_path))
             except Exception:
                 pass  # table may not exist
+        # Tables with non-standard path column names
+        for stmt in [
+            ("UPDATE face_cache SET image_path = ? WHERE image_path = ?", (new_path, old_path)),
+            ("UPDATE known_faces SET source_image = ? WHERE source_image = ?", (new_path, old_path)),
+            ("UPDATE video_embeddings SET video_path = ? WHERE video_path = ?", (new_path, old_path)),
+        ]:
+            try:
+                conn.execute(*stmt)
+            except Exception:
+                pass
         conn.commit()
     except Exception as e:
         print(f"[Group] DB path update failed {os.path.basename(old_path)}: {e}")
@@ -1107,7 +1117,13 @@ def group_photos(folder: str, categories: list[str], uncategorized_folder: str |
         if to_embed:
             import numpy as np
 
-            from image_search import _embed_images_batch, _image_to_bytes, _load_image_fast, _normalize
+            from image_search import (
+                _embed_images_batch,
+                _image_to_bytes,
+                _load_image_fast,
+                _normalize,
+                _save_embeddings,
+            )
 
             print(f"[Group] Phase 2: embedding {len(to_embed)} images + {len(categories)} categories...")
 
@@ -1156,9 +1172,15 @@ def group_photos(folder: str, categories: list[str], uncategorized_folder: str |
 
                 try:
                     embs = _embed_images_batch(batch_bytes)
+                    save_batch = []
                     for j, fpath in enumerate(batch_valid):
                         image_embeddings[fpath] = embs[j]
                         progress["embedded"] += 1
+                        try:
+                            save_batch.append((fpath, embs[j], os.path.getmtime(fpath)))
+                        except OSError:
+                            pass
+                    _save_embeddings(save_batch)
                 except Exception as e:
                     print(f"[Group] Embedding batch error: {e}")
                     for fpath in batch_valid:
