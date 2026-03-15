@@ -26,9 +26,8 @@ if load_dotenv is not None:
     load_dotenv()
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "bm25s"))
-from bm25s.tokenization import Tokenizer
-
-import bm25s
+import bm25s  # noqa: E402, I001
+from bm25s.tokenization import Tokenizer  # noqa: E402, I001
 
 
 @dataclass(frozen=True)
