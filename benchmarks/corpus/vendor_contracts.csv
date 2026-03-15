@@ -1,6 +1,0 @@
-vendor,service,annual_cost_usd,renewal_date,status,owner
-Northwind Cloud,object storage,84000,2026-02-15,active,platform
-Blue Mesa Support,managed database support,56000,2025-11-30,renewal pending,infra
-Helio Voice,telephony api,112000,2026-05-01,active,communications
-Paperkite Security,penetration testing,38000,2025-09-20,active,security
-Summit Metrics,product analytics,47000,2025-08-10,at risk,growth

@@ -1,5 +1,0 @@
-Security Response Guide
-
-If an employee suspects account compromise, they must reset credentials immediately and notify the security desk.
-Multi-factor authentication codes must never be shared with anyone, including managers.
-Potential phishing emails should be reported through the security mailbox within thirty minutes.

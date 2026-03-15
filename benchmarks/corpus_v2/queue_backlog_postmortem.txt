@@ -1,8 +1,0 @@
-Queue Backlog Postmortem
-
-The delayed messaging incident happened because a worker retried too aggressively during a schema rollout.
-
-Corrective actions:
-- Add exponential backoff.
-- Page the platform lead if queue depth exceeds 50,000 jobs.
-- Add a handover checklist for the on-call shift.

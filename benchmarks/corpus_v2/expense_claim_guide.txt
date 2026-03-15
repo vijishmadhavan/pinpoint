@@ -1,8 +1,0 @@
-Expense Claim Guide
-
-How to submit a reimbursement:
-- Upload receipts for meals, taxis, and lodging.
-- Enter the per-day meal amount from the travel policy.
-- Submit the claim within five business days after returning.
-
-Claims missing receipts will be rejected.

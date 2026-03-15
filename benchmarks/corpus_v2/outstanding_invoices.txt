@@ -1,8 +1,0 @@
-Outstanding Invoices Summary
-
-Unpaid bills awaiting settlement:
-- INV-1048 for Atlas Retail remains unpaid.
-- INV-1056 for Northshore Clinics is more than a month late.
-- INV-1061 for Meridian Foods is awaiting confirmation from procurement.
-
-Customers with unsettled invoices should receive a reminder note every Friday until payment arrives.

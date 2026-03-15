@@ -52,6 +52,17 @@ AUDIT_V2.txt
 AUDIT_V3.txt
 CHANGELOG.md
 
+# Benchmark corpus data and reports (keep harness + dataset definitions only)
+benchmarks/corpus*/
+benchmarks/v3_legal/subset_corpus/
+benchmarks/*_report*.json
+benchmarks/v3_legal/*_report*.json
+benchmarks/v3_legal/*.json
+benchmarks/v3_legal/*.txt
+benchmarks/v3_legal/*.jsonl
+benchmarks/v4_mixed*.json
+benchmarks/V3_LEGAL_WORKFLOW.txt
+
 # Claude Code session data
 .claude/
 claude-code/

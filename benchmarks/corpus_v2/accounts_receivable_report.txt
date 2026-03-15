@@ -1,9 +1,0 @@
-Accounts Receivable Report
-
-Open balances that customers still need to pay:
-- Atlas Retail: 12,400 dollars overdue by 18 days
-- Meridian Foods: 8,900 dollars overdue by 9 days
-- Northshore Clinics: 21,700 dollars overdue by 31 days
-
-Collection priority should focus on invoices past due by more than two weeks.
-Finance should escalate accounts with unpaid balances older than thirty days.

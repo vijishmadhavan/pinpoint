@@ -1,8 +1,0 @@
-Renewal Health Dashboard Notes
-
-Signals of churn risk:
-- Weekly active usage declines for three consecutive weeks.
-- The executive sponsor stops attending steering calls.
-- Critical support issues remain unresolved for more than a week.
-
-Accounts with declining adoption should be flagged for customer success review.
