@@ -64,6 +64,18 @@ Every interaction builds a local cache that makes future operations faster and c
 
 If you cancel a long job halfway (like embedding 1000 photos), the work already done is saved. Next run picks up where it left off.
 
+## Memory System
+
+Pinpoint has a 4-layer memory system that learns from every interaction:
+
+**Conversation memory** — Keeps the last 50 messages per chat. When conversations get long, older messages are LLM-summarized instead of dropped — so context is never lost, just compressed. Auto-resets after 60 minutes of idle.
+
+**Persistent personal memory** — "Remember that my passport number is X12345." Stored permanently in SQLite, searchable, survives restarts. When you save a new fact that contradicts an old one, Gemini detects the conflict and supersedes the old memory (with an audit trail). You can forget by description — "forget my old address" — no IDs needed.
+
+**Document fact extraction** — When a file is indexed, Gemini extracts 3-10 key facts (names, dates, amounts, topics) and stores them separately. You can search facts directly without reading the full document.
+
+**Face memory** — "Remember this is John." Saves face embeddings persistently. Next time face detection runs on any photo, John is automatically recognized.
+
 ## Quick Start
 
 ### Backend only (search + file APIs)
