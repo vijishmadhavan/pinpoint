@@ -122,9 +122,12 @@ Scan the QR code with WhatsApp to pair. Then just message your files.
 - WhatsApp bot (needs Gemini + WhatsApp pairing)
 - OCR, captioning, fact extraction (Gemini-powered)
 - Photo scoring, culling, grouping (Gemini vision)
-- Image/video/audio search
+- Visual image/video search (Gemini Embedding 2 — text-to-image similarity)
+- Photo grouping by category (Gemini Embedding 2 — embed photos + category names)
 - Face recognition (needs insightface + GPU)
 - Web search (needs Jina or LangSearch API key)
+
+Note: Gemini Embedding 2 is used for image/video/photo features. Document text search uses FTS5 by default — embedding-based document search exists but is not the default path.
 
 ## Architecture
 
