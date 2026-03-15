@@ -26,7 +26,7 @@ Pinpoint indexes your documents, PDFs, spreadsheets, images, and media into a lo
 - **"Create a folder called Tax 2025 and move all receipts there"** — creates folders and organizes files through conversation
 - **"Find Sharma's phone number from that Excel"** — searches inside spreadsheets with smart phone/ID normalization (finds "920-889-6630" when you type "9208896630")
 - **"Where's that chart I made yesterday?"** — searches files Pinpoint itself created in past conversations
-- **"Send an email to john@company.com with the Q1 report"** — Gmail send, Calendar create, Drive upload (via Google Workspace)
+- **"Send an email to john@company.com with the Q1 report"** — Gmail send, Calendar create, Drive upload (requires [gws CLI](https://github.com/googleworkspace/cli) + Google auth)
 - **"Remind me to call the dentist at 3pm"** — persistent reminders that survive restarts and reconnects
 - **"Remember that my car insurance expires in March"** — persistent memory across conversations
 - **"Watch my Documents folder"** — auto-indexes new files as they appear
@@ -137,7 +137,7 @@ Scan the QR code with WhatsApp to pair. Then just message your files.
 | "Make a folder called Invoices 2025" | Creates folders on your computer |
 | "Find Sharma's number from contacts.xlsx" | Searches inside spreadsheets, normalizes phone/ID formats |
 | "Where's that chart I made yesterday?" | Searches files Pinpoint created in past conversations |
-| "Email john@company.com the Q1 report" | Finds the file, attaches, sends via Gmail |
+| "Email john@company.com the Q1 report" | Gmail send with attachment (needs gws CLI setup) |
 | "Remind me at 5pm to call bank" | Persistent reminders — survive restarts |
 | "Remember my passport number is X" | Stores in persistent memory |
 | (voice message) | Transcribes audio and responds |
@@ -159,6 +159,7 @@ Scan the QR code with WhatsApp to pair. Then just message your files.
 - Photo grouping by category (Gemini Embedding 2 — cheap, classifies by similarity not vision)
 - Visual image/video search (Gemini Embedding 2 — text-to-image similarity)
 - Face recognition (needs insightface + GPU)
+- Google Workspace — Gmail, Calendar, Drive (needs [gws CLI](https://github.com/googleworkspace/cli): `npm install -g @googleworkspace/cli && gws auth login`)
 - Web search (needs Jina or LangSearch API key)
 
 Note: Gemini Embedding 2 is used for image/video/photo features. Document text search uses FTS5 by default — embedding-based document search exists but is not the default path.
