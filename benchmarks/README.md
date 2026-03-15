@@ -89,3 +89,15 @@ Use it to judge:
 - lexical-first quality on realistic product queries
 - metadata-heavy retrieval behavior
 - stage timing on a mixed-domain corpus before making more Phase 5 search changes
+
+For concurrent lexical-first load profiling on the same mixed-domain benchmark, use:
+
+```bash
+python load_test_search.py --dataset benchmarks/search_relevance_v4_mixed.json --corpus benchmarks/corpus_v4_mixed --rounds 10 --concurrency 8 --output benchmarks/v4_mixed_load_report.json
+```
+
+This records:
+- wall-clock latency percentiles (`avg`, `p50`, `p95`, `max`)
+- per-stage timing percentiles from the search pipeline
+- throughput in queries/second
+- ambiguity and enhanced-search rates under concurrent load
