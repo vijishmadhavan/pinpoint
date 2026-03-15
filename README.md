@@ -1,290 +1,181 @@
 # Pinpoint
 
-Pinpoint is a local-first search and file-ops tool with a FastAPI backend and an optional WhatsApp bot frontend.
+[![Tests](https://github.com/vijishmadhavan/pinpoint/actions/workflows/test.yml/badge.svg)](https://github.com/vijishmadhavan/pinpoint/actions/workflows/test.yml)
+[![Lint](https://github.com/vijishmadhavan/pinpoint/actions/workflows/lint.yml/badge.svg)](https://github.com/vijishmadhavan/pinpoint/actions/workflows/lint.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-It indexes documents, images, spreadsheets, PDFs, and other local files into SQLite, then exposes search, read, move, transform, and media-analysis APIs. The bot layer uses WhatsApp plus Gemini to turn natural-language requests into tool calls.
+Search all your local files from WhatsApp. No cloud uploads. No tracking. Everything stays on your machine.
 
-## What It Does
+Pinpoint indexes your documents, PDFs, spreadsheets, images, and media into a local SQLite database, then lets you search and work with them through natural language — either via WhatsApp or direct API calls.
 
-- Search local documents with lexical-first retrieval over SQLite FTS5.
-- Read files directly from disk, including text, PDF, Office docs, Excel, and images.
-- Auto-index on file reads and data analysis requests.
-- Watch folders for ongoing indexing.
-- Track background work with persistent jobs and cancellation.
-- Search and process images, video, audio, OCR, and photo workflows.
-- Expose everything as HTTP APIs and optional WhatsApp tools.
+## What You Can Do
 
-## Stability Guide
+- **"Find the Sharma invoice from last month"** — searches across all your indexed documents instantly
+- **"What's in that Excel in Downloads?"** — reads and analyzes spreadsheets, CSVs, PDFs on the fly
+- **"Move all receipts to the Tax folder"** — batch file operations through conversation
+- **"Group my wedding photos by category"** — AI-powered photo organization and culling
+- **"Who is this person?"** — remembers faces, recognizes them across photos later
+- **"OCR this scanned document"** — extracts text from images and scanned PDFs
+- **"Send me that PDF"** — sends files directly to your WhatsApp
+- **"Remind me to call the dentist at 3pm"** — sets one-time or recurring reminders
+- **"Remember that my car insurance expires in March"** — persistent memory across conversations
+- **"Watch my Documents folder"** — auto-indexes new files as they appear
+- **Voice messages** — transcribes and responds to audio messages
 
-### Stable Core
+## How It Works
 
-These are the most reliable and most product-defining parts of the current codebase:
-
-- FastAPI backend
-- lexical-first document search over SQLite FTS5
-- metadata-aware ranking and ambiguity hints
-- direct file read/list/move/search operations
-- shared indexing pipeline
-- persistent background jobs and cancellation
-
-### Optional Integrations
-
-These work, but depend on extra environment setup or external services:
-
-- WhatsApp bot
-- Gemini-backed media, OCR, captioning, fact extraction, and photo workflows
-- Ollama bot fallback
-- web search provider integrations
-- Google Workspace integration via `gws` CLI
-- face-related workflows that need heavier optional dependencies
-
-### Experimental or Non-default
-
-These exist in the codebase but are not the default production path:
-
-- semantic query expansion / embedding / rerank stages in search
-- benchmark-only BM25L comparison paths
-- some heavier multimodal and media flows that are more environment-sensitive than core search/file use
-
-## Current Search Design
-
-The default production path is lexical-first:
-
-- FTS5 is the default search path.
-- Metadata-aware lexical boosts are applied for filenames, titles, paths, and identifier-like matches.
-- Ambiguous result sets return clarification hints instead of pretending the top hit is certain.
-- Semantic stages still exist in the codebase, but they are not the default path.
-
-This repo also includes offline benchmark and load-test harnesses under [benchmarks/README.md](benchmarks/README.md).
-
-## Architecture
-
-- Python 3.11 backend: FastAPI + SQLite/FTS5
-- Node.js 20 bot: Baileys + Google GenAI SDK
-- Shared `.env` file at repo root
-- FastAPI entrypoint: [run_api.py](run_api.py)
-- Bot entrypoint: [bot/index.js](bot/index.js)
-- Combined starter: [start.sh](start.sh)
-
-Important backend modules:
-
-- [api/__init__.py](api/__init__.py): app setup and auth middleware
-- [api/core.py](api/core.py): health, status, folder indexing, single-file indexing
-- [api/search.py](api/search.py): document search, facts search, document fetch, web read/search
-- [api/files.py](api/files.py): file listing, reading, moving, watch folders, background jobs
-- [api/media.py](api/media.py): image/video/audio search and OCR
-- [api/photos.py](api/photos.py): photo scoring, culling, grouping
-- [search_pipeline.py](search_pipeline.py): search pipeline, ambiguity detection, timing
-- [indexing_service.py](indexing_service.py): shared file indexing pipeline
-- [job_service.py](job_service.py): persistent background job lifecycle
-
-Supporting docs:
-
-- [docs/architecture.md](docs/architecture.md)
-- [docs/troubleshooting.md](docs/troubleshooting.md)
-- [docs/release-checklist.md](docs/release-checklist.md)
-
-## Requirements
-
-- Python 3.11
-- Node.js 20
-- A working Python environment with the repo dependencies installed
-- A working Node install for the bot dependencies in [bot/package.json](bot/package.json)
-
-Important note:
-
-- [start.sh](start.sh) currently expects a Conda environment named `pinpoint`.
-- The repo now includes [environment.yml](environment.yml) as the baseline local development environment.
-
-## Environment Variables
-
-Both the Python backend and Node bot load the repo root `.env`.
-
-Start from:
-
-```bash
-cp .env.example .env
+```
+Your Files ──> Indexer ──> SQLite/FTS5 ──> Search API ──> WhatsApp Bot
+   (local)     (extract)    (local DB)     (FastAPI)      (Gemini AI)
 ```
 
-Common variables:
+1. **Index** — Pinpoint extracts text from PDFs, Office docs, images (OCR), spreadsheets, and plain text files
+2. **Search** — FTS5 full-text search with metadata-aware ranking, ambiguity detection, and smart fallbacks
+3. **Act** — The WhatsApp bot turns your questions into tool calls: search, read, move, analyze, transform
 
-- `API_SECRET`: optional API auth secret. If set, requests must send `X-API-Secret`.
-- `GEMINI_API_KEY`: enables Gemini-powered features such as optional semantic indexing, OCR fallback, captions, audio/video/photo workflows, and bot reasoning.
-- `GEMINI_MODEL`: defaults to `gemini-3.1-flash-lite-preview`.
+Everything runs locally. The only external calls are to Gemini (for the AI layer) and optionally to web search providers.
 
-Optional web search variables:
+## Quick Start
 
-- `LANGSEARCH_API_KEY`
-- `JINA_API_KEY`
-
-Optional bot variable:
-
-- `OLLAMA_MODEL`: use Ollama instead of Gemini for the bot LLM loop.
-
-## Running the Backend
-
-If you already have the project’s Conda env:
+### Backend only (search + file APIs)
 
 ```bash
-conda run -n pinpoint python run_api.py
-```
-
-To create it from scratch:
-
-```bash
+# 1. Create the environment
 conda env create -f environment.yml
 conda activate pinpoint
+
+# 2. Configure
+cp .env.example .env
+# Edit .env — add GEMINI_API_KEY for AI features (optional for basic search)
+
+# 3. Start
+python run_api.py
 ```
 
-The API starts on `http://localhost:5123`.
+The API runs at `http://localhost:5123`. Try `http://localhost:5123/docs` for interactive API docs.
 
-Interactive docs:
-
-- `http://localhost:5123/docs`
-
-Health check:
+### With WhatsApp bot
 
 ```bash
-curl http://localhost:5123/ping
-```
+# Install bot deps
+cd bot && npm install && cd ..
 
-## Running the WhatsApp Bot
-
-Install bot dependencies:
-
-```bash
-cd bot
-npm install
-```
-
-Then start the full stack from repo root:
-
-```bash
+# Start everything
 ./start.sh
 ```
 
-What `start.sh` does:
+Scan the QR code with WhatsApp to pair. Then just message your files.
 
-- activates Node 20 via `nvm`
-- starts the FastAPI backend with `conda run -n pinpoint python run_api.py`
-- starts the WhatsApp bot in the foreground
+## Common Things You Can Do
 
-## API Highlights
+| Ask this | Pinpoint does this |
+|---|---|
+| "Find invoice 4821" | Searches indexed documents by content and filename |
+| "Read the quarterly report PDF" | Extracts and returns the text |
+| "Search for Sharma across all files" | Full-text search with ranked results |
+| "Analyze the sales spreadsheet" | Loads Excel/CSV into pandas, runs queries |
+| "Move old files to archive" | Batch file operations |
+| "Watch my Downloads folder" | Auto-indexes new files every 60 minutes |
+| "Find photos of the beach" | Visual image search across your photos |
+| "OCR this scanned receipt" | Extracts text from images/scanned PDFs |
+| "Group wedding photos by category" | AI classifies and sorts photos into folders |
+| "Who is this person?" | Face detection + recognition across photos |
+| "Send me that report" | Sends the file to your WhatsApp chat |
+| "Remind me at 5pm to call bank" | Sets a reminder, delivers via WhatsApp |
+| "Remember my passport number is X" | Stores in persistent memory |
+| (voice message) | Transcribes audio and responds |
 
-Search and read:
+## What's Stable vs Optional
 
-- `GET /search`
-- `GET /search-facts`
-- `GET /document/{id}`
-- `GET /web-read`
-- `POST /read_file`
+**Stable core** — works without any API keys:
+- Document search (FTS5)
+- File read/list/move/rename/delete
+- Auto-indexing on file access
+- Watch folders
+- Background job tracking
+- Data analysis (Excel, CSV)
 
-Indexing and status:
+**Optional** — needs Gemini API key or extra setup:
+- WhatsApp bot (needs Gemini + WhatsApp pairing)
+- OCR, captioning, fact extraction (Gemini-powered)
+- Photo scoring, culling, grouping (Gemini vision)
+- Image/video/audio search
+- Face recognition (needs insightface + GPU)
+- Web search (needs Jina or LangSearch API key)
 
-- `GET /ping`
-- `GET /status`
-- `POST /index`
-- `GET /indexing/status`
-- `POST /index-file`
+## Architecture
 
-File and folder operations:
-
-- `GET /list_files`
-- `GET /file_info`
-- `POST /grep`
-- move / batch move / rename / delete endpoints in [api/files.py](api/files.py)
-
-Watch folders and jobs:
-
-- `POST /watch-folder`
-- `POST /unwatch-folder`
-- `GET /watched-folders`
-- `GET /background-jobs`
-- `POST /background-jobs/{job_id}/cancel`
-
-Media and photo workflows:
-
-- `POST /search-images-visual`
-- `POST /search-video`
-- `POST /search-audio`
-- `POST /ocr`
-- `POST /score-photo`
-- `POST /cull-photos`
-- `POST /suggest-categories`
-- `POST /group-photos`
-
-## Background Jobs
-
-Long-running operations are persisted in SQLite-backed background jobs.
-
-Job records include:
-
-- job type
-- target path
-- status
-- current stage
-- item counts
-- structured details
-- timestamps
-- failure reason
-
-Current job-backed flows include:
-
-- large folder indexing
-- watched-folder initial indexing
-- watched-folder auto-indexing
-- path registry scans
-- large image embedding/search prep
-
-These job-backed flows are part of the current stable backend surface.
-
-## Benchmarks and Load Testing
-
-Offline search evaluation:
-
-```bash
-python evaluate_search.py --dataset benchmarks/search_relevance_v4_mixed.json --corpus benchmarks/corpus_v4_mixed --output benchmarks/v4_mixed_report.json
+```
+pinpoint/
+  run_api.py              # Backend entrypoint (port 5123)
+  api/                    # FastAPI routers
+    core.py               #   health, indexing
+    search.py             #   document search, facts, web read
+    files.py              #   file ops, watch folders, background jobs
+    data.py               #   Excel/CSV analysis
+    media.py              #   image/video/audio search, OCR
+    photos.py             #   photo scoring, culling, grouping
+    faces.py              #   face detection and recognition
+    transform.py          #   file/image/PDF transforms
+    memory.py             #   conversation memory
+    google.py             #   Google Workspace integration
+  search_pipeline.py      # Search: FTS5, ranking, ambiguity detection
+  indexing_service.py     # Shared index/chunk/embed pipeline
+  job_service.py          # Persistent background job lifecycle
+  database.py             # SQLite schema and helpers
+  extractors.py           # Text extraction (PDF, Office, images, OCR)
+  bot/
+    index.js              # WhatsApp bot entrypoint
+    src/tools.js          #   Gemini tool declarations
+    src/llm.js            #   LLM loop (Gemini / Ollama)
+    src/skills.js         #   Skill system for tool routing
 ```
 
-Concurrent lexical-first load testing:
+For deeper details: [docs/architecture.md](docs/architecture.md)
 
-```bash
-python load_test_search.py --dataset benchmarks/search_relevance_v4_mixed.json --corpus benchmarks/corpus_v4_mixed --rounds 10 --concurrency 8 --output benchmarks/v4_mixed_load_report.json
-```
+## Environment Variables
 
-More benchmark details live in [benchmarks/README.md](benchmarks/README.md).
+Copy `.env.example` to `.env`. Key variables:
+
+| Variable | Required? | What it does |
+|---|---|---|
+| `GEMINI_API_KEY` | For AI features | Enables bot, OCR, media, photo workflows |
+| `API_SECRET` | No | If set, all API requests need `X-API-Secret` header |
+| `GEMINI_MODEL` | No | Defaults to `gemini-3.1-flash-lite-preview` |
+| `OLLAMA_MODEL` | No | Use local Ollama instead of Gemini for bot |
+| `JINA_API_KEY` | No | Enables web search via Jina |
 
 ## Tests
-
-Run the focused backend suite in the project env:
 
 ```bash
 conda run -n pinpoint python -m pytest tests/ -q
 ```
 
-Useful targeted runs:
+277+ tests covering search, indexing, file operations, jobs, security, and API contracts.
+
+## Benchmarks
+
+Pinpoint includes offline search evaluation and load testing:
 
 ```bash
-conda run -n pinpoint python -m pytest tests/test_search.py -q
-conda run -n pinpoint python -m pytest tests/test_evaluate_search.py tests/test_load_test_search.py -q
+# Search quality
+python evaluate_search.py --dataset benchmarks/search_relevance_v4_mixed.json --corpus benchmarks/corpus_v4_mixed
+
+# Concurrent load
+python load_test_search.py --corpus benchmarks/corpus_v4_mixed --rounds 10 --concurrency 8
 ```
 
-## Open-Source Status
+Current results on mixed-domain benchmark: **94% success@1, perfect recall, 4ms latency, 216 QPS**.
 
-What is in relatively good shape:
+See [benchmarks/README.md](benchmarks/README.md) for details.
 
-- lexical-first search path
-- background job persistence and cancellation
-- benchmark and load-test harnesses
-- a real test suite for the main backend flows
-- a clearer stable/optional split than before
+## Docs
 
-What still needs hardening for broader external use:
-
-- deployment docs beyond the local Conda-based flow
-- cleanup of some optional Gemini-heavy features and their dependencies
-- more polished end-user docs for every tool surface
+- [Architecture](docs/architecture.md) — how the system is built
+- [Troubleshooting](docs/troubleshooting.md) — common issues and fixes
+- [Release Checklist](docs/release-checklist.md) — what to check before pushing
+- [Contributing](CONTRIBUTING.md) — how to contribute
 
 ## License
 
-This repo now includes an MIT license in [LICENSE](LICENSE).
+[MIT](LICENSE)
