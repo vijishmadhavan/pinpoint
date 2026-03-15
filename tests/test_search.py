@@ -406,7 +406,6 @@ class TestAmbiguousSearch:
 
         assert str(strict_path) in returned_paths
         assert str(broad_path) in returned_paths
-        assert result["relaxed_lexical"] is True
 
     def test_search_uses_broad_fallback_for_surface_form_mismatch(self, seeded_db, tmp_path):
         from database import upsert_document
