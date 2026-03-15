@@ -121,9 +121,9 @@ Scan the QR code with WhatsApp to pair. Then just message your files.
 **Optional** — needs Gemini API key or extra setup:
 - WhatsApp bot (needs Gemini + WhatsApp pairing)
 - OCR, captioning, fact extraction (Gemini-powered)
-- Photo scoring, culling, grouping (Gemini vision)
+- Photo culling/scoring (Gemini Flash — vision judges quality, needs to "see" each photo)
+- Photo grouping by category (Gemini Embedding 2 — cheap, classifies by similarity not vision)
 - Visual image/video search (Gemini Embedding 2 — text-to-image similarity)
-- Photo grouping by category (Gemini Embedding 2 — embed photos + category names)
 - Face recognition (needs insightface + GPU)
 - Web search (needs Jina or LangSearch API key)
 
