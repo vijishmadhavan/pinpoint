@@ -26,8 +26,15 @@ if load_dotenv is not None:
     load_dotenv()
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "bm25s"))
-import bm25s  # noqa: E402, I001
-from bm25s.tokenization import Tokenizer  # noqa: E402, I001
+try:
+    import bm25s  # noqa: E402, I001
+    from bm25s.tokenization import Tokenizer  # noqa: E402, I001
+
+    _HAS_BM25S = True
+except ImportError:
+    bm25s = None  # type: ignore[assignment]
+    Tokenizer = None  # type: ignore[assignment, misc]
+    _HAS_BM25S = False
 
 
 @dataclass(frozen=True)
@@ -116,6 +123,8 @@ def _index_corpus(conn: Any, corpus_dir: Path, *, embeddings_enabled: bool) -> d
 
 
 def _build_bm25_index(db_path: str) -> dict[str, Any]:
+    if not _HAS_BM25S:
+        raise RuntimeError("bm25s not installed — clone https://github.com/xhluca/bm25s into project root")
     conn = _open_eval_db(db_path)
     try:
         rows = conn.execute(

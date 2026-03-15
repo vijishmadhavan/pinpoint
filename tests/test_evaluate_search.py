@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-from evaluate_search import FTS_ONLY_OPTIONS, VariantSpec, _evaluate_variant
+import pytest
+
+from evaluate_search import _HAS_BM25S, FTS_ONLY_OPTIONS, VariantSpec, _evaluate_variant
+
+pytestmark = pytest.mark.skipif(not _HAS_BM25S, reason="bm25s not installed")
 
 
 class TestEvaluateSearch:
