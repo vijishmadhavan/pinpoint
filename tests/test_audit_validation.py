@@ -11,9 +11,17 @@ from starlette.testclient import TestClient
 
 @pytest.fixture
 def client():
+    from unittest.mock import patch
+
+    import api
+    api.API_SECRET = ""
     os.environ["API_SECRET"] = ""
-    from api import app
-    return TestClient(app, raise_server_exceptions=False)
+    with (
+        patch("api.files.scan_paths_background", lambda: None),
+        patch("api.files._get_common_folders", lambda: []),
+    ):
+        from api import app
+        yield TestClient(app, raise_server_exceptions=False)
 
 
 @pytest.fixture
@@ -266,10 +274,15 @@ class TestMemCacheEviction:
 class TestSearchConnectionSafety:
     """#27: Verify search() closes connection on exception."""
 
-    def test_search_closes_conn_on_success(self):
+    def test_search_closes_conn_on_success(self, tmp_path):
         from search import search
-        # Just verify it doesn't crash — connection closed in finally
-        result = search("nonexistent_query_xyz")
+
+        db_path = str(tmp_path / "test_search.db")
+        from database import init_db
+
+        conn = init_db(db_path)
+        conn.close()
+        result = search("nonexistent_query_xyz", db_path=db_path)
         assert "results" in result
 
 
