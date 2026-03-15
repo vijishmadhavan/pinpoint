@@ -17,6 +17,8 @@ Pinpoint indexes your documents, PDFs, spreadsheets, images, and media into a lo
 - **"Who is this person?"** — remembers faces, recognizes them across photos later
 - **"OCR this scanned document"** — extracts text from images and scanned PDFs
 - **"Send me that PDF"** — sends files directly to your WhatsApp
+- **Send a photo/file to the bot** — saves it to your PC, renames it, organizes into folders you choose. Important WhatsApp images and documents never get lost
+- **"Create a folder called Tax 2025 and move all receipts there"** — creates folders and organizes files through conversation
 - **"Remind me to call the dentist at 3pm"** — sets one-time or recurring reminders
 - **"Remember that my car insurance expires in March"** — persistent memory across conversations
 - **"Watch my Documents folder"** — auto-indexes new files as they appear
@@ -81,6 +83,8 @@ Scan the QR code with WhatsApp to pair. Then just message your files.
 | "Group wedding photos by category" | AI classifies and sorts photos into folders |
 | "Who is this person?" | Face detection + recognition across photos |
 | "Send me that report" | Sends the file to your WhatsApp chat |
+| (send a photo/file to bot) | Saves to PC, renames, puts in your chosen folder |
+| "Make a folder called Invoices 2025" | Creates folders on your computer |
 | "Remind me at 5pm to call bank" | Sets a reminder, delivers via WhatsApp |
 | "Remember my passport number is X" | Stores in persistent memory |
 | (voice message) | Transcribes audio and responds |
