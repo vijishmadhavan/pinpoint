@@ -49,6 +49,21 @@ Everything runs locally. The only external calls are to Gemini (for the AI layer
 
 Pinpoint does not scan your entire computer automatically. You control what gets indexed.
 
+## Gets Smarter Over Time
+
+Every interaction builds a local cache that makes future operations faster and cheaper:
+
+- **Documents** — text, chunks, and embeddings stored after first index. Re-search is instant, no re-extraction.
+- **Images** — embeddings cached after first search or group. Next time you search or group the same folder, cached images are free.
+- **Videos** — frame embeddings stored per video. Searching the same video again costs nothing.
+- **Photo scores** — culling scores cached by file mtime. Re-running cull on the same folder skips already-scored photos.
+- **Photo classifications** — grouping results cached. Re-grouping reuses existing classifications.
+- **Faces** — detected face data cached per image. Recognition on already-scanned photos is instant.
+- **Facts** — extracted key facts stored per document. Fact search never re-extracts.
+- **Search queries** — query expansion and reranking results cached. Repeated searches are free.
+
+If you cancel a long job halfway (like embedding 1000 photos), the work already done is saved. Next run picks up where it left off.
+
 ## Quick Start
 
 ### Backend only (search + file APIs)
