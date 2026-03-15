@@ -24,7 +24,10 @@ Pinpoint indexes your documents, PDFs, spreadsheets, images, and media into a lo
 - **"Send me that PDF"** — sends files directly to your WhatsApp
 - **Send a photo/file to the bot** — saves it to your PC, renames it, organizes into folders you choose. Important WhatsApp images and documents never get lost
 - **"Create a folder called Tax 2025 and move all receipts there"** — creates folders and organizes files through conversation
-- **"Remind me to call the dentist at 3pm"** — sets one-time or recurring reminders
+- **"Find Sharma's phone number from that Excel"** — searches inside spreadsheets with smart phone/ID normalization (finds "920-889-6630" when you type "9208896630")
+- **"Where's that chart I made yesterday?"** — searches files Pinpoint itself created in past conversations
+- **"Send an email to John with the report attached"** — Gmail send, Calendar create, Drive upload (via Google Workspace)
+- **"Remind me to call the dentist at 3pm"** — persistent reminders that survive restarts and reconnects
 - **"Remember that my car insurance expires in March"** — persistent memory across conversations
 - **"Watch my Documents folder"** — auto-indexes new files as they appear
 - **Voice messages** — transcribes and responds to audio messages
@@ -37,8 +40,9 @@ Your Files ──> Indexer ──> SQLite/FTS5 ──> Search API ──> WhatsA
 ```
 
 1. **Index** — Pinpoint extracts text from PDFs, Office docs, images (OCR), spreadsheets, and plain text files
-2. **Search** — FTS5 full-text search with metadata-aware ranking, ambiguity detection, and smart fallbacks
-3. **Act** — The WhatsApp bot turns your questions into tool calls: search, read, move, analyze, transform
+2. **Search** — FTS5 full-text search with metadata-aware ranking and smart fallbacks
+3. **Clarify** — When results are ambiguous (multiple similar matches), Pinpoint asks "which one do you mean?" instead of guessing wrong
+4. **Act** — The WhatsApp bot turns your questions into tool calls: search, read, move, analyze, transform
 
 Everything runs locally. The only external calls are to Gemini (for the AI layer) and optionally to web search providers.
 
@@ -131,7 +135,10 @@ Scan the QR code with WhatsApp to pair. Then just message your files.
 | "Send me that report" | Sends the file to your WhatsApp chat |
 | (send a photo/file to bot) | Saves to PC, renames, puts in your chosen folder |
 | "Make a folder called Invoices 2025" | Creates folders on your computer |
-| "Remind me at 5pm to call bank" | Sets a reminder, delivers via WhatsApp |
+| "Find Sharma's number from contacts.xlsx" | Searches inside spreadsheets, normalizes phone/ID formats |
+| "Where's that chart I made yesterday?" | Searches files Pinpoint created in past conversations |
+| "Email John the quarterly report" | Gmail send, Calendar create, Drive upload |
+| "Remind me at 5pm to call bank" | Persistent reminders — survive restarts |
 | "Remember my passport number is X" | Stores in persistent memory |
 | (voice message) | Transcribes audio and responds |
 
