@@ -14,6 +14,7 @@ Pinpoint indexes your documents, PDFs, spreadsheets, images, and media into a lo
 - **"What's in that Excel in Downloads?"** — reads and analyzes spreadsheets, CSVs, PDFs on the fly
 - **"Find everyone over 30 in the contacts spreadsheet"** — search, filter, group, sort within Excel/CSV files
 - **"Create an Excel with these expense totals"** — generates spreadsheets, text files, charts from conversation
+- **Send a purchase order image, ask "turn this into Excel"** — extracts tables from images/PDFs into spreadsheets
 - **"Merge these 3 PDFs into one"** — merge, split PDFs, convert images to PDF and back
 - **"Move all receipts to the Tax folder"** — batch file operations through conversation
 - **"Group my wedding photos by category"** — AI classifies photos into groups and sorts them into folders
@@ -89,7 +90,9 @@ Scan the QR code with WhatsApp to pair. Then just message your files.
 | "Analyze the sales spreadsheet" | Loads Excel/CSV into pandas, runs queries |
 | "Filter rows where amount > 5000" | Search, filter, group, sort within spreadsheets |
 | "Create an Excel summary of Q1 expenses" | Generates new spreadsheets from conversation |
-| "Merge invoice_1.pdf and invoice_2.pdf" | Merge, split PDFs, convert images to/from PDF |
+| (send purchase order image) "make this an Excel" | Extracts tables from images/PDFs into spreadsheets |
+| "Merge invoice_1.pdf and invoice_2.pdf" | Merge, split PDFs |
+| "Convert these images to a single PDF" | Images to PDF, PDF to images |
 | "Make a bar chart of sales by month" | Generates charts from data |
 | "Move old files to archive" | Batch file operations |
 | "Watch my Downloads folder" | Auto-indexes new files every 60 minutes |
