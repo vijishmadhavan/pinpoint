@@ -10,11 +10,11 @@ from __future__ import annotations
 import os
 import time
 from collections.abc import Callable
-from datetime import UTC
 from typing import Any
 
-from database import chunk_document, get_stats, init_db, soft_delete_missing, upsert_document
-from extractors import IMAGE_EXTENSIONS, OFFICE_EXTENSIONS, TEXT_EXTENSIONS, extract
+from database import get_stats, init_db, soft_delete_missing
+from extractors import IMAGE_EXTENSIONS, OFFICE_EXTENSIONS, TEXT_EXTENSIONS
+from indexing_service import index_single_file
 
 SUPPORTED_EXTENSIONS = {".pdf"} | OFFICE_EXTENSIONS | IMAGE_EXTENSIONS | TEXT_EXTENSIONS
 
@@ -68,61 +68,25 @@ def index_folder(
     for i, path in enumerate(files, 1):
         abs_path = os.path.abspath(path)
 
-        # Check if file is already indexed with same content
-        # Quick check: read file, hash it, compare with stored hash
-        # But we can't hash the *extracted* text without extracting first.
-        # Instead, check if path exists in DB and file hasn't been modified.
-        row = conn.execute(
-            "SELECT hash, modified_at FROM documents WHERE path = ? AND active = 1", (abs_path,)
-        ).fetchone()
-
-        if row is not None:
-            # File already indexed — check if file modification time is newer
-            file_mtime = os.path.getmtime(abs_path)
-            db_mtime = row["modified_at"]
-            # If file hasn't been modified since indexing, skip
-            try:
-                from datetime import datetime
-
-                db_dt = datetime.fromisoformat(db_mtime)
-                file_dt = datetime.fromtimestamp(file_mtime, tz=UTC)
-                if file_dt <= db_dt:
-                    skipped += 1
-                    if progress_callback:
-                        progress_callback(folder, len(files), indexed + skipped + failed, abs_path)
-                    continue
-            except (ValueError, OSError):
-                pass  # Can't compare → re-extract to be safe
-
-        # Extract text
-        ext = os.path.splitext(path)[1].lower()
         print(f"  [{i}/{len(files)}] Extracting: {os.path.basename(path)}", end=" … ")
-        t0 = time.time()
-
-        result = extract(path)
-        if result is None:
-            print("FAILED")
+        try:
+            outcome = index_single_file(conn, abs_path, skip_unchanged=True, facts_enabled=False)
+        except Exception as e:
+            print(f"FAILED ({e})")
             failed += 1
             if progress_callback:
                 progress_callback(folder, len(files), indexed + skipped + failed, abs_path)
             continue
 
-        elapsed = time.time() - t0
-
-        # Store in DB
-        upsert_document(conn, path, result["text"], result["file_type"], result.get("page_count", 0))
-
-        # Chunk for section-level search (Segment 18P)
-        doc_row = conn.execute("SELECT id FROM documents WHERE path = ?", (os.path.abspath(path),)).fetchone()
-        n_chunks = 0
-        if doc_row:
-            try:
-                n_chunks = chunk_document(conn, doc_row["id"], result["text"])
-            except Exception as e:
-                print(f"[Chunk] {e}")
+        if outcome["status"] == "skipped":
+            skipped += 1
+            print(outcome["reason"].upper())
+            if progress_callback:
+                progress_callback(folder, len(files), indexed + skipped + failed, abs_path)
+            continue
 
         indexed += 1
-        print(f"OK ({elapsed:.2f}s, {len(result['text'])} chars, {n_chunks} chunks)")
+        print(f"OK ({outcome['elapsed']:.2f}s, {outcome['text_length']} chars, {outcome['chunks']} chunks)")
 
         if progress_callback:
             progress_callback(folder, len(files), indexed + skipped + failed, abs_path)

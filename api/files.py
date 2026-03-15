@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import pathlib
 import shutil
+import sqlite3
 import threading
 from datetime import datetime
 
@@ -19,13 +21,49 @@ from api.helpers import (
     OFFICE_EXTS,
     PDF_EXTS,
     TEXT_EXTS,
+    _background_index,
     _check_safe,
     _get_conn,
     _human_date,
     _human_size,
 )
+from indexing_service import index_single_file
+from job_service import (
+    cancel_jobs_for_target,
+    create_job,
+    get_or_create_job,
+    is_job_cancelling,
+    list_jobs,
+    mark_job_cancelled,
+    mark_job_completed,
+    mark_job_failed,
+    mark_job_running,
+    request_job_cancel,
+    update_job_progress,
+    update_job_stage,
+)
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+
+
+def _update_path_references(conn, old_path: str, new_path: str) -> None:
+    """Propagate a file path change across all path-keyed tables."""
+    conn.execute("UPDATE documents SET path = ? WHERE path = ?", (new_path, old_path))
+    for stmt in [
+        ("UPDATE video_embeddings SET video_path = ? WHERE video_path = ?", (new_path, old_path)),
+        ("UPDATE photo_classifications SET path = ? WHERE path = ?", (new_path, old_path)),
+        ("UPDATE photo_scores SET path = ? WHERE path = ?", (new_path, old_path)),
+        ("UPDATE image_embeddings SET path = ? WHERE path = ?", (new_path, old_path)),
+        ("UPDATE face_cache SET image_path = ? WHERE image_path = ?", (new_path, old_path)),
+        ("UPDATE file_paths SET path = ? WHERE path = ?", (new_path, old_path)),
+        ("UPDATE generated_files SET path = ? WHERE path = ?", (new_path, old_path)),
+        ("UPDATE known_faces SET source_image = ? WHERE source_image = ?", (new_path, old_path)),
+    ]:
+        try:
+            conn.execute(*stmt)
+        except sqlite3.Error:
+            continue
 
 
 # --- List files (enhanced with sort/filter) ---
@@ -317,6 +355,10 @@ def read_file_endpoint(req: ReadFileRequest) -> dict:
 
     ext = os.path.splitext(path)[1].lower()
 
+    # Fire-and-forget: auto-index text-extractable files for future semantic search
+    if ext in TEXT_EXTS | PDF_EXTS | OFFICE_EXTS | EXCEL_EXTS:
+        _background_index(path)
+
     # Images -> base64 for Gemini vision + cached caption if indexed
     if ext in IMAGE_EXTS:
         with open(path, "rb") as f:
@@ -559,18 +601,7 @@ def move_file_endpoint(req: MoveFileRequest) -> dict:
 
         # Update database paths if the file was indexed
         conn = _get_conn()
-        conn.execute("UPDATE documents SET path = ? WHERE path = ?", (dest, src))
-        # These tables may not exist yet (created on first use)
-        for stmt in [
-            ("UPDATE video_embeddings SET video_path = ? WHERE video_path = ?", (dest, src)),
-            ("UPDATE photo_classifications SET path = ? WHERE path = ?", (dest, src)),
-            ("UPDATE photo_scores SET path = ? WHERE path = ?", (dest, src)),
-            ("UPDATE image_embeddings SET path = ? WHERE path = ?", (dest, src)),
-        ]:
-            try:
-                conn.execute(*stmt)
-            except Exception:
-                pass
+        _update_path_references(conn, src, dest)
         conn.commit()
 
     return {
@@ -627,21 +658,7 @@ def batch_move_endpoint(req: BatchMoveRequest) -> dict:
     if db_updates and not req.is_copy:
         try:
             for dest, src in db_updates:
-                conn.execute("UPDATE documents SET path = ? WHERE path = ?", (dest, src))
-                for stmt in [
-                    ("UPDATE video_embeddings SET video_path = ? WHERE video_path = ?", (dest, src)),
-                    ("UPDATE photo_classifications SET path = ? WHERE path = ?", (dest, src)),
-                    ("UPDATE photo_scores SET path = ? WHERE path = ?", (dest, src)),
-                    ("UPDATE image_embeddings SET path = ? WHERE path = ?", (dest, src)),
-                    ("UPDATE face_cache SET image_path = ? WHERE image_path = ?", (dest, src)),
-                    ("UPDATE file_paths SET path = ? WHERE path = ?", (dest, src)),
-                    ("UPDATE generated_files SET path = ? WHERE path = ?", (dest, src)),
-                    ("UPDATE known_faces SET source_image = ? WHERE source_image = ?", (dest, src)),
-                ]:
-                    try:
-                        conn.execute(*stmt)
-                    except Exception:
-                        pass
+                _update_path_references(conn, src, dest)
             conn.commit()
         except Exception:
             conn.rollback()
@@ -837,21 +854,7 @@ def batch_rename_endpoint(req: BatchRenameRequest) -> dict:
         conn = _get_conn()
         try:
             for new_path, old_path in db_updates:
-                conn.execute("UPDATE documents SET path = ? WHERE path = ?", (new_path, old_path))
-                for stmt in [
-                    ("UPDATE video_embeddings SET video_path = ? WHERE video_path = ?", (new_path, old_path)),
-                    ("UPDATE photo_classifications SET path = ? WHERE path = ?", (new_path, old_path)),
-                    ("UPDATE photo_scores SET path = ? WHERE path = ?", (new_path, old_path)),
-                    ("UPDATE image_embeddings SET path = ? WHERE path = ?", (new_path, old_path)),
-                    ("UPDATE face_cache SET image_path = ? WHERE image_path = ?", (new_path, old_path)),
-                    ("UPDATE file_paths SET path = ? WHERE path = ?", (new_path, old_path)),
-                    ("UPDATE generated_files SET path = ? WHERE path = ?", (new_path, old_path)),
-                    ("UPDATE known_faces SET source_image = ? WHERE source_image = ?", (new_path, old_path)),
-                ]:
-                    try:
-                        conn.execute(*stmt)
-                    except Exception:
-                        pass
+                _update_path_references(conn, old_path, new_path)
             conn.commit()
         except Exception:
             conn.rollback()
@@ -994,8 +997,19 @@ def _walk_folder(folder: str):
             pass
 
 
+def _get_watched_folders() -> list[str]:
+    """Get user-registered watched folders from DB."""
+    try:
+        conn = _get_conn()
+        rows = conn.execute("SELECT path FROM watched_folders").fetchall()
+        return [r["path"] for r in rows if os.path.isdir(r["path"])]
+    except sqlite3.Error as e:
+        logger.exception("watched_folders_load_failed")
+        return []
+
+
 def scan_paths_background():
-    """Walk common folders, store paths, auto-index text docs. Repeats every 60 min."""
+    """Walk common folders for path registry + auto-index ONLY watched folders. Repeats every 60 min."""
     if _scan_status["running"]:
         return
 
@@ -1004,23 +1018,43 @@ def scan_paths_background():
 
         while True:
             _scan_status["running"] = True
-            folders = _get_common_folders()
-            _scan_status["folders"] = folders
+            conn = _get_conn()
+            scan_job_id, created = get_or_create_job(conn, "path_registry_scan", target_path="", current_stage="queued")
+            if created:
+                mark_job_running(conn, scan_job_id, current_stage="walking")
+            else:
+                update_job_stage(conn, scan_job_id, "walking")
+            # Path registry: common folders (file lookup only, NO indexing)
+            registry_folders = _get_common_folders()
+            # Watched folders: user-chosen, these get auto-indexed + embedded
+            watched = _get_watched_folders()
+            watched_set = set(watched)
+            all_folders = list(set(registry_folders + watched))
+            update_job_progress(
+                conn,
+                scan_job_id,
+                total_items=len(all_folders),
+                completed_items=0,
+                details={"watched_folders": len(watched), "paths_scanned": 0},
+                current_stage="walking",
+            )
+            _scan_status["folders"] = all_folders
             _scan_status["total"] = 0
             _scan_status["indexed"] = 0
 
             try:
-                conn = _get_conn()
                 now = datetime.now().isoformat()
                 batch = []
                 count = 0
-                to_index = []  # files to auto-index content
+                to_index = []  # files to auto-index (watched folders ONLY)
 
-                for folder in folders:
+                for folder_index, folder in enumerate(all_folders, start=1):
+                    is_watched = folder in watched_set
                     folder_files = list(_walk_folder(folder))
                     for fpath, fname, ext, size, mtime in folder_files:
                         batch.append((fpath, fname, ext, size, mtime, now))
-                        if ext in _AUTO_INDEX_EXTS and size <= _MAX_AUTO_INDEX_SIZE:
+                        # Only auto-index files in watched folders
+                        if is_watched and ext in _AUTO_INDEX_EXTS and size <= _MAX_AUTO_INDEX_SIZE:
                             to_index.append(fpath)
                         if len(batch) >= 1000:
                             conn.executemany(
@@ -1031,6 +1065,14 @@ def scan_paths_background():
                             count += len(batch)
                             _scan_status["total"] = count
                             batch = []
+                    update_job_progress(
+                        conn,
+                        scan_job_id,
+                        total_items=len(all_folders),
+                        completed_items=folder_index,
+                        details={"watched_folders": len(watched), "paths_scanned": count + len(batch)},
+                        current_stage="walking",
+                    )
                 if batch:
                     conn.executemany(
                         "INSERT OR REPLACE INTO file_paths (path, filename, ext, size_bytes, modified_at, scanned_at) VALUES (?, ?, ?, ?, ?, ?)",
@@ -1039,14 +1081,32 @@ def scan_paths_background():
                     conn.commit()
                     count += len(batch)
                 _scan_status["total"] = count
-                print(f"[PathRegistry] Scanned {count} files from {len(folders)} folders")
+                logger.info(
+                    "path_registry_scanned",
+                    extra={"count": count, "folders": len(all_folders), "watched": len(watched)},
+                )
+                update_job_progress(
+                    conn,
+                    scan_job_id,
+                    total_items=len(all_folders),
+                    completed_items=len(all_folders),
+                    details={
+                        "watched_folders": len(watched),
+                        "paths_scanned": count,
+                        "to_index": len(to_index),
+                    },
+                    current_stage="walking" if not to_index else "auto_indexing",
+                )
 
-                # Phase 2: auto-index text docs (skip already-indexed, skip scanned PDFs)
+                # Phase 2: auto-index text docs in watched folders only
                 if to_index:
-                    _auto_index_docs(conn, to_index)
+                    update_job_stage(conn, scan_job_id, "auto_indexing")
+                    _auto_index_docs(conn, to_index, parent_job_id=scan_job_id)
+                mark_job_completed(conn, scan_job_id, current_stage="completed")
 
-            except Exception as e:
-                print(f"[PathRegistry] Scan failed: {e}")
+            except Exception as exc:
+                mark_job_failed(conn, scan_job_id, str(exc), current_stage="failed")
+                logger.exception("path_registry_scan_failed")
             finally:
                 _scan_status["running"] = False
 
@@ -1055,56 +1115,99 @@ def scan_paths_background():
     threading.Thread(target=_scan_loop, daemon=True, name="path-scanner").start()
 
 
-def _auto_index_docs(conn, file_paths: list[str]):
+def _auto_index_docs(conn, file_paths: list[str], parent_job_id: int | None = None):
     """Auto-index text-extractable documents. Skips already-indexed and scanned PDFs."""
-    from database import chunk_document, upsert_document
-    from extractors import extract
-
     indexed = 0
-    for fpath in file_paths:
+    failed = 0
+    total_files = len(file_paths)
+    if parent_job_id is not None:
+        update_job_progress(
+            conn,
+            parent_job_id,
+            total_items=total_files,
+            completed_items=0,
+            details={"indexed": 0, "failed": 0, "total_candidates": total_files},
+            current_stage="indexing",
+        )
+    for processed_count, fpath in enumerate(file_paths, start=1):
+        job_id, created = get_or_create_job(conn, "watch_auto_index_file", target_path=fpath, current_stage="queued")
+        if not created:
+            if parent_job_id is not None:
+                update_job_progress(
+                    conn,
+                    parent_job_id,
+                    total_items=total_files,
+                    completed_items=processed_count,
+                    details={"indexed": indexed, "failed": failed, "total_candidates": total_files},
+                    current_stage="indexing",
+                )
+            continue
         try:
-            # Skip if already indexed and unchanged (mtime check)
-            row = conn.execute(
-                "SELECT modified_at FROM documents WHERE path = ? AND active = 1", (fpath,)
-            ).fetchone()
-            if row:
-                from datetime import UTC
-
-                file_mtime = os.path.getmtime(fpath)
-                try:
-                    db_dt = datetime.fromisoformat(row[0])
-                    file_dt = datetime.fromtimestamp(file_mtime, tz=UTC)
-                    if file_dt <= db_dt:
-                        continue  # already indexed, unchanged
-                except (ValueError, OSError):
-                    pass
-
-            result = extract(fpath)
-            if result is None:
+            mark_job_running(conn, job_id, current_stage="indexing")
+            update_job_progress(
+                conn,
+                job_id,
+                total_items=1,
+                completed_items=0,
+                details={"path": fpath},
+                current_stage="indexing",
+            )
+            outcome = index_single_file(
+                conn,
+                fpath,
+                skip_unchanged=True,
+                skip_scanned_pdf=True,
+                facts_enabled=False,
+            )
+            if outcome["status"] != "indexed":
+                update_job_progress(
+                    conn,
+                    job_id,
+                    total_items=1,
+                    completed_items=1,
+                    details={"path": fpath, "status": outcome["status"], "reason": outcome.get("reason", "")},
+                    current_stage=f"skipped:{outcome.get('reason', 'unknown')}",
+                )
+                mark_job_completed(conn, job_id, current_stage=f"skipped:{outcome.get('reason', 'unknown')}")
+                if parent_job_id is not None:
+                    update_job_progress(
+                        conn,
+                        parent_job_id,
+                        total_items=total_files,
+                        completed_items=processed_count,
+                        details={"indexed": indexed, "failed": failed, "total_candidates": total_files},
+                        current_stage="indexing",
+                    )
                 continue
-
-            # Skip scanned PDFs (very little text extracted = likely scanned)
-            text = result.get("text", "")
-            if fpath.lower().endswith(".pdf") and len(text.strip()) < 50:
-                continue
-
-            upsert_document(conn, fpath, text, result["file_type"], result.get("page_count", 0))
-
-            # Chunk for section-level search
-            doc_row = conn.execute("SELECT id FROM documents WHERE path = ?", (os.path.abspath(fpath),)).fetchone()
-            if doc_row:
-                try:
-                    chunk_document(conn, doc_row[0], text)
-                except Exception:
-                    pass
-
             indexed += 1
             _scan_status["indexed"] = indexed
-        except Exception:
-            continue
+            update_job_progress(
+                conn,
+                job_id,
+                total_items=1,
+                completed_items=1,
+                details={"path": fpath, "status": "indexed"},
+                current_stage="completed",
+            )
+            mark_job_completed(conn, job_id, current_stage="completed")
+        except Exception as exc:
+            failed += 1
+            mark_job_failed(conn, job_id, str(exc), current_stage="failed")
+            logger.exception("auto_index_failed", extra={"path": fpath})
+        if parent_job_id is not None:
+            update_job_progress(
+                conn,
+                parent_job_id,
+                total_items=total_files,
+                completed_items=processed_count,
+                details={"indexed": indexed, "failed": failed, "total_candidates": total_files},
+                current_stage="indexing",
+            )
 
     if indexed:
-        print(f"[PathRegistry] Auto-indexed {indexed} documents")
+        logger.info("auto_index_completed", extra={"indexed": indexed})
+    if failed:
+        logger.warning("auto_index_partial_failures", extra={"failed": failed, "indexed": indexed})
 
 
 @router.get("/find-file")
@@ -1155,3 +1258,129 @@ def path_scan_status_endpoint() -> dict:
         "docs_indexed": _scan_status["indexed"],
         "folders": _scan_status["folders"],
     }
+
+
+class WatchFolderRequest(BaseModel):
+    path: str
+
+
+@router.post("/watch-folder")
+def watch_folder_endpoint(req: WatchFolderRequest) -> dict:
+    """Start watching a folder — auto-indexes all docs inside, keeps watching for changes."""
+    folder = os.path.abspath(req.path)
+    if not os.path.isdir(folder):
+        raise HTTPException(status_code=404, detail=f"Folder not found: {folder}")
+    _check_safe(folder)
+
+    conn = _get_conn()
+    existing = conn.execute("SELECT path FROM watched_folders WHERE path = ?", (folder,)).fetchone()
+    if existing:
+        return {"status": "already_watching", "path": folder, "_hint": f"Already watching {folder}."}
+
+    conn.execute(
+        "INSERT INTO watched_folders (path, added_at) VALUES (?, ?)",
+        (folder, datetime.now().isoformat()),
+    )
+    conn.commit()
+    watch_job_id = create_job(conn, "watch_initial_index", target_path=folder, current_stage="queued")
+    update_job_progress(
+        conn,
+        watch_job_id,
+        total_items=0,
+        completed_items=0,
+        details={"folder": folder, "discovered": 0},
+        current_stage="queued",
+    )
+
+    # Kick off immediate indexing in background
+    def _index_watched():
+        try:
+            from database import DB_PATH, init_db
+
+            c = init_db(DB_PATH)
+            try:
+                mark_job_running(c, watch_job_id, current_stage="walking")
+                still_watched = c.execute("SELECT 1 FROM watched_folders WHERE path = ?", (folder,)).fetchone()
+                if not still_watched:
+                    mark_job_cancelled(c, watch_job_id)
+                    return
+                to_index = []
+                for fpath, fname, ext, size, mtime in _walk_folder(folder):
+                    if is_job_cancelling(c, watch_job_id):
+                        mark_job_cancelled(c, watch_job_id)
+                        return
+                    still_watched = c.execute("SELECT 1 FROM watched_folders WHERE path = ?", (folder,)).fetchone()
+                    if not still_watched:
+                        logger.info("watch_initial_index_cancelled", extra={"folder": folder})
+                        mark_job_cancelled(c, watch_job_id)
+                        return
+                    if ext in _AUTO_INDEX_EXTS and size <= _MAX_AUTO_INDEX_SIZE:
+                        to_index.append(fpath)
+                update_job_progress(
+                    c,
+                    watch_job_id,
+                    total_items=len(to_index),
+                    completed_items=0,
+                    details={"folder": folder, "discovered": len(to_index)},
+                    current_stage="indexing" if to_index else "completed",
+                )
+                if to_index:
+                    update_job_stage(c, watch_job_id, "indexing")
+                    _auto_index_docs(c, to_index, parent_job_id=watch_job_id)
+                    logger.info("watch_initial_index_completed", extra={"folder": folder, "count": len(to_index)})
+                mark_job_completed(c, watch_job_id, current_stage="completed")
+            finally:
+                c.close()
+        except Exception as exc:
+            fail_conn = init_db(DB_PATH)
+            try:
+                mark_job_failed(fail_conn, watch_job_id, str(exc), current_stage="failed")
+            finally:
+                fail_conn.close()
+            logger.exception("watch_initial_index_failed", extra={"folder": folder})
+
+    threading.Thread(target=_index_watched, daemon=True, name=f"watch-{os.path.basename(folder)}").start()
+
+    return {"status": "watching", "path": folder, "_hint": f"Now watching {folder}. All documents will be indexed + embedded. New/changed files picked up every 60 min."}
+
+
+@router.post("/unwatch-folder")
+def unwatch_folder_endpoint(req: WatchFolderRequest) -> dict:
+    """Stop watching a folder."""
+    folder = os.path.abspath(req.path)
+    _check_safe(folder)
+    conn = _get_conn()
+    result = conn.execute("DELETE FROM watched_folders WHERE path = ?", (folder,))
+    conn.commit()
+    cancel_jobs_for_target(conn, "watch_initial_index", folder)
+    if result.rowcount > 0:
+        return {"status": "unwatched", "path": folder, "_hint": f"Stopped watching {folder}. Existing index data is kept."}
+    return {"status": "not_found", "path": folder, "_hint": f"{folder} was not being watched."}
+
+
+@router.get("/watched-folders")
+def watched_folders_endpoint() -> dict:
+    """List all watched folders."""
+    conn = _get_conn()
+    rows = conn.execute("SELECT path, added_at FROM watched_folders ORDER BY added_at").fetchall()
+    folders = [{"path": r["path"], "added_at": r["added_at"], "exists": os.path.isdir(r["path"])} for r in rows]
+    return {"folders": folders, "count": len(folders)}
+
+
+@router.get("/background-jobs")
+def background_jobs_endpoint(
+    status: str = Query("", description="Optional status filter: pending, running, cancelling, completed, failed, cancelled"),
+    limit: int = Query(50, ge=1, le=200),
+) -> dict:
+    conn = _get_conn()
+    jobs = list_jobs(conn, limit=limit, status=status)
+    return {"jobs": jobs, "count": len(jobs)}
+
+
+@router.post("/background-jobs/{job_id}/cancel")
+def cancel_background_job_endpoint(job_id: int) -> dict:
+    conn = _get_conn()
+    cancelled = request_job_cancel(conn, job_id)
+    if not cancelled:
+        raise HTTPException(status_code=404, detail=f"Job not cancellable or not found: {job_id}")
+    return {"status": "cancelling", "job_id": job_id}

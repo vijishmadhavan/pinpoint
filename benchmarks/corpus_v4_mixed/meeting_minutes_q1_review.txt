@@ -1,0 +1,21 @@
+MEETING MINUTES - QUARTERLY BUSINESS REVIEW
+Date: March 28, 2024
+Location: Conference Room A, TCS Hinjewadi Campus, Pune
+
+ATTENDEES:
+- Rajesh Menon
+- Priya Sharma
+- Amit Patel
+- Sneha Reddy
+- Karthik Iyer
+- Anita Deshmukh
+
+PROJECT PHOENIX STATUS
+- Phase 1 MVP is on track for April 15 launch.
+- WhatsApp pilot has 500 users onboarded with 78 percent positive feedback.
+- Blocker: Hindi language model needs fine-tuning.
+
+ACTION ITEMS:
+1. Sneha to fix Hindi model accuracy by April 5.
+2. Karthik to complete load testing for 10K concurrent users.
+3. Priya to document API specifications for Phase 2.

@@ -72,7 +72,7 @@ def _embedding_to_bytes(emb: Any) -> bytes:
     return struct.pack(f"{EMBED_DIM}f", *emb.tolist())
 
 
-def _bytes_to_embedding(data: bytes) -> bytes:
+def _bytes_to_embedding(data: bytes) -> np.ndarray:
     """Convert bytes back to 1D float array."""
     return np.array(struct.unpack(f"{EMBED_DIM}f", data), dtype=np.float32)
 

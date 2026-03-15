@@ -33,6 +33,10 @@ def search_endpoint(
         result["_hint"] = (
             "No results. File may not be indexed — use index_file first, then retry. Or try search_facts for quick factual lookups."
         )
+    elif result.get("ambiguous_search"):
+        result["_hint"] = result.get("clarification_hint") or (
+            "Multiple similar matches found. Ask the user to narrow it down with a file name, title, date, person, location, or year."
+        )
     else:
         result["_hint"] = f"{len(result['results'])} result(s) found. Answer the user's question using these."
     return result

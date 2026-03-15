@@ -1,0 +1,699 @@
+{
+  "dataset": {
+    "name": "pinpoint-search-relevance-v1",
+    "path": "benchmarks/search_relevance.json",
+    "version": 1
+  },
+  "corpus": "test_data",
+  "limit": 5,
+  "indexing": {
+    "indexed_files": [
+      "client_database.csv",
+      "expenses_2024.xlsx",
+      "meeting_minutes_q1_review.txt"
+    ],
+    "skipped_files": [
+      {
+        "file": "IMG_5254-e1594668058904-1090x1090.jpg",
+        "reason": "unextractable"
+      },
+      {
+        "file": "business_card_sharma.jpg",
+        "reason": "unextractable"
+      },
+      {
+        "file": "cafe_mumbai_bill.png",
+        "reason": "unextractable"
+      },
+      {
+        "file": "mountain_landscape.jpg",
+        "reason": "unextractable"
+      },
+      {
+        "file": "project_phoenix_proposal.pptx",
+        "reason": "unextractable"
+      },
+      {
+        "file": "reliance_invoice_march2024.pdf",
+        "reason": "unextractable"
+      },
+      {
+        "file": "tcs_offer_letter_priya.docx",
+        "reason": "unextractable"
+      }
+    ]
+  },
+  "environment": {
+    "gemini_api_key_configured": false
+  },
+  "results": [
+    {
+      "variant": "fts_only",
+      "evaluated_queries": 10,
+      "skipped_queries": 0,
+      "success_at_1": 1.0,
+      "mrr": 1.0,
+      "recall_at_k": 1.0,
+      "ndcg_at_k": 1.0,
+      "avg_latency_ms": 0.82,
+      "cases": [
+        {
+          "id": "clients-tata-contact",
+          "query": "Tata Motors contact person",
+          "relevant": [
+            "client_database.csv"
+          ],
+          "returned": [
+            "client_database.csv"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 1.05
+        },
+        {
+          "id": "clients-jio-contract",
+          "query": "Reliance Jio contract value",
+          "relevant": [
+            "client_database.csv"
+          ],
+          "returned": [
+            "client_database.csv"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 0.75
+        },
+        {
+          "id": "clients-renewal-pending",
+          "query": "which client is renewal pending",
+          "relevant": [
+            "client_database.csv"
+          ],
+          "returned": [
+            "client_database.csv"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 0.92
+        },
+        {
+          "id": "expenses-january-groceries",
+          "query": "January BigBasket monthly order",
+          "relevant": [
+            "expenses_2024.xlsx"
+          ],
+          "returned": [
+            "expenses_2024.xlsx"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 0.73
+        },
+        {
+          "id": "expenses-wifi",
+          "query": "Jio Fiber 100Mbps bill",
+          "relevant": [
+            "expenses_2024.xlsx"
+          ],
+          "returned": [
+            "expenses_2024.xlsx"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 0.65
+        },
+        {
+          "id": "expenses-health-checkup",
+          "query": "annual health checkup Narayana",
+          "relevant": [
+            "expenses_2024.xlsx"
+          ],
+          "returned": [
+            "expenses_2024.xlsx"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 0.64
+        },
+        {
+          "id": "minutes-attendees",
+          "query": "who attended quarterly business review",
+          "relevant": [
+            "meeting_minutes_q1_review.txt"
+          ],
+          "returned": [
+            "meeting_minutes_q1_review.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 1.15
+        },
+        {
+          "id": "minutes-project-phoenix",
+          "query": "Project Phoenix April 15 launch",
+          "relevant": [
+            "meeting_minutes_q1_review.txt"
+          ],
+          "returned": [
+            "meeting_minutes_q1_review.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 0.69
+        },
+        {
+          "id": "minutes-hiring",
+          "query": "open positions ML engineers backend frontend devops",
+          "relevant": [
+            "meeting_minutes_q1_review.txt"
+          ],
+          "returned": [
+            "meeting_minutes_q1_review.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 0.79
+        },
+        {
+          "id": "minutes-soc2",
+          "query": "SOC 2 Type II audit by June 30",
+          "relevant": [
+            "meeting_minutes_q1_review.txt"
+          ],
+          "returned": [
+            "meeting_minutes_q1_review.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 0.87
+        }
+      ]
+    },
+    {
+      "variant": "fts_embeddings",
+      "evaluated_queries": 10,
+      "skipped_queries": 0,
+      "success_at_1": 1.0,
+      "mrr": 1.0,
+      "recall_at_k": 1.0,
+      "ndcg_at_k": 1.0,
+      "avg_latency_ms": 0.79,
+      "cases": [
+        {
+          "id": "clients-tata-contact",
+          "query": "Tata Motors contact person",
+          "relevant": [
+            "client_database.csv"
+          ],
+          "returned": [
+            "client_database.csv"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 0.86
+        },
+        {
+          "id": "clients-jio-contract",
+          "query": "Reliance Jio contract value",
+          "relevant": [
+            "client_database.csv"
+          ],
+          "returned": [
+            "client_database.csv"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 0.68
+        },
+        {
+          "id": "clients-renewal-pending",
+          "query": "which client is renewal pending",
+          "relevant": [
+            "client_database.csv"
+          ],
+          "returned": [
+            "client_database.csv"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 0.87
+        },
+        {
+          "id": "expenses-january-groceries",
+          "query": "January BigBasket monthly order",
+          "relevant": [
+            "expenses_2024.xlsx"
+          ],
+          "returned": [
+            "expenses_2024.xlsx"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 0.77
+        },
+        {
+          "id": "expenses-wifi",
+          "query": "Jio Fiber 100Mbps bill",
+          "relevant": [
+            "expenses_2024.xlsx"
+          ],
+          "returned": [
+            "expenses_2024.xlsx"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 0.68
+        },
+        {
+          "id": "expenses-health-checkup",
+          "query": "annual health checkup Narayana",
+          "relevant": [
+            "expenses_2024.xlsx"
+          ],
+          "returned": [
+            "expenses_2024.xlsx"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 0.67
+        },
+        {
+          "id": "minutes-attendees",
+          "query": "who attended quarterly business review",
+          "relevant": [
+            "meeting_minutes_q1_review.txt"
+          ],
+          "returned": [
+            "meeting_minutes_q1_review.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 1.0
+        },
+        {
+          "id": "minutes-project-phoenix",
+          "query": "Project Phoenix April 15 launch",
+          "relevant": [
+            "meeting_minutes_q1_review.txt"
+          ],
+          "returned": [
+            "meeting_minutes_q1_review.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 0.69
+        },
+        {
+          "id": "minutes-hiring",
+          "query": "open positions ML engineers backend frontend devops",
+          "relevant": [
+            "meeting_minutes_q1_review.txt"
+          ],
+          "returned": [
+            "meeting_minutes_q1_review.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 0.85
+        },
+        {
+          "id": "minutes-soc2",
+          "query": "SOC 2 Type II audit by June 30",
+          "relevant": [
+            "meeting_minutes_q1_review.txt"
+          ],
+          "returned": [
+            "meeting_minutes_q1_review.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 0.8
+        }
+      ]
+    },
+    {
+      "variant": "full_pipeline",
+      "evaluated_queries": 10,
+      "skipped_queries": 0,
+      "success_at_1": 1.0,
+      "mrr": 1.0,
+      "recall_at_k": 1.0,
+      "ndcg_at_k": 1.0,
+      "avg_latency_ms": 0.78,
+      "cases": [
+        {
+          "id": "clients-tata-contact",
+          "query": "Tata Motors contact person",
+          "relevant": [
+            "client_database.csv"
+          ],
+          "returned": [
+            "client_database.csv"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 0.77
+        },
+        {
+          "id": "clients-jio-contract",
+          "query": "Reliance Jio contract value",
+          "relevant": [
+            "client_database.csv"
+          ],
+          "returned": [
+            "client_database.csv"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 0.73
+        },
+        {
+          "id": "clients-renewal-pending",
+          "query": "which client is renewal pending",
+          "relevant": [
+            "client_database.csv"
+          ],
+          "returned": [
+            "client_database.csv"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 0.96
+        },
+        {
+          "id": "expenses-january-groceries",
+          "query": "January BigBasket monthly order",
+          "relevant": [
+            "expenses_2024.xlsx"
+          ],
+          "returned": [
+            "expenses_2024.xlsx"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 0.71
+        },
+        {
+          "id": "expenses-wifi",
+          "query": "Jio Fiber 100Mbps bill",
+          "relevant": [
+            "expenses_2024.xlsx"
+          ],
+          "returned": [
+            "expenses_2024.xlsx"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 0.68
+        },
+        {
+          "id": "expenses-health-checkup",
+          "query": "annual health checkup Narayana",
+          "relevant": [
+            "expenses_2024.xlsx"
+          ],
+          "returned": [
+            "expenses_2024.xlsx"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 0.74
+        },
+        {
+          "id": "minutes-attendees",
+          "query": "who attended quarterly business review",
+          "relevant": [
+            "meeting_minutes_q1_review.txt"
+          ],
+          "returned": [
+            "meeting_minutes_q1_review.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 1.03
+        },
+        {
+          "id": "minutes-project-phoenix",
+          "query": "Project Phoenix April 15 launch",
+          "relevant": [
+            "meeting_minutes_q1_review.txt"
+          ],
+          "returned": [
+            "meeting_minutes_q1_review.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 0.73
+        },
+        {
+          "id": "minutes-hiring",
+          "query": "open positions ML engineers backend frontend devops",
+          "relevant": [
+            "meeting_minutes_q1_review.txt"
+          ],
+          "returned": [
+            "meeting_minutes_q1_review.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 0.71
+        },
+        {
+          "id": "minutes-soc2",
+          "query": "SOC 2 Type II audit by June 30",
+          "relevant": [
+            "meeting_minutes_q1_review.txt"
+          ],
+          "returned": [
+            "meeting_minutes_q1_review.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 0.76
+        }
+      ]
+    },
+    {
+      "variant": "full_no_position_blend",
+      "evaluated_queries": 10,
+      "skipped_queries": 0,
+      "success_at_1": 1.0,
+      "mrr": 1.0,
+      "recall_at_k": 1.0,
+      "ndcg_at_k": 1.0,
+      "avg_latency_ms": 0.78,
+      "cases": [
+        {
+          "id": "clients-tata-contact",
+          "query": "Tata Motors contact person",
+          "relevant": [
+            "client_database.csv"
+          ],
+          "returned": [
+            "client_database.csv"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 0.74
+        },
+        {
+          "id": "clients-jio-contract",
+          "query": "Reliance Jio contract value",
+          "relevant": [
+            "client_database.csv"
+          ],
+          "returned": [
+            "client_database.csv"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 0.88
+        },
+        {
+          "id": "clients-renewal-pending",
+          "query": "which client is renewal pending",
+          "relevant": [
+            "client_database.csv"
+          ],
+          "returned": [
+            "client_database.csv"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 0.89
+        },
+        {
+          "id": "expenses-january-groceries",
+          "query": "January BigBasket monthly order",
+          "relevant": [
+            "expenses_2024.xlsx"
+          ],
+          "returned": [
+            "expenses_2024.xlsx"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 0.7
+        },
+        {
+          "id": "expenses-wifi",
+          "query": "Jio Fiber 100Mbps bill",
+          "relevant": [
+            "expenses_2024.xlsx"
+          ],
+          "returned": [
+            "expenses_2024.xlsx"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 0.66
+        },
+        {
+          "id": "expenses-health-checkup",
+          "query": "annual health checkup Narayana",
+          "relevant": [
+            "expenses_2024.xlsx"
+          ],
+          "returned": [
+            "expenses_2024.xlsx"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 0.66
+        },
+        {
+          "id": "minutes-attendees",
+          "query": "who attended quarterly business review",
+          "relevant": [
+            "meeting_minutes_q1_review.txt"
+          ],
+          "returned": [
+            "meeting_minutes_q1_review.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 1.02
+        },
+        {
+          "id": "minutes-project-phoenix",
+          "query": "Project Phoenix April 15 launch",
+          "relevant": [
+            "meeting_minutes_q1_review.txt"
+          ],
+          "returned": [
+            "meeting_minutes_q1_review.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 0.67
+        },
+        {
+          "id": "minutes-hiring",
+          "query": "open positions ML engineers backend frontend devops",
+          "relevant": [
+            "meeting_minutes_q1_review.txt"
+          ],
+          "returned": [
+            "meeting_minutes_q1_review.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 0.86
+        },
+        {
+          "id": "minutes-soc2",
+          "query": "SOC 2 Type II audit by June 30",
+          "relevant": [
+            "meeting_minutes_q1_review.txt"
+          ],
+          "returned": [
+            "meeting_minutes_q1_review.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 0.75
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,685 @@
+{
+  "name": "pinpoint-search-relevance-v3-legal-expanded",
+  "version": 1,
+  "notes": [
+    "Expanded legal benchmark generated from the real 10k corpus.",
+    "Queries are starter heuristics and should be refined with manual judgments for harder ambiguity cases."
+  ],
+  "queries": [
+    {
+      "id": "176294-1",
+      "query": "cheque dishonour section 138 case",
+      "relevant": [
+        "176294.txt"
+      ],
+      "preferred_top": "176294.txt",
+      "notes": "title=2015 (2) TMI 1066 - MADRAS HIGH COURT; law_area=Indian Laws; topics=section 138"
+    },
+    {
+      "id": "176294-2",
+      "query": "cheque bounce complaint section 138",
+      "relevant": [
+        "176294.txt"
+      ],
+      "preferred_top": "176294.txt",
+      "notes": "title=2015 (2) TMI 1066 - MADRAS HIGH COURT; law_area=Indian Laws; topics=section 138"
+    },
+    {
+      "id": "176294-3",
+      "query": "cheque dishonour section 138 case p. pandiyarajan",
+      "relevant": [
+        "176294.txt"
+      ],
+      "preferred_top": "176294.txt",
+      "notes": "title=2015 (2) TMI 1066 - MADRAS HIGH COURT; law_area=Indian Laws; topics=section 138"
+    },
+    {
+      "id": "193633-1",
+      "query": "cheque dishonour section 138 case",
+      "relevant": [
+        "193633.txt"
+      ],
+      "preferred_top": "193633.txt",
+      "notes": "title=2015 (3) TMI 1282 - MADRAS HIGH COURT; law_area=Indian Laws; topics=section 138"
+    },
+    {
+      "id": "193633-2",
+      "query": "cheque bounce complaint section 138",
+      "relevant": [
+        "193633.txt"
+      ],
+      "preferred_top": "193633.txt",
+      "notes": "title=2015 (3) TMI 1282 - MADRAS HIGH COURT; law_area=Indian Laws; topics=section 138"
+    },
+    {
+      "id": "193633-3",
+      "query": "cheque dishonour section 138 case n. sivasamy",
+      "relevant": [
+        "193633.txt"
+      ],
+      "preferred_top": "193633.txt",
+      "notes": "title=2015 (3) TMI 1282 - MADRAS HIGH COURT; law_area=Indian Laws; topics=section 138"
+    },
+    {
+      "id": "193654-1",
+      "query": "cheque dishonour section 138 case",
+      "relevant": [
+        "193654.txt"
+      ],
+      "preferred_top": "193654.txt",
+      "notes": "title=2015 (6) TMI 1131 - MADRAS HIGH COURT; law_area=Indian Laws; topics=section 138"
+    },
+    {
+      "id": "193654-2",
+      "query": "cheque bounce complaint section 138",
+      "relevant": [
+        "193654.txt"
+      ],
+      "preferred_top": "193654.txt",
+      "notes": "title=2015 (6) TMI 1131 - MADRAS HIGH COURT; law_area=Indian Laws; topics=section 138"
+    },
+    {
+      "id": "193654-3",
+      "query": "cheque dishonour section 138 case veera constructions and ors.",
+      "relevant": [
+        "193654.txt"
+      ],
+      "preferred_top": "193654.txt",
+      "notes": "title=2015 (6) TMI 1131 - MADRAS HIGH COURT; law_area=Indian Laws; topics=section 138"
+    },
+    {
+      "id": "176295-1",
+      "query": "regular bail pmla case",
+      "relevant": [
+        "176295.txt"
+      ],
+      "preferred_top": "176295.txt",
+      "notes": "title=2015 (3) TMI 1053 - GUJARAT HIGH COURT; law_area=PMLA; topics=bail"
+    },
+    {
+      "id": "176295-2",
+      "query": "bail in enforcement matter",
+      "relevant": [
+        "176295.txt"
+      ],
+      "preferred_top": "176295.txt",
+      "notes": "title=2015 (3) TMI 1053 - GUJARAT HIGH COURT; law_area=PMLA; topics=bail"
+    },
+    {
+      "id": "176295-3",
+      "query": "regular bail pmla case rakesh manekchand kothari",
+      "relevant": [
+        "176295.txt"
+      ],
+      "preferred_top": "176295.txt",
+      "notes": "title=2015 (3) TMI 1053 - GUJARAT HIGH COURT; law_area=PMLA; topics=bail"
+    },
+    {
+      "id": "181392-1",
+      "query": "regular bail fema case",
+      "relevant": [
+        "181392.txt"
+      ],
+      "preferred_top": "181392.txt",
+      "notes": "title=2015 (5) TMI 1033 - JHARKHAND HIGH COURT; law_area=FEMA; topics=bail"
+    },
+    {
+      "id": "181392-2",
+      "query": "bail in enforcement matter",
+      "relevant": [
+        "181392.txt"
+      ],
+      "preferred_top": "181392.txt",
+      "notes": "title=2015 (5) TMI 1033 - JHARKHAND HIGH COURT; law_area=FEMA; topics=bail"
+    },
+    {
+      "id": "181392-3",
+      "query": "regular bail fema case rajesh kumar prasad",
+      "relevant": [
+        "181392.txt"
+      ],
+      "preferred_top": "181392.txt",
+      "notes": "title=2015 (5) TMI 1033 - JHARKHAND HIGH COURT; law_area=FEMA; topics=bail"
+    },
+    {
+      "id": "182263-1",
+      "query": "regular bail customs case",
+      "relevant": [
+        "182263.txt"
+      ],
+      "preferred_top": "182263.txt",
+      "notes": "title=2015 (7) TMI 1086 - DELHI HIGH COURT; law_area=Customs; topics=bail, penalty, classification, customs"
+    },
+    {
+      "id": "182263-2",
+      "query": "bail in enforcement matter",
+      "relevant": [
+        "182263.txt"
+      ],
+      "preferred_top": "182263.txt",
+      "notes": "title=2015 (7) TMI 1086 - DELHI HIGH COURT; law_area=Customs; topics=bail, penalty, classification, customs"
+    },
+    {
+      "id": "182263-3",
+      "query": "regular bail customs case directorate of revenue intelligence",
+      "relevant": [
+        "182263.txt"
+      ],
+      "preferred_top": "182263.txt",
+      "notes": "title=2015 (7) TMI 1086 - DELHI HIGH COURT; law_area=Customs; topics=bail, penalty, classification, customs"
+    },
+    {
+      "id": "176519-1",
+      "query": "cenvat credit dispute",
+      "relevant": [
+        "176519.txt"
+      ],
+      "preferred_top": "176519.txt",
+      "notes": "title=2015 (2) TMI 1067 - CESTAT HYDERABAD; law_area=Central Excise; topics=cenvat, refund"
+    },
+    {
+      "id": "176519-2",
+      "query": "input credit issue in excise or service tax",
+      "relevant": [
+        "176519.txt"
+      ],
+      "preferred_top": "176519.txt",
+      "notes": "title=2015 (2) TMI 1067 - CESTAT HYDERABAD; law_area=Central Excise; topics=cenvat, refund"
+    },
+    {
+      "id": "176519-3",
+      "query": "cenvat credit dispute m/s. l&t ltd.",
+      "relevant": [
+        "176519.txt"
+      ],
+      "preferred_top": "176519.txt",
+      "notes": "title=2015 (2) TMI 1067 - CESTAT HYDERABAD; law_area=Central Excise; topics=cenvat, refund"
+    },
+    {
+      "id": "176524-1",
+      "query": "cenvat credit dispute",
+      "relevant": [
+        "176524.txt"
+      ],
+      "preferred_top": "176524.txt",
+      "notes": "title=2015 (3) TMI 1058 - CESTAT BANGALORE; law_area=Service Tax; topics=cenvat, penalty, service tax"
+    },
+    {
+      "id": "176524-2",
+      "query": "input credit issue in excise or service tax",
+      "relevant": [
+        "176524.txt"
+      ],
+      "preferred_top": "176524.txt",
+      "notes": "title=2015 (3) TMI 1058 - CESTAT BANGALORE; law_area=Service Tax; topics=cenvat, penalty, service tax"
+    },
+    {
+      "id": "176524-3",
+      "query": "cenvat credit dispute commissioner of c. ex., cus. & s.t., tirupati",
+      "relevant": [
+        "176524.txt"
+      ],
+      "preferred_top": "176524.txt",
+      "notes": "title=2015 (3) TMI 1058 - CESTAT BANGALORE; law_area=Service Tax; topics=cenvat, penalty, service tax"
+    },
+    {
+      "id": "176526-1",
+      "query": "cenvat credit dispute",
+      "relevant": [
+        "176526.txt"
+      ],
+      "preferred_top": "176526.txt",
+      "notes": "title=2015 (3) TMI 1060 - CESTAT NEW DELHI; law_area=Service Tax; topics=cenvat, service tax"
+    },
+    {
+      "id": "176526-2",
+      "query": "input credit issue in excise or service tax",
+      "relevant": [
+        "176526.txt"
+      ],
+      "preferred_top": "176526.txt",
+      "notes": "title=2015 (3) TMI 1060 - CESTAT NEW DELHI; law_area=Service Tax; topics=cenvat, service tax"
+    },
+    {
+      "id": "176526-3",
+      "query": "cenvat credit dispute commissioner of c. ex., delhi-iii",
+      "relevant": [
+        "176526.txt"
+      ],
+      "preferred_top": "176526.txt",
+      "notes": "title=2015 (3) TMI 1060 - CESTAT NEW DELHI; law_area=Service Tax; topics=cenvat, service tax"
+    },
+    {
+      "id": "176523-1",
+      "query": "refund claim dispute",
+      "relevant": [
+        "176523.txt"
+      ],
+      "preferred_top": "176523.txt",
+      "notes": "title=2015 (3) TMI 1057 - CESTAT BANGALORE; law_area=Customs; topics=refund, classification, customs"
+    },
+    {
+      "id": "176523-2",
+      "query": "refund denied because of procedure",
+      "relevant": [
+        "176523.txt"
+      ],
+      "preferred_top": "176523.txt",
+      "notes": "title=2015 (3) TMI 1057 - CESTAT BANGALORE; law_area=Customs; topics=refund, classification, customs"
+    },
+    {
+      "id": "176523-3",
+      "query": "refund claim dispute agappe diagnostics ltd.",
+      "relevant": [
+        "176523.txt"
+      ],
+      "preferred_top": "176523.txt",
+      "notes": "title=2015 (3) TMI 1057 - CESTAT BANGALORE; law_area=Customs; topics=refund, classification, customs"
+    },
+    {
+      "id": "176525-1",
+      "query": "refund claim dispute",
+      "relevant": [
+        "176525.txt"
+      ],
+      "preferred_top": "176525.txt",
+      "notes": "title=2015 (3) TMI 1059 - CESTAT BANGALORE; law_area=Service Tax; topics=refund, classification, service tax"
+    },
+    {
+      "id": "176525-2",
+      "query": "refund denied because of procedure",
+      "relevant": [
+        "176525.txt"
+      ],
+      "preferred_top": "176525.txt",
+      "notes": "title=2015 (3) TMI 1059 - CESTAT BANGALORE; law_area=Service Tax; topics=refund, classification, service tax"
+    },
+    {
+      "id": "176525-3",
+      "query": "refund claim dispute bola surendra kamath & sons",
+      "relevant": [
+        "176525.txt"
+      ],
+      "preferred_top": "176525.txt",
+      "notes": "title=2015 (3) TMI 1059 - CESTAT BANGALORE; law_area=Service Tax; topics=refund, classification, service tax"
+    },
+    {
+      "id": "176527-1",
+      "query": "refund claim dispute",
+      "relevant": [
+        "176527.txt"
+      ],
+      "preferred_top": "176527.txt",
+      "notes": "title=2015 (3) TMI 1061 - CESTAT NEW DELHI; law_area=Service Tax; topics=refund, service tax"
+    },
+    {
+      "id": "176527-2",
+      "query": "refund denied because of procedure",
+      "relevant": [
+        "176527.txt"
+      ],
+      "preferred_top": "176527.txt",
+      "notes": "title=2015 (3) TMI 1061 - CESTAT NEW DELHI; law_area=Service Tax; topics=refund, service tax"
+    },
+    {
+      "id": "176527-3",
+      "query": "refund claim dispute commissioner of c. ex. & s.t., raipur",
+      "relevant": [
+        "176527.txt"
+      ],
+      "preferred_top": "176527.txt",
+      "notes": "title=2015 (3) TMI 1061 - CESTAT NEW DELHI; law_area=Service Tax; topics=refund, service tax"
+    },
+    {
+      "id": "176290-1",
+      "query": "penalty dispute",
+      "relevant": [
+        "176290.txt"
+      ],
+      "preferred_top": "176290.txt",
+      "notes": "title=2015 (4) TMI 1009 - CENTRAL INFORMATION COMMISSION; law_area=Indian Laws; topics=penalty"
+    },
+    {
+      "id": "176290-2",
+      "query": "can penalty be set aside case",
+      "relevant": [
+        "176290.txt"
+      ],
+      "preferred_top": "176290.txt",
+      "notes": "title=2015 (4) TMI 1009 - CENTRAL INFORMATION COMMISSION; law_area=Indian Laws; topics=penalty"
+    },
+    {
+      "id": "176290-3",
+      "query": "penalty dispute j.k. mital",
+      "relevant": [
+        "176290.txt"
+      ],
+      "preferred_top": "176290.txt",
+      "notes": "title=2015 (4) TMI 1009 - CENTRAL INFORMATION COMMISSION; law_area=Indian Laws; topics=penalty"
+    },
+    {
+      "id": "176532-1",
+      "query": "penalty dispute",
+      "relevant": [
+        "176532.txt"
+      ],
+      "preferred_top": "176532.txt",
+      "notes": "title=2015 (2) TMI 1070 - CESTAT BANGALORE; law_area=Customs; topics=penalty, service tax, customs"
+    },
+    {
+      "id": "176532-2",
+      "query": "can penalty be set aside case",
+      "relevant": [
+        "176532.txt"
+      ],
+      "preferred_top": "176532.txt",
+      "notes": "title=2015 (2) TMI 1070 - CESTAT BANGALORE; law_area=Customs; topics=penalty, service tax, customs"
+    },
+    {
+      "id": "176532-3",
+      "query": "penalty dispute nuance group (india) pvt ltd",
+      "relevant": [
+        "176532.txt"
+      ],
+      "preferred_top": "176532.txt",
+      "notes": "title=2015 (2) TMI 1070 - CESTAT BANGALORE; law_area=Customs; topics=penalty, service tax, customs"
+    },
+    {
+      "id": "176533-1",
+      "query": "penalty dispute",
+      "relevant": [
+        "176533.txt"
+      ],
+      "preferred_top": "176533.txt",
+      "notes": "title=2015 (6) TMI 967 - CESTAT CHENNAI; law_area=Customs; topics=penalty, customs"
+    },
+    {
+      "id": "176533-2",
+      "query": "can penalty be set aside case",
+      "relevant": [
+        "176533.txt"
+      ],
+      "preferred_top": "176533.txt",
+      "notes": "title=2015 (6) TMI 967 - CESTAT CHENNAI; law_area=Customs; topics=penalty, customs"
+    },
+    {
+      "id": "176533-3",
+      "query": "penalty dispute kuresh t rajkotwala",
+      "relevant": [
+        "176533.txt"
+      ],
+      "preferred_top": "176533.txt",
+      "notes": "title=2015 (6) TMI 967 - CESTAT CHENNAI; law_area=Customs; topics=penalty, customs"
+    },
+    {
+      "id": "176528-1",
+      "query": "cenvat credit dispute",
+      "relevant": [
+        "176528.txt"
+      ],
+      "preferred_top": "176528.txt",
+      "notes": "title=2015 (3) TMI 1062 - CESTAT NEW DELHI; law_area=Service Tax; topics=cenvat, service tax"
+    },
+    {
+      "id": "176528-2",
+      "query": "input credit issue in excise or service tax",
+      "relevant": [
+        "176528.txt"
+      ],
+      "preferred_top": "176528.txt",
+      "notes": "title=2015 (3) TMI 1062 - CESTAT NEW DELHI; law_area=Service Tax; topics=cenvat, service tax"
+    },
+    {
+      "id": "176528-3",
+      "query": "cenvat credit dispute balkrishna industries ltd.",
+      "relevant": [
+        "176528.txt"
+      ],
+      "preferred_top": "176528.txt",
+      "notes": "title=2015 (3) TMI 1062 - CESTAT NEW DELHI; law_area=Service Tax; topics=cenvat, service tax"
+    },
+    {
+      "id": "176529-1",
+      "query": "cenvat credit dispute",
+      "relevant": [
+        "176529.txt"
+      ],
+      "preferred_top": "176529.txt",
+      "notes": "title=2015 (3) TMI 1063 - CESTAT NEW DELHI; law_area=Service Tax; topics=cenvat, service tax"
+    },
+    {
+      "id": "176529-2",
+      "query": "input credit issue in excise or service tax",
+      "relevant": [
+        "176529.txt"
+      ],
+      "preferred_top": "176529.txt",
+      "notes": "title=2015 (3) TMI 1063 - CESTAT NEW DELHI; law_area=Service Tax; topics=cenvat, service tax"
+    },
+    {
+      "id": "176529-3",
+      "query": "cenvat credit dispute time technoplast ltd.",
+      "relevant": [
+        "176529.txt"
+      ],
+      "preferred_top": "176529.txt",
+      "notes": "title=2015 (3) TMI 1063 - CESTAT NEW DELHI; law_area=Service Tax; topics=cenvat, service tax"
+    },
+    {
+      "id": "176567-1",
+      "query": "service tax demand dispute",
+      "relevant": [
+        "176567.txt"
+      ],
+      "preferred_top": "176567.txt",
+      "notes": "title=2015 (6) TMI 969 - CESTAT NEW DELHI; law_area=Service Tax; topics=service tax"
+    },
+    {
+      "id": "176567-2",
+      "query": "taxable service issue case",
+      "relevant": [
+        "176567.txt"
+      ],
+      "preferred_top": "176567.txt",
+      "notes": "title=2015 (6) TMI 969 - CESTAT NEW DELHI; law_area=Service Tax; topics=service tax"
+    },
+    {
+      "id": "176567-3",
+      "query": "service tax demand dispute barbrik project ltd. & bajrang lal agarwal",
+      "relevant": [
+        "176567.txt"
+      ],
+      "preferred_top": "176567.txt",
+      "notes": "title=2015 (6) TMI 969 - CESTAT NEW DELHI; law_area=Service Tax; topics=service tax"
+    },
+    {
+      "id": "176520-1",
+      "query": "customs dispute case",
+      "relevant": [
+        "176520.txt"
+      ],
+      "preferred_top": "176520.txt",
+      "notes": "title=2015 (2) TMI 1068 - CESTAT MUMBAI; law_area=Central Excise; topics=customs"
+    },
+    {
+      "id": "176520-2",
+      "query": "import duty or customs issue",
+      "relevant": [
+        "176520.txt"
+      ],
+      "preferred_top": "176520.txt",
+      "notes": "title=2015 (2) TMI 1068 - CESTAT MUMBAI; law_area=Central Excise; topics=customs"
+    },
+    {
+      "id": "176520-3",
+      "query": "customs dispute case m/s. vatan textiles ltd.",
+      "relevant": [
+        "176520.txt"
+      ],
+      "preferred_top": "176520.txt",
+      "notes": "title=2015 (2) TMI 1068 - CESTAT MUMBAI; law_area=Central Excise; topics=customs"
+    },
+    {
+      "id": "176521-1",
+      "query": "customs dispute case",
+      "relevant": [
+        "176521.txt"
+      ],
+      "preferred_top": "176521.txt",
+      "notes": "title=2015 (2) TMI 1069 - CESTAT NEW DELHI; law_area=Customs; topics=customs"
+    },
+    {
+      "id": "176521-2",
+      "query": "import duty or customs issue",
+      "relevant": [
+        "176521.txt"
+      ],
+      "preferred_top": "176521.txt",
+      "notes": "title=2015 (2) TMI 1069 - CESTAT NEW DELHI; law_area=Customs; topics=customs"
+    },
+    {
+      "id": "176521-3",
+      "query": "customs dispute case g & s international",
+      "relevant": [
+        "176521.txt"
+      ],
+      "preferred_top": "176521.txt",
+      "notes": "title=2015 (2) TMI 1069 - CESTAT NEW DELHI; law_area=Customs; topics=customs"
+    },
+    {
+      "id": "176522-1",
+      "query": "customs dispute case",
+      "relevant": [
+        "176522.txt"
+      ],
+      "preferred_top": "176522.txt",
+      "notes": "title=2015 (3) TMI 1056 - CESTAT MUMBAI; law_area=Customs; topics=customs"
+    },
+    {
+      "id": "176522-2",
+      "query": "import duty or customs issue",
+      "relevant": [
+        "176522.txt"
+      ],
+      "preferred_top": "176522.txt",
+      "notes": "title=2015 (3) TMI 1056 - CESTAT MUMBAI; law_area=Customs; topics=customs"
+    },
+    {
+      "id": "176522-3",
+      "query": "customs dispute case commissioner of customs (imports) , nhava shva",
+      "relevant": [
+        "176522.txt"
+      ],
+      "preferred_top": "176522.txt",
+      "notes": "title=2015 (3) TMI 1056 - CESTAT MUMBAI; law_area=Customs; topics=customs"
+    },
+    {
+      "id": "176318-1",
+      "query": "income tax appeal case",
+      "relevant": [
+        "176318.txt"
+      ],
+      "preferred_top": "176318.txt",
+      "notes": "title=2015 (5) TMI 950 - BOMBAY HIGH COURT; law_area=Income Tax; topics=income tax"
+    },
+    {
+      "id": "176318-2",
+      "query": "tax addition disallowance dispute",
+      "relevant": [
+        "176318.txt"
+      ],
+      "preferred_top": "176318.txt",
+      "notes": "title=2015 (5) TMI 950 - BOMBAY HIGH COURT; law_area=Income Tax; topics=income tax"
+    },
+    {
+      "id": "176318-3",
+      "query": "income tax appeal case bharat jayantilal patel",
+      "relevant": [
+        "176318.txt"
+      ],
+      "preferred_top": "176318.txt",
+      "notes": "title=2015 (5) TMI 950 - BOMBAY HIGH COURT; law_area=Income Tax; topics=income tax"
+    },
+    {
+      "id": "176319-1",
+      "query": "income tax appeal case",
+      "relevant": [
+        "176319.txt"
+      ],
+      "preferred_top": "176319.txt",
+      "notes": "title=2015 (6) TMI 965 - ITAT MUMBAI; law_area=Income Tax; topics=income tax"
+    },
+    {
+      "id": "176319-2",
+      "query": "tax addition disallowance dispute",
+      "relevant": [
+        "176319.txt"
+      ],
+      "preferred_top": "176319.txt",
+      "notes": "title=2015 (6) TMI 965 - ITAT MUMBAI; law_area=Income Tax; topics=income tax"
+    },
+    {
+      "id": "176319-3",
+      "query": "income tax appeal case m/s. shoreline hotel pvt. ltd.",
+      "relevant": [
+        "176319.txt"
+      ],
+      "preferred_top": "176319.txt",
+      "notes": "title=2015 (6) TMI 965 - ITAT MUMBAI; law_area=Income Tax; topics=income tax"
+    },
+    {
+      "id": "176530-1",
+      "query": "income tax appeal case",
+      "relevant": [
+        "176530.txt"
+      ],
+      "preferred_top": "176530.txt",
+      "notes": "title=2015 (5) TMI 951 - ITAT CHENNAI; law_area=Income Tax; topics=income tax"
+    },
+    {
+      "id": "176530-2",
+      "query": "tax addition disallowance dispute",
+      "relevant": [
+        "176530.txt"
+      ],
+      "preferred_top": "176530.txt",
+      "notes": "title=2015 (5) TMI 951 - ITAT CHENNAI; law_area=Income Tax; topics=income tax"
+    },
+    {
+      "id": "176530-3",
+      "query": "income tax appeal case visual graphics computing services india p. ltd.",
+      "relevant": [
+        "176530.txt"
+      ],
+      "preferred_top": "176530.txt",
+      "notes": "title=2015 (5) TMI 951 - ITAT CHENNAI; law_area=Income Tax; topics=income tax"
+    },
+    {
+      "id": "176531-1",
+      "query": "income tax appeal case",
+      "relevant": [
+        "176531.txt"
+      ],
+      "preferred_top": "176531.txt",
+      "notes": "title=2015 (6) TMI 966 - ITAT KOLKATA; law_area=Income Tax; topics=income tax"
+    },
+    {
+      "id": "176531-2",
+      "query": "tax addition disallowance dispute",
+      "relevant": [
+        "176531.txt"
+      ],
+      "preferred_top": "176531.txt",
+      "notes": "title=2015 (6) TMI 966 - ITAT KOLKATA; law_area=Income Tax; topics=income tax"
+    },
+    {
+      "id": "176531-3",
+      "query": "income tax appeal case deputy commissioner of income-tax",
+      "relevant": [
+        "176531.txt"
+      ],
+      "preferred_top": "176531.txt",
+      "notes": "title=2015 (6) TMI 966 - ITAT KOLKATA; law_area=Income Tax; topics=income tax"
+    }
+  ]
+}

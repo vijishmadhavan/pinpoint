@@ -1,0 +1,82 @@
+{
+  "name": "pinpoint-search-relevance-v3-legal-starter",
+  "version": 1,
+  "notes": [
+    "Starter benchmark generated from the real legal corpus.",
+    "These queries should be reviewed and expanded with harder paraphrase and ambiguity cases."
+  ],
+  "queries": [
+    {
+      "id": "starter-176294",
+      "query": "cheque dishonour section 138 case p. pandiyarajan",
+      "relevant": [
+        "176294.txt"
+      ],
+      "preferred_top": "176294.txt",
+      "notes": "title=2015 (2) TMI 1066 - MADRAS HIGH COURT; law_area=Indian Laws; topics=section 138"
+    },
+    {
+      "id": "starter-176295",
+      "query": "regular bail pmla enforcement case rakesh manekchand kothari",
+      "relevant": [
+        "176295.txt"
+      ],
+      "preferred_top": "176295.txt",
+      "notes": "title=2015 (3) TMI 1053 - GUJARAT HIGH COURT; law_area=PMLA; topics=bail"
+    },
+    {
+      "id": "starter-176519",
+      "query": "cenvat credit dispute case m/s. l&t ltd.",
+      "relevant": [
+        "176519.txt"
+      ],
+      "preferred_top": "176519.txt",
+      "notes": "title=2015 (2) TMI 1067 - CESTAT HYDERABAD; law_area=Central Excise; topics=cenvat, refund"
+    },
+    {
+      "id": "starter-176523",
+      "query": "refund claim dispute case agappe diagnostics ltd.",
+      "relevant": [
+        "176523.txt"
+      ],
+      "preferred_top": "176523.txt",
+      "notes": "title=2015 (3) TMI 1057 - CESTAT BANGALORE; law_area=Customs; topics=refund, classification, customs"
+    },
+    {
+      "id": "starter-176290",
+      "query": "penalty dispute case j.k. mital",
+      "relevant": [
+        "176290.txt"
+      ],
+      "preferred_top": "176290.txt",
+      "notes": "title=2015 (4) TMI 1009 - CENTRAL INFORMATION COMMISSION; law_area=Indian Laws; topics=penalty"
+    },
+    {
+      "id": "starter-176524",
+      "query": "cenvat credit dispute case commissioner of c. ex., cus. & s.t., tirupati",
+      "relevant": [
+        "176524.txt"
+      ],
+      "preferred_top": "176524.txt",
+      "notes": "title=2015 (3) TMI 1058 - CESTAT BANGALORE; law_area=Service Tax; topics=cenvat, penalty, service tax"
+    },
+    {
+      "id": "starter-176520",
+      "query": "customs dispute case m/s. vatan textiles ltd.",
+      "relevant": [
+        "176520.txt"
+      ],
+      "preferred_top": "176520.txt",
+      "notes": "title=2015 (2) TMI 1068 - CESTAT MUMBAI; law_area=Central Excise; topics=customs"
+    },
+    {
+      "id": "starter-176318",
+      "query": "income tax appeal case bharat jayantilal patel",
+      "relevant": [
+        "176318.txt"
+      ],
+      "preferred_top": "176318.txt",
+      "notes": "title=2015 (5) TMI 950 - BOMBAY HIGH COURT; law_area=Income Tax; topics=income tax"
+    }
+  ]
+}

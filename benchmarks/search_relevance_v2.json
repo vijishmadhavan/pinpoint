@@ -1,0 +1,83 @@
+{
+  "name": "pinpoint-search-relevance-v2",
+  "version": 1,
+  "corpus": "benchmarks/corpus_v2",
+  "notes": [
+    "Harder benchmark with overlapping documents, paraphrase queries, and top-rank expectations.",
+    "Several queries intentionally avoid exact wording from the target document."
+  ],
+  "queries": [
+    {
+      "id": "money-i-owe",
+      "query": "money I owe",
+      "relevant": ["accounts_receivable_report.txt", "outstanding_invoices.txt"],
+      "preferred_top": "outstanding_invoices.txt"
+    },
+    {
+      "id": "late-payment-followup",
+      "query": "late payment follow up email",
+      "relevant": ["collections_playbook.txt", "billing_faq.txt"],
+      "preferred_top": "collections_playbook.txt"
+    },
+    {
+      "id": "bring-first-day",
+      "query": "what should I bring on my first day",
+      "relevant": ["new_hire_checklist.txt", "onboarding_guide.txt"],
+      "preferred_top": "new_hire_checklist.txt"
+    },
+    {
+      "id": "drop-in-weekly-usage",
+      "query": "customer renewal risk if weekly usage drops",
+      "relevant": ["renewal_health_dashboard.txt", "qbr_template.txt"],
+      "preferred_top": "renewal_health_dashboard.txt"
+    },
+    {
+      "id": "executive-renewal-deck",
+      "query": "template for executive renewal conversation",
+      "relevant": ["qbr_template.txt"],
+      "preferred_top": "qbr_template.txt"
+    },
+    {
+      "id": "customer-status-frequency",
+      "query": "how often update customers during sev1 incident",
+      "relevant": ["incident_escalation_runbook.txt"],
+      "preferred_top": "incident_escalation_runbook.txt"
+    },
+    {
+      "id": "queue-overload",
+      "query": "what to do when the job queue gets too deep",
+      "relevant": ["queue_backlog_postmortem.txt", "incident_escalation_runbook.txt"],
+      "preferred_top": "incident_escalation_runbook.txt"
+    },
+    {
+      "id": "daily-food-allowance",
+      "query": "daily food allowance on work trips",
+      "relevant": ["travel_reimbursement_policy.txt", "expense_claim_guide.txt"],
+      "preferred_top": "travel_reimbursement_policy.txt"
+    },
+    {
+      "id": "claim-costs-after-trip",
+      "query": "how to get reimbursed after travel",
+      "relevant": ["expense_claim_guide.txt", "travel_reimbursement_policy.txt"],
+      "preferred_top": "expense_claim_guide.txt"
+    },
+    {
+      "id": "someone-broke-into-account",
+      "query": "someone broke into my account what should I do",
+      "relevant": ["security_response_guide.txt"],
+      "preferred_top": "security_response_guide.txt"
+    },
+    {
+      "id": "work-from-home-days",
+      "query": "how many days can employees work from home",
+      "relevant": ["remote_work_policy.txt"],
+      "preferred_top": "remote_work_policy.txt"
+    },
+    {
+      "id": "invoice-reminder-day",
+      "query": "what day are unpaid bill reminders sent",
+      "relevant": ["outstanding_invoices.txt", "billing_faq.txt"],
+      "preferred_top": "billing_faq.txt"
+    }
+  ]
+}

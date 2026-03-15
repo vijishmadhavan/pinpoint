@@ -1,0 +1,41 @@
+{
+  "name": "pinpoint-search-relevance-semantic-v1",
+  "version": 1,
+  "corpus": "benchmarks/corpus_semantic",
+  "notes": [
+    "This benchmark is designed to stress paraphrase-style retrieval.",
+    "If embeddings are unavailable, expect lexical-only behavior and treat results as a lower bound."
+  ],
+  "queries": [
+    {
+      "id": "meal-per-diem",
+      "query": "daily meal allowance for business trips",
+      "relevant": ["travel_policy.txt", "expense_guidelines.txt"]
+    },
+    {
+      "id": "director-approval-overseas",
+      "query": "director must approve overseas travel before booking",
+      "relevant": ["travel_policy.txt", "expense_guidelines.txt"]
+    },
+    {
+      "id": "phishing-report",
+      "query": "how fast should suspicious email be reported",
+      "relevant": ["security_response.txt"]
+    },
+    {
+      "id": "credentials-compromised",
+      "query": "what to do if your account may be hacked",
+      "relevant": ["security_response.txt"]
+    },
+    {
+      "id": "parental-leave-primary",
+      "query": "how much leave does the main caregiver get",
+      "relevant": ["benefits_summary.txt"]
+    },
+    {
+      "id": "password-manager-access",
+      "query": "do employees get a password manager",
+      "relevant": ["benefits_summary.txt"]
+    }
+  ]
+}

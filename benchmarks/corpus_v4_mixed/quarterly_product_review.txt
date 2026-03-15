@@ -1,0 +1,15 @@
+Quarterly Product Review - Q2
+
+Highlights:
+- Search latency dropped from 1.8 seconds to 0.9 seconds at p95.
+- File indexing throughput improved by 32 percent after batch chunk writes.
+- The WhatsApp pilot expanded from 500 to 1,400 active users.
+
+Risks:
+- Semantic search relevance remains unvalidated on multilingual documents.
+- Reranker token cost increased after switching from snippets to larger chunks.
+
+Planned work:
+- Build an offline relevance benchmark before changing retrieval weights again.
+- Limit reranking to cases where lexical confidence is weak.
+- Add per-stage timing for lexical retrieval, semantic retrieval, fusion, and reranking.

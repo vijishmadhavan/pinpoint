@@ -1,0 +1,7 @@
+client_id,company,contact_person,phone,email,contract_value_lakhs,start_date,end_date,status
+C001,Tata Motors Limited,Vikram Singh,+91 98765 11111,vikram.singh@tatamotors.com,180,2024-01-15,2026-01-14,Active
+C002,Reliance Jio Infocomm,Meera Ambani,+91 98765 22222,meera.a@jio.com,320,2024-02-01,2025-07-31,Active
+C003,HDFC Bank Limited,Suresh Iyer,+91 98765 33333,suresh.iyer@hdfcbank.com,95,2024-03-01,2025-02-28,Active
+C004,Wipro Technologies,Lakshmi Narayanan,+91 98765 44444,lakshmi.n@wipro.com,150,2023-06-01,2024-05-31,Renewal Pending
+C005,Infosys BPM,Deepak Nair,+91 98765 55555,deepak.nair@infosys.com,210,2023-09-15,2024-09-14,Active
+C006,Mahindra & Mahindra,Kavita Rao,+91 98765 88888,kavita.rao@mahindra.com,130,2024-04-01,2026-03-31,Onboarding

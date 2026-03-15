@@ -1,0 +1,99 @@
+{
+  "total_files": 10745,
+  "law_areas": [
+    [
+      "Income Tax",
+      5389
+    ],
+    [
+      "Central Excise",
+      1687
+    ],
+    [
+      "Service Tax",
+      1129
+    ],
+    [
+      "Customs",
+      891
+    ],
+    [
+      "CST, VAT & Sales Tax",
+      688
+    ],
+    [
+      "Indian Laws",
+      505
+    ],
+    [
+      "Corporate Laws",
+      341
+    ],
+    [
+      "PMLA",
+      40
+    ],
+    [
+      "FEMA",
+      32
+    ],
+    [
+      "Wealth tax",
+      31
+    ],
+    [
+      "Securities / SEBI",
+      5
+    ],
+    [
+      "Benami Property",
+      4
+    ],
+    [
+      "Insolvency & Bankruptcy",
+      2
+    ],
+    [
+      "GST",
+      1
+    ]
+  ],
+  "topics": [
+    [
+      "income tax",
+      5460
+    ],
+    [
+      "service tax",
+      1543
+    ],
+    [
+      "penalty",
+      1488
+    ],
+    [
+      "customs",
+      1436
+    ],
+    [
+      "cenvat",
+      852
+    ],
+    [
+      "refund",
+      698
+    ],
+    [
+      "classification",
+      298
+    ],
+    [
+      "bail",
+      59
+    ],
+    [
+      "section 138",
+      46
+    ]
+  ]
+}

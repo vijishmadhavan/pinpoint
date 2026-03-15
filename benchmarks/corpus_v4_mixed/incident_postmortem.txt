@@ -1,0 +1,14 @@
+Incident Postmortem: Messaging Delay on April 12
+
+Summary:
+The notification pipeline experienced a backlog after a queue consumer stalled during a schema migration.
+
+Impact:
+- 18 percent of outbound WhatsApp messages were delayed.
+- Median delivery delay peaked at 27 minutes.
+
+Corrective actions:
+1. Add exponential backoff for worker retries.
+2. Introduce a canary migration check before rollout.
+3. Publish a shift handover checklist for the on-call engineer.
+4. Page the platform team when queue depth exceeds 50,000 jobs.

@@ -1538,7 +1538,7 @@ function buildToolRoutes(maxResults) {
     get_status: { m: "GET", p: () => "/status" },
     search_history: { m: "GET", p: (a) => `/conversation/search?q=${enc(a.query || "")}&limit=10` },
     search_facts: { m: "GET", p: (a) => `/search-facts?q=${enc(a.query)}&limit=10` },
-    list_watched: { m: "GET", p: () => "/watched" },
+    list_watched: { m: "GET", p: "/watched-folders" },
     // --- Simple POST routes (tool args → API body) ---
     read_excel: {
       m: "POST",
@@ -1714,8 +1714,8 @@ function buildToolRoutes(maxResults) {
       },
       b: () => ({}),
     },
-    watch_folder: { m: "POST", p: (a) => `/watch?folder=${enc(a.folder)}`, b: () => ({}) },
-    unwatch_folder: { m: "POST", p: (a) => `/unwatch?folder=${enc(a.folder)}`, b: () => ({}) },
+    watch_folder: { m: "POST", p: "/watch-folder", b: (a) => ({ path: a.folder }) },
+    unwatch_folder: { m: "POST", p: "/unwatch-folder", b: (a) => ({ path: a.folder }) },
     score_photo: { m: "POST", p: "/score-photo", b: (a) => ({ path: a.path }) },
     cull_photos: {
       m: "POST",
@@ -1863,6 +1863,9 @@ function summarizeToolResult(name, args, result) {
   switch (name) {
     case "search_documents": {
       const n = result.results?.length || result.total_items || 0;
+      if (result.ambiguous_search) {
+        return `search_documents: ambiguous — ${result.clarification_hint || "ask the user to narrow the result with a title, file name, date, person, location, or year"}`;
+      }
       return `search_documents: ${n} result(s) found`;
     }
     case "search_facts": {

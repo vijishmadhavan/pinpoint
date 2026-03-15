@@ -1,0 +1,5067 @@
+{
+  "dataset": {
+    "name": "pinpoint-search-relevance-v3-legal-expanded",
+    "path": "benchmarks/v3_legal/expanded_queries.json",
+    "version": 1
+  },
+  "corpus": "benchmarks/v3_legal/subset_corpus",
+  "limit": 5,
+  "indexing": {
+    "indexed_files": [
+      "176290.txt",
+      "176294.txt",
+      "176295.txt",
+      "176318.txt",
+      "176319.txt",
+      "176519.txt",
+      "176520.txt",
+      "176521.txt",
+      "176522.txt",
+      "176523.txt",
+      "176524.txt",
+      "176525.txt",
+      "176526.txt",
+      "176527.txt",
+      "176528.txt",
+      "176529.txt",
+      "176530.txt",
+      "176531.txt",
+      "176532.txt",
+      "176533.txt",
+      "176534.txt",
+      "176535.txt",
+      "176536.txt",
+      "176560.txt",
+      "176561.txt",
+      "176562.txt",
+      "176563.txt",
+      "176564.txt",
+      "176565.txt",
+      "176566.txt",
+      "176567.txt",
+      "176568.txt",
+      "176569.txt",
+      "176575.txt",
+      "176576.txt",
+      "176577.txt",
+      "176578.txt",
+      "176579.txt",
+      "176586.txt",
+      "176587.txt",
+      "176589.txt",
+      "176591.txt",
+      "176592.txt",
+      "176594.txt",
+      "176595.txt",
+      "176596.txt",
+      "176597.txt",
+      "176598.txt",
+      "176599.txt",
+      "176600.txt",
+      "176601.txt",
+      "176602.txt",
+      "176603.txt",
+      "176604.txt",
+      "176605.txt",
+      "176613.txt",
+      "176614.txt",
+      "176615.txt",
+      "176616.txt",
+      "176617.txt",
+      "176618.txt",
+      "176619.txt",
+      "176620.txt",
+      "176621.txt",
+      "176622.txt",
+      "176623.txt",
+      "176624.txt",
+      "176625.txt",
+      "176626.txt",
+      "176627.txt",
+      "176628.txt",
+      "176629.txt",
+      "176630.txt",
+      "176631.txt",
+      "176632.txt",
+      "176633.txt",
+      "176634.txt",
+      "176635.txt",
+      "176636.txt",
+      "176637.txt",
+      "176638.txt",
+      "176639.txt",
+      "176640.txt",
+      "176644.txt",
+      "176646.txt",
+      "176647.txt",
+      "176680.txt",
+      "176683.txt",
+      "176684.txt",
+      "176685.txt",
+      "176692.txt",
+      "176720.txt",
+      "176721.txt",
+      "176726.txt",
+      "176728.txt",
+      "176729.txt",
+      "176733.txt",
+      "176734.txt",
+      "176735.txt",
+      "176736.txt",
+      "176737.txt",
+      "176738.txt",
+      "176740.txt",
+      "176741.txt",
+      "176743.txt",
+      "176745.txt",
+      "176746.txt",
+      "176747.txt",
+      "176748.txt",
+      "176749.txt",
+      "176750.txt",
+      "176751.txt",
+      "176755.txt",
+      "176756.txt",
+      "176758.txt",
+      "176759.txt",
+      "176760.txt",
+      "176761.txt",
+      "176762.txt",
+      "176763.txt",
+      "176766.txt",
+      "176767.txt",
+      "176769.txt",
+      "176770.txt",
+      "176771.txt",
+      "176773.txt",
+      "176777.txt",
+      "176778.txt",
+      "176779.txt",
+      "176780.txt",
+      "176781.txt",
+      "176782.txt",
+      "176783.txt",
+      "176784.txt",
+      "176785.txt",
+      "176786.txt",
+      "176787.txt",
+      "176788.txt",
+      "176825.txt",
+      "176833.txt",
+      "176834.txt",
+      "176835.txt",
+      "176843.txt",
+      "176929.txt",
+      "176930.txt",
+      "176931.txt",
+      "176932.txt",
+      "176934.txt",
+      "176935.txt",
+      "176937.txt",
+      "176965.txt",
+      "176966.txt",
+      "176970.txt",
+      "176971.txt",
+      "176972.txt",
+      "176973.txt",
+      "176980.txt",
+      "176981.txt",
+      "176982.txt",
+      "176983.txt",
+      "176988.txt",
+      "177063.txt",
+      "177064.txt",
+      "177065.txt",
+      "177126.txt",
+      "177128.txt",
+      "177144.txt",
+      "177145.txt",
+      "177146.txt",
+      "177147.txt",
+      "177148.txt",
+      "177149.txt",
+      "177153.txt",
+      "177183.txt",
+      "177195.txt",
+      "177196.txt",
+      "177197.txt",
+      "177202.txt",
+      "177249.txt",
+      "177250.txt",
+      "177251.txt",
+      "177252.txt",
+      "177260.txt",
+      "177307.txt",
+      "177308.txt",
+      "177309.txt",
+      "177310.txt",
+      "177311.txt",
+      "177312.txt",
+      "177313.txt",
+      "177314.txt",
+      "177324.txt",
+      "177325.txt",
+      "177356.txt",
+      "177357.txt",
+      "177358.txt",
+      "177359.txt",
+      "177360.txt",
+      "177361.txt",
+      "177373.txt",
+      "177451.txt",
+      "177452.txt",
+      "177453.txt",
+      "177454.txt",
+      "177455.txt",
+      "177480.txt",
+      "177521.txt",
+      "177522.txt",
+      "177523.txt",
+      "177527.txt",
+      "177530.txt",
+      "177531.txt",
+      "177579.txt",
+      "177584.txt",
+      "177585.txt",
+      "177590.txt",
+      "177647.txt",
+      "177651.txt",
+      "177657.txt",
+      "177684.txt",
+      "177693.txt",
+      "177695.txt",
+      "177715.txt",
+      "177719.txt",
+      "177720.txt",
+      "177723.txt",
+      "177724.txt",
+      "177739.txt",
+      "177744.txt",
+      "177745.txt",
+      "177748.txt",
+      "177783.txt",
+      "177784.txt",
+      "177785.txt",
+      "177853.txt",
+      "177854.txt",
+      "177855.txt",
+      "177856.txt",
+      "177857.txt",
+      "177858.txt",
+      "177859.txt",
+      "177860.txt",
+      "177862.txt",
+      "177870.txt",
+      "177871.txt",
+      "177972.txt",
+      "177981.txt",
+      "177986.txt",
+      "177987.txt",
+      "178080.txt",
+      "178081.txt",
+      "178082.txt",
+      "178083.txt",
+      "178093.txt",
+      "178094.txt",
+      "178095.txt",
+      "178096.txt",
+      "178207.txt",
+      "178208.txt",
+      "178209.txt",
+      "178225.txt",
+      "178248.txt",
+      "178400.txt",
+      "178450.txt",
+      "178492.txt",
+      "178495.txt",
+      "178572.txt",
+      "178574.txt",
+      "178582.txt",
+      "178583.txt",
+      "178584.txt",
+      "178586.txt",
+      "178635.txt",
+      "178655.txt",
+      "178696.txt",
+      "178753.txt",
+      "178814.txt",
+      "178818.txt",
+      "178848.txt",
+      "178896.txt",
+      "178903.txt",
+      "178904.txt",
+      "178959.txt",
+      "178960.txt",
+      "179005.txt",
+      "179013.txt",
+      "179014.txt",
+      "179092.txt",
+      "179098.txt",
+      "179112.txt",
+      "179133.txt",
+      "179309.txt",
+      "179310.txt",
+      "179351.txt",
+      "179354.txt",
+      "179445.txt",
+      "179450.txt",
+      "179488.txt",
+      "179492.txt",
+      "179494.txt",
+      "179495.txt",
+      "179496.txt",
+      "179505.txt",
+      "179546.txt",
+      "179555.txt",
+      "179556.txt",
+      "179557.txt",
+      "179597.txt",
+      "179598.txt",
+      "179600.txt",
+      "179636.txt",
+      "179638.txt",
+      "179641.txt",
+      "179688.txt",
+      "179800.txt",
+      "179801.txt",
+      "179802.txt",
+      "179803.txt",
+      "179804.txt",
+      "179806.txt",
+      "179870.txt",
+      "179871.txt",
+      "179907.txt",
+      "179915.txt",
+      "179916.txt",
+      "179917.txt",
+      "179918.txt",
+      "179920.txt",
+      "179921.txt",
+      "179964.txt",
+      "180055.txt",
+      "180056.txt",
+      "180058.txt",
+      "180059.txt",
+      "180062.txt",
+      "180068.txt",
+      "180069.txt",
+      "180117.txt",
+      "180118.txt",
+      "180119.txt",
+      "180121.txt",
+      "180158.txt",
+      "180160.txt",
+      "180163.txt",
+      "180164.txt",
+      "180251.txt",
+      "180341.txt",
+      "180344.txt",
+      "180434.txt",
+      "180478.txt",
+      "180501.txt",
+      "180502.txt",
+      "180534.txt",
+      "180535.txt",
+      "180536.txt",
+      "180578.txt",
+      "180585.txt",
+      "180637.txt",
+      "180644.txt",
+      "180648.txt",
+      "180650.txt",
+      "180651.txt",
+      "180653.txt",
+      "180656.txt",
+      "180657.txt",
+      "180665.txt",
+      "180742.txt",
+      "180743.txt",
+      "180745.txt",
+      "180750.txt",
+      "180751.txt",
+      "180752.txt",
+      "180753.txt",
+      "180754.txt",
+      "180756.txt",
+      "180808.txt",
+      "180810.txt",
+      "180812.txt",
+      "180875.txt",
+      "180944.txt",
+      "180945.txt",
+      "180946.txt",
+      "181025.txt",
+      "181148.txt",
+      "181150.txt",
+      "181185.txt",
+      "181186.txt",
+      "181211.txt",
+      "181309.txt",
+      "181392.txt",
+      "181607.txt",
+      "181743.txt",
+      "181744.txt",
+      "181747.txt",
+      "181782.txt",
+      "181833.txt",
+      "181888.txt",
+      "181987.txt",
+      "182029.txt",
+      "182033.txt",
+      "182155.txt",
+      "182209.txt",
+      "182250.txt",
+      "182258.txt",
+      "182263.txt",
+      "182311.txt",
+      "182407.txt",
+      "182414.txt",
+      "182452.txt",
+      "182453.txt",
+      "182456.txt",
+      "182476.txt",
+      "182523.txt",
+      "182539.txt",
+      "182543.txt",
+      "182545.txt",
+      "182592.txt",
+      "182596.txt",
+      "182597.txt",
+      "182598.txt",
+      "182611.txt",
+      "182612.txt",
+      "182613.txt",
+      "182614.txt",
+      "182697.txt",
+      "182699.txt",
+      "182700.txt",
+      "182701.txt",
+      "182702.txt",
+      "182751.txt",
+      "182752.txt",
+      "182753.txt",
+      "182754.txt",
+      "182894.txt",
+      "182927.txt",
+      "182958.txt",
+      "182959.txt",
+      "183006.txt",
+      "183050.txt",
+      "183190.txt",
+      "183229.txt",
+      "183272.txt",
+      "183363.txt",
+      "183364.txt",
+      "183449.txt",
+      "183550.txt",
+      "183640.txt",
+      "183644.txt",
+      "183688.txt",
+      "183689.txt",
+      "183746.txt",
+      "183852.txt",
+      "184357.txt",
+      "184377.txt",
+      "184527.txt",
+      "184739.txt",
+      "184771.txt",
+      "184983.txt",
+      "184992.txt",
+      "185419.txt",
+      "185463.txt",
+      "185464.txt",
+      "185465.txt",
+      "185466.txt",
+      "185834.txt",
+      "185900.txt",
+      "185903.txt",
+      "185935.txt",
+      "186011.txt",
+      "186082.txt",
+      "186169.txt",
+      "186390.txt",
+      "186470.txt",
+      "188301.txt",
+      "188422.txt",
+      "188423.txt",
+      "188492.txt",
+      "188493.txt",
+      "188494.txt",
+      "188749.txt",
+      "191265.txt",
+      "193633.txt",
+      "193654.txt",
+      "195726.txt",
+      "196132.txt",
+      "196962.txt",
+      "197767.txt",
+      "256163.txt",
+      "256584.txt",
+      "256641.txt",
+      "256866.txt",
+      "257129.txt",
+      "257260.txt",
+      "257719.txt",
+      "257840.txt",
+      "257923.txt",
+      "257924.txt",
+      "258061.txt",
+      "259174.txt",
+      "259406.txt"
+    ],
+    "skipped_files": [],
+    "embedded_chunks": 0
+  },
+  "environment": {
+    "gemini_api_key_configured": true,
+    "semantic_search_effective": false
+  },
+  "results": [
+    {
+      "variant": "fts_only",
+      "kind": "search",
+      "evaluated_queries": 75,
+      "skipped_queries": 0,
+      "success_at_1": 0.3067,
+      "mrr": 0.3464,
+      "recall_at_k": 0.4267,
+      "ndcg_at_k": 0.3662,
+      "avg_latency_ms": 559.88,
+      "avg_stage_timing_ms": {
+        "ambiguity_ms": 0.002,
+        "finalize_ms": 0.005,
+        "fusion_ms": 0.001,
+        "lexical_ms": 553.246,
+        "probe_ms": 5.699,
+        "rerank_ms": 0.001,
+        "retrieval_ms": 0.001,
+        "total_ms": 558.984
+      },
+      "cases": [
+        {
+          "id": "176294-1",
+          "query": "cheque dishonour section 138 case",
+          "relevant": [
+            "176294.txt"
+          ],
+          "preferred_top": "176294.txt",
+          "returned": [
+            "259406.txt",
+            "176294.txt",
+            "193654.txt",
+            "256866.txt",
+            "257129.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.5,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 0.6309,
+          "latency_ms": 142.73,
+          "timing": {
+            "lexical_ms": 132.622,
+            "probe_ms": 6.304,
+            "retrieval_ms": 0.002,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.01,
+            "ambiguity_ms": 0.004,
+            "total_ms": 139.082
+          }
+        },
+        {
+          "id": "176294-2",
+          "query": "cheque bounce complaint section 138",
+          "relevant": [
+            "176294.txt"
+          ],
+          "preferred_top": "176294.txt",
+          "returned": [
+            "259406.txt",
+            "257923.txt",
+            "259174.txt",
+            "256866.txt",
+            "257129.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 147.96,
+          "timing": {
+            "lexical_ms": 140.413,
+            "probe_ms": 6.7,
+            "retrieval_ms": 0.002,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.006,
+            "total_ms": 147.157
+          }
+        },
+        {
+          "id": "176294-3",
+          "query": "cheque dishonour section 138 case p. pandiyarajan",
+          "relevant": [
+            "176294.txt"
+          ],
+          "preferred_top": "176294.txt",
+          "returned": [
+            "176294.txt",
+            "259406.txt",
+            "193654.txt",
+            "256866.txt",
+            "257129.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 1008.64,
+          "timing": {
+            "lexical_ms": 1001.62,
+            "probe_ms": 6.202,
+            "retrieval_ms": 0.002,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.003,
+            "ambiguity_ms": 0.004,
+            "total_ms": 1007.861
+          }
+        },
+        {
+          "id": "193633-1",
+          "query": "cheque dishonour section 138 case",
+          "relevant": [
+            "193633.txt"
+          ],
+          "preferred_top": "193633.txt",
+          "returned": [
+            "259406.txt",
+            "176294.txt",
+            "193654.txt",
+            "256866.txt",
+            "257129.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 139.28,
+          "timing": {
+            "lexical_ms": 132.674,
+            "probe_ms": 5.805,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.003,
+            "ambiguity_ms": 0.003,
+            "total_ms": 138.517
+          }
+        },
+        {
+          "id": "193633-2",
+          "query": "cheque bounce complaint section 138",
+          "relevant": [
+            "193633.txt"
+          ],
+          "preferred_top": "193633.txt",
+          "returned": [
+            "259406.txt",
+            "257923.txt",
+            "259174.txt",
+            "256866.txt",
+            "257129.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 146.09,
+          "timing": {
+            "lexical_ms": 139.018,
+            "probe_ms": 6.139,
+            "retrieval_ms": 0.002,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.003,
+            "total_ms": 145.199
+          }
+        },
+        {
+          "id": "193633-3",
+          "query": "cheque dishonour section 138 case n. sivasamy",
+          "relevant": [
+            "193633.txt"
+          ],
+          "preferred_top": "193633.txt",
+          "returned": [
+            "193633.txt",
+            "259406.txt",
+            "176294.txt",
+            "193654.txt",
+            "256866.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 758.72,
+          "timing": {
+            "lexical_ms": 751.494,
+            "probe_ms": 6.245,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.003,
+            "total_ms": 757.799
+          }
+        },
+        {
+          "id": "193654-1",
+          "query": "cheque dishonour section 138 case",
+          "relevant": [
+            "193654.txt"
+          ],
+          "preferred_top": "193654.txt",
+          "returned": [
+            "259406.txt",
+            "176294.txt",
+            "193654.txt",
+            "256866.txt",
+            "257129.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.3333,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 0.5,
+          "latency_ms": 141.34,
+          "timing": {
+            "lexical_ms": 134.31,
+            "probe_ms": 6.062,
+            "retrieval_ms": 0.002,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.003,
+            "total_ms": 140.411
+          }
+        },
+        {
+          "id": "193654-2",
+          "query": "cheque bounce complaint section 138",
+          "relevant": [
+            "193654.txt"
+          ],
+          "preferred_top": "193654.txt",
+          "returned": [
+            "259406.txt",
+            "257923.txt",
+            "259174.txt",
+            "256866.txt",
+            "257129.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 146.1,
+          "timing": {
+            "lexical_ms": 139.106,
+            "probe_ms": 6.155,
+            "retrieval_ms": 0.002,
+            "fusion_ms": 0.002,
+            "rerank_ms": 0.002,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.003,
+            "total_ms": 145.299
+          }
+        },
+        {
+          "id": "193654-3",
+          "query": "cheque dishonour section 138 case veera constructions and ors.",
+          "relevant": [
+            "193654.txt"
+          ],
+          "preferred_top": "193654.txt",
+          "returned": [
+            "193654.txt",
+            "259406.txt",
+            "259174.txt",
+            "176294.txt",
+            "256866.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 334.11,
+          "timing": {
+            "lexical_ms": 325.218,
+            "probe_ms": 7.92,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.005,
+            "ambiguity_ms": 0.003,
+            "total_ms": 333.178
+          }
+        },
+        {
+          "id": "176295-1",
+          "query": "regular bail pmla case",
+          "relevant": [
+            "176295.txt"
+          ],
+          "preferred_top": "176295.txt",
+          "returned": [
+            "188492.txt",
+            "188422.txt",
+            "176295.txt",
+            "188494.txt",
+            "188493.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.3333,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 0.5,
+          "latency_ms": 99.4,
+          "timing": {
+            "lexical_ms": 93.604,
+            "probe_ms": 4.881,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.003,
+            "ambiguity_ms": 0.002,
+            "total_ms": 98.518
+          }
+        },
+        {
+          "id": "176295-2",
+          "query": "bail in enforcement matter",
+          "relevant": [
+            "176295.txt"
+          ],
+          "preferred_top": "176295.txt",
+          "returned": [
+            "188492.txt",
+            "176295.txt",
+            "181392.txt",
+            "191265.txt",
+            "197767.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.5,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 0.6309,
+          "latency_ms": 192.98,
+          "timing": {
+            "lexical_ms": 187.194,
+            "probe_ms": 4.899,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.002,
+            "total_ms": 192.131
+          }
+        },
+        {
+          "id": "176295-3",
+          "query": "regular bail pmla case rakesh manekchand kothari",
+          "relevant": [
+            "176295.txt"
+          ],
+          "preferred_top": "176295.txt",
+          "returned": [
+            "176295.txt",
+            "188494.txt",
+            "188493.txt",
+            "188423.txt",
+            "188492.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 145.54,
+          "timing": {
+            "lexical_ms": 138.972,
+            "probe_ms": 5.745,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.003,
+            "ambiguity_ms": 0.002,
+            "total_ms": 144.748
+          }
+        },
+        {
+          "id": "181392-1",
+          "query": "regular bail fema case",
+          "relevant": [
+            "181392.txt"
+          ],
+          "preferred_top": "181392.txt",
+          "returned": [
+            "181392.txt",
+            "188492.txt",
+            "188422.txt",
+            "176295.txt",
+            "197767.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 140.63,
+          "timing": {
+            "lexical_ms": 134.237,
+            "probe_ms": 5.501,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.005,
+            "ambiguity_ms": 0.003,
+            "total_ms": 139.771
+          }
+        },
+        {
+          "id": "181392-2",
+          "query": "bail in enforcement matter",
+          "relevant": [
+            "181392.txt"
+          ],
+          "preferred_top": "181392.txt",
+          "returned": [
+            "188492.txt",
+            "176295.txt",
+            "181392.txt",
+            "191265.txt",
+            "197767.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.3333,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 0.5,
+          "latency_ms": 198.38,
+          "timing": {
+            "lexical_ms": 192.611,
+            "probe_ms": 4.914,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.003,
+            "total_ms": 197.559
+          }
+        },
+        {
+          "id": "181392-3",
+          "query": "regular bail fema case rajesh kumar prasad",
+          "relevant": [
+            "181392.txt"
+          ],
+          "preferred_top": "181392.txt",
+          "returned": [
+            "181392.txt",
+            "197767.txt",
+            "188492.txt",
+            "196132.txt",
+            "188422.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 214.15,
+          "timing": {
+            "lexical_ms": 206.988,
+            "probe_ms": 6.316,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.005,
+            "ambiguity_ms": 0.003,
+            "total_ms": 213.341
+          }
+        },
+        {
+          "id": "182263-1",
+          "query": "regular bail customs case",
+          "relevant": [
+            "182263.txt"
+          ],
+          "preferred_top": "182263.txt",
+          "returned": [
+            "188492.txt",
+            "188422.txt",
+            "176295.txt",
+            "188749.txt",
+            "182523.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 229.09,
+          "timing": {
+            "lexical_ms": 222.476,
+            "probe_ms": 5.712,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.005,
+            "ambiguity_ms": 0.002,
+            "total_ms": 228.231
+          }
+        },
+        {
+          "id": "182263-2",
+          "query": "bail in enforcement matter",
+          "relevant": [
+            "182263.txt"
+          ],
+          "preferred_top": "182263.txt",
+          "returned": [
+            "188492.txt",
+            "176295.txt",
+            "181392.txt",
+            "191265.txt",
+            "197767.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 197.03,
+          "timing": {
+            "lexical_ms": 191.317,
+            "probe_ms": 4.812,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.003,
+            "ambiguity_ms": 0.003,
+            "total_ms": 196.161
+          }
+        },
+        {
+          "id": "182263-3",
+          "query": "regular bail customs case directorate of revenue intelligence",
+          "relevant": [
+            "182263.txt"
+          ],
+          "preferred_top": "182263.txt",
+          "returned": [
+            "182263.txt",
+            "177981.txt",
+            "188492.txt",
+            "176295.txt",
+            "181392.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 433.39,
+          "timing": {
+            "lexical_ms": 426.499,
+            "probe_ms": 5.945,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.002,
+            "total_ms": 432.483
+          }
+        },
+        {
+          "id": "176519-1",
+          "query": "cenvat credit dispute",
+          "relevant": [
+            "176519.txt"
+          ],
+          "preferred_top": "176519.txt",
+          "returned": [
+            "183852.txt",
+            "180501.txt",
+            "180808.txt",
+            "185465.txt",
+            "182250.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 49.91,
+          "timing": {
+            "lexical_ms": 43.787,
+            "probe_ms": 5.193,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.005,
+            "ambiguity_ms": 0.003,
+            "total_ms": 49.017
+          }
+        },
+        {
+          "id": "176519-2",
+          "query": "input credit issue in excise or service tax",
+          "relevant": [
+            "176519.txt"
+          ],
+          "preferred_top": "176519.txt",
+          "returned": [
+            "185466.txt",
+            "177719.txt",
+            "176759.txt",
+            "176745.txt",
+            "179351.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 367.34,
+          "timing": {
+            "lexical_ms": 360.671,
+            "probe_ms": 5.391,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.003,
+            "ambiguity_ms": 0.002,
+            "total_ms": 366.096
+          }
+        },
+        {
+          "id": "176519-3",
+          "query": "cenvat credit dispute m/s. l&t ltd.",
+          "relevant": [
+            "176519.txt"
+          ],
+          "preferred_top": "176519.txt",
+          "returned": [
+            "183852.txt",
+            "180808.txt",
+            "185465.txt",
+            "182250.txt",
+            "177361.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 3521.83,
+          "timing": {
+            "lexical_ms": 3515.077,
+            "probe_ms": 5.896,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.002,
+            "total_ms": 3521.006
+          }
+        },
+        {
+          "id": "176524-1",
+          "query": "cenvat credit dispute",
+          "relevant": [
+            "176524.txt"
+          ],
+          "preferred_top": "176524.txt",
+          "returned": [
+            "183852.txt",
+            "180501.txt",
+            "180808.txt",
+            "185465.txt",
+            "182250.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 51.87,
+          "timing": {
+            "lexical_ms": 44.805,
+            "probe_ms": 6.199,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.024,
+            "ambiguity_ms": 0.002,
+            "total_ms": 51.056
+          }
+        },
+        {
+          "id": "176524-2",
+          "query": "input credit issue in excise or service tax",
+          "relevant": [
+            "176524.txt"
+          ],
+          "preferred_top": "176524.txt",
+          "returned": [
+            "185466.txt",
+            "177719.txt",
+            "176759.txt",
+            "176745.txt",
+            "179351.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 375.22,
+          "timing": {
+            "lexical_ms": 368.758,
+            "probe_ms": 5.568,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.015,
+            "ambiguity_ms": 0.002,
+            "total_ms": 374.373
+          }
+        },
+        {
+          "id": "176524-3",
+          "query": "cenvat credit dispute commissioner of c. ex., cus. & s.t., tirupati",
+          "relevant": [
+            "176524.txt"
+          ],
+          "preferred_top": "176524.txt",
+          "returned": [
+            "177862.txt",
+            "176758.txt",
+            "176524.txt",
+            "183852.txt",
+            "185465.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.3333,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 0.5,
+          "latency_ms": 6946.78,
+          "timing": {
+            "lexical_ms": 6938.896,
+            "probe_ms": 6.932,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.002,
+            "total_ms": 6945.866
+          }
+        },
+        {
+          "id": "176526-1",
+          "query": "cenvat credit dispute",
+          "relevant": [
+            "176526.txt"
+          ],
+          "preferred_top": "176526.txt",
+          "returned": [
+            "183852.txt",
+            "180501.txt",
+            "180808.txt",
+            "185465.txt",
+            "182250.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 50.62,
+          "timing": {
+            "lexical_ms": 44.722,
+            "probe_ms": 5.104,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.002,
+            "total_ms": 49.853
+          }
+        },
+        {
+          "id": "176526-2",
+          "query": "input credit issue in excise or service tax",
+          "relevant": [
+            "176526.txt"
+          ],
+          "preferred_top": "176526.txt",
+          "returned": [
+            "185466.txt",
+            "177719.txt",
+            "176759.txt",
+            "176745.txt",
+            "179351.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 373.9,
+          "timing": {
+            "lexical_ms": 367.375,
+            "probe_ms": 5.653,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.017,
+            "ambiguity_ms": 0.003,
+            "total_ms": 373.077
+          }
+        },
+        {
+          "id": "176526-3",
+          "query": "cenvat credit dispute commissioner of c. ex., delhi-iii",
+          "relevant": [
+            "176526.txt"
+          ],
+          "preferred_top": "176526.txt",
+          "returned": [
+            "180501.txt",
+            "180808.txt",
+            "183852.txt",
+            "185465.txt",
+            "176526.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.2,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 0.3869,
+          "latency_ms": 3014.1,
+          "timing": {
+            "lexical_ms": 3006.228,
+            "probe_ms": 6.819,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.005,
+            "ambiguity_ms": 0.002,
+            "total_ms": 3013.085
+          }
+        },
+        {
+          "id": "176523-1",
+          "query": "refund claim dispute",
+          "relevant": [
+            "176523.txt"
+          ],
+          "preferred_top": "176523.txt",
+          "returned": [
+            "176527.txt",
+            "176729.txt",
+            "177987.txt",
+            "179496.txt",
+            "179918.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 49.08,
+          "timing": {
+            "lexical_ms": 42.997,
+            "probe_ms": 5.225,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.002,
+            "total_ms": 48.259
+          }
+        },
+        {
+          "id": "176523-2",
+          "query": "refund denied because of procedure",
+          "relevant": [
+            "176523.txt"
+          ],
+          "preferred_top": "176523.txt",
+          "returned": [
+            "180810.txt",
+            "179915.txt",
+            "176766.txt",
+            "183050.txt",
+            "177684.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 112.9,
+          "timing": {
+            "lexical_ms": 106.58,
+            "probe_ms": 5.41,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.002,
+            "total_ms": 112.023
+          }
+        },
+        {
+          "id": "176523-3",
+          "query": "refund claim dispute agappe diagnostics ltd.",
+          "relevant": [
+            "176523.txt"
+          ],
+          "preferred_top": "176523.txt",
+          "returned": [
+            "176523.txt",
+            "176527.txt",
+            "179496.txt",
+            "179918.txt",
+            "257260.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 240.53,
+          "timing": {
+            "lexical_ms": 233.578,
+            "probe_ms": 5.883,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.002,
+            "total_ms": 239.5
+          }
+        },
+        {
+          "id": "176525-1",
+          "query": "refund claim dispute",
+          "relevant": [
+            "176525.txt"
+          ],
+          "preferred_top": "176525.txt",
+          "returned": [
+            "176527.txt",
+            "176729.txt",
+            "177987.txt",
+            "179496.txt",
+            "179918.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 48.31,
+          "timing": {
+            "lexical_ms": 42.044,
+            "probe_ms": 5.459,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.002,
+            "total_ms": 47.531
+          }
+        },
+        {
+          "id": "176525-2",
+          "query": "refund denied because of procedure",
+          "relevant": [
+            "176525.txt"
+          ],
+          "preferred_top": "176525.txt",
+          "returned": [
+            "180810.txt",
+            "179915.txt",
+            "176766.txt",
+            "183050.txt",
+            "177684.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 112.79,
+          "timing": {
+            "lexical_ms": 106.738,
+            "probe_ms": 5.271,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.002,
+            "total_ms": 112.043
+          }
+        },
+        {
+          "id": "176525-3",
+          "query": "refund claim dispute bola surendra kamath & sons",
+          "relevant": [
+            "176525.txt"
+          ],
+          "preferred_top": "176525.txt",
+          "returned": [
+            "176525.txt",
+            "179918.txt",
+            "176616.txt",
+            "176635.txt",
+            "176527.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 151.84,
+          "timing": {
+            "lexical_ms": 144.65,
+            "probe_ms": 6.382,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.003,
+            "total_ms": 151.067
+          }
+        },
+        {
+          "id": "176527-1",
+          "query": "refund claim dispute",
+          "relevant": [
+            "176527.txt"
+          ],
+          "preferred_top": "176527.txt",
+          "returned": [
+            "176527.txt",
+            "176729.txt",
+            "177987.txt",
+            "179496.txt",
+            "179918.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 48.71,
+          "timing": {
+            "lexical_ms": 42.7,
+            "probe_ms": 5.19,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.002,
+            "total_ms": 47.919
+          }
+        },
+        {
+          "id": "176527-2",
+          "query": "refund denied because of procedure",
+          "relevant": [
+            "176527.txt"
+          ],
+          "preferred_top": "176527.txt",
+          "returned": [
+            "180810.txt",
+            "179915.txt",
+            "176766.txt",
+            "183050.txt",
+            "177684.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 115.18,
+          "timing": {
+            "lexical_ms": 108.627,
+            "probe_ms": 5.764,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.002,
+            "total_ms": 114.422
+          }
+        },
+        {
+          "id": "176527-3",
+          "query": "refund claim dispute commissioner of c. ex. & s.t., raipur",
+          "relevant": [
+            "176527.txt"
+          ],
+          "preferred_top": "176527.txt",
+          "returned": [
+            "176527.txt",
+            "177361.txt",
+            "177986.txt",
+            "182614.txt",
+            "179496.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 4855.18,
+          "timing": {
+            "lexical_ms": 4847.901,
+            "probe_ms": 6.306,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.006,
+            "ambiguity_ms": 0.003,
+            "total_ms": 4854.246
+          }
+        },
+        {
+          "id": "176290-1",
+          "query": "penalty dispute",
+          "relevant": [
+            "176290.txt"
+          ],
+          "preferred_top": "176290.txt",
+          "returned": [
+            "180501.txt",
+            "177144.txt",
+            "176728.txt",
+            "177854.txt",
+            "176589.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 33.38,
+          "timing": {
+            "lexical_ms": 27.43,
+            "probe_ms": 5.015,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.005,
+            "ambiguity_ms": 0.003,
+            "total_ms": 32.483
+          }
+        },
+        {
+          "id": "176290-2",
+          "query": "can penalty be set aside case",
+          "relevant": [
+            "176290.txt"
+          ],
+          "preferred_top": "176290.txt",
+          "returned": [
+            "180808.txt",
+            "183229.txt",
+            "182752.txt",
+            "176622.txt",
+            "176735.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 280.33,
+          "timing": {
+            "lexical_ms": 273.717,
+            "probe_ms": 5.667,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.005,
+            "ambiguity_ms": 0.003,
+            "total_ms": 279.423
+          }
+        },
+        {
+          "id": "176290-3",
+          "query": "penalty dispute j.k. mital",
+          "relevant": [
+            "176290.txt"
+          ],
+          "preferred_top": "176290.txt",
+          "returned": [
+            "176290.txt",
+            "180501.txt",
+            "177144.txt",
+            "176728.txt",
+            "176589.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 286.79,
+          "timing": {
+            "lexical_ms": 279.945,
+            "probe_ms": 5.912,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.003,
+            "total_ms": 285.895
+          }
+        },
+        {
+          "id": "176532-1",
+          "query": "penalty dispute",
+          "relevant": [
+            "176532.txt"
+          ],
+          "preferred_top": "176532.txt",
+          "returned": [
+            "180501.txt",
+            "177144.txt",
+            "176728.txt",
+            "177854.txt",
+            "176589.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 33.75,
+          "timing": {
+            "lexical_ms": 27.948,
+            "probe_ms": 4.991,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.002,
+            "total_ms": 32.969
+          }
+        },
+        {
+          "id": "176532-2",
+          "query": "can penalty be set aside case",
+          "relevant": [
+            "176532.txt"
+          ],
+          "preferred_top": "176532.txt",
+          "returned": [
+            "180808.txt",
+            "183229.txt",
+            "182752.txt",
+            "176622.txt",
+            "176735.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 285.68,
+          "timing": {
+            "lexical_ms": 278.616,
+            "probe_ms": 6.217,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.005,
+            "ambiguity_ms": 0.002,
+            "total_ms": 284.867
+          }
+        },
+        {
+          "id": "176532-3",
+          "query": "penalty dispute nuance group (india) pvt ltd",
+          "relevant": [
+            "176532.txt"
+          ],
+          "preferred_top": "176532.txt",
+          "returned": [
+            "176532.txt",
+            "176535.txt",
+            "182614.txt",
+            "176563.txt",
+            "180756.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 201.84,
+          "timing": {
+            "lexical_ms": 194.199,
+            "probe_ms": 6.762,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.002,
+            "total_ms": 201.0
+          }
+        },
+        {
+          "id": "176533-1",
+          "query": "penalty dispute",
+          "relevant": [
+            "176533.txt"
+          ],
+          "preferred_top": "176533.txt",
+          "returned": [
+            "180501.txt",
+            "177144.txt",
+            "176728.txt",
+            "177854.txt",
+            "176589.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 33.22,
+          "timing": {
+            "lexical_ms": 27.458,
+            "probe_ms": 5.017,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.002,
+            "total_ms": 32.508
+          }
+        },
+        {
+          "id": "176533-2",
+          "query": "can penalty be set aside case",
+          "relevant": [
+            "176533.txt"
+          ],
+          "preferred_top": "176533.txt",
+          "returned": [
+            "180808.txt",
+            "183229.txt",
+            "182752.txt",
+            "176622.txt",
+            "176735.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 285.6,
+          "timing": {
+            "lexical_ms": 279.199,
+            "probe_ms": 5.638,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.002,
+            "total_ms": 284.868
+          }
+        },
+        {
+          "id": "176533-3",
+          "query": "penalty dispute kuresh t rajkotwala",
+          "relevant": [
+            "176533.txt"
+          ],
+          "preferred_top": "176533.txt",
+          "returned": [
+            "176533.txt",
+            "180501.txt",
+            "177144.txt",
+            "176728.txt",
+            "177854.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 1894.26,
+          "timing": {
+            "lexical_ms": 1887.192,
+            "probe_ms": 6.197,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.002,
+            "total_ms": 1893.423
+          }
+        },
+        {
+          "id": "176528-1",
+          "query": "cenvat credit dispute",
+          "relevant": [
+            "176528.txt"
+          ],
+          "preferred_top": "176528.txt",
+          "returned": [
+            "183852.txt",
+            "180501.txt",
+            "180808.txt",
+            "185465.txt",
+            "182250.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 49.51,
+          "timing": {
+            "lexical_ms": 43.379,
+            "probe_ms": 5.318,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.002,
+            "total_ms": 48.725
+          }
+        },
+        {
+          "id": "176528-2",
+          "query": "input credit issue in excise or service tax",
+          "relevant": [
+            "176528.txt"
+          ],
+          "preferred_top": "176528.txt",
+          "returned": [
+            "185466.txt",
+            "177719.txt",
+            "176759.txt",
+            "176745.txt",
+            "179351.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 373.04,
+          "timing": {
+            "lexical_ms": 366.099,
+            "probe_ms": 6.134,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.002,
+            "total_ms": 372.268
+          }
+        },
+        {
+          "id": "176528-3",
+          "query": "cenvat credit dispute balkrishna industries ltd.",
+          "relevant": [
+            "176528.txt"
+          ],
+          "preferred_top": "176528.txt",
+          "returned": [
+            "176528.txt",
+            "176600.txt",
+            "176756.txt",
+            "183852.txt",
+            "176591.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 146.9,
+          "timing": {
+            "lexical_ms": 140.408,
+            "probe_ms": 5.652,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.003,
+            "ambiguity_ms": 0.002,
+            "total_ms": 146.091
+          }
+        },
+        {
+          "id": "176529-1",
+          "query": "cenvat credit dispute",
+          "relevant": [
+            "176529.txt"
+          ],
+          "preferred_top": "176529.txt",
+          "returned": [
+            "183852.txt",
+            "180501.txt",
+            "180808.txt",
+            "185465.txt",
+            "182250.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 49.29,
+          "timing": {
+            "lexical_ms": 43.141,
+            "probe_ms": 5.364,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.002,
+            "total_ms": 48.538
+          }
+        },
+        {
+          "id": "176529-2",
+          "query": "input credit issue in excise or service tax",
+          "relevant": [
+            "176529.txt"
+          ],
+          "preferred_top": "176529.txt",
+          "returned": [
+            "185466.txt",
+            "177719.txt",
+            "176759.txt",
+            "176745.txt",
+            "179351.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 377.27,
+          "timing": {
+            "lexical_ms": 370.651,
+            "probe_ms": 5.689,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.007,
+            "ambiguity_ms": 0.003,
+            "total_ms": 376.378
+          }
+        },
+        {
+          "id": "176529-3",
+          "query": "cenvat credit dispute time technoplast ltd.",
+          "relevant": [
+            "176529.txt"
+          ],
+          "preferred_top": "176529.txt",
+          "returned": [
+            "176529.txt",
+            "177854.txt",
+            "183852.txt",
+            "176737.txt",
+            "180501.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 168.25,
+          "timing": {
+            "lexical_ms": 161.071,
+            "probe_ms": 6.266,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.002,
+            "total_ms": 167.373
+          }
+        },
+        {
+          "id": "176567-1",
+          "query": "service tax demand dispute",
+          "relevant": [
+            "176567.txt"
+          ],
+          "preferred_top": "176567.txt",
+          "returned": [
+            "182613.txt",
+            "179636.txt",
+            "183449.txt",
+            "176592.txt",
+            "180251.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 94.81,
+          "timing": {
+            "lexical_ms": 88.51,
+            "probe_ms": 5.456,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.012,
+            "ambiguity_ms": 0.003,
+            "total_ms": 94.004
+          }
+        },
+        {
+          "id": "176567-2",
+          "query": "taxable service issue case",
+          "relevant": [
+            "176567.txt"
+          ],
+          "preferred_top": "176567.txt",
+          "returned": [
+            "184771.txt",
+            "182751.txt",
+            "186011.txt",
+            "185466.txt",
+            "176767.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 120.15,
+          "timing": {
+            "lexical_ms": 113.593,
+            "probe_ms": 5.735,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.002,
+            "total_ms": 119.358
+          }
+        },
+        {
+          "id": "176567-3",
+          "query": "service tax demand dispute barbrik project ltd. & bajrang lal agarwal",
+          "relevant": [
+            "176567.txt"
+          ],
+          "preferred_top": "176567.txt",
+          "returned": [
+            "176567.txt",
+            "183364.txt",
+            "183363.txt",
+            "180945.txt",
+            "176622.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 290.41,
+          "timing": {
+            "lexical_ms": 282.671,
+            "probe_ms": 6.882,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.002,
+            "total_ms": 289.596
+          }
+        },
+        {
+          "id": "176520-1",
+          "query": "customs dispute case",
+          "relevant": [
+            "176520.txt"
+          ],
+          "preferred_top": "176520.txt",
+          "returned": [
+            "180251.txt",
+            "180059.txt",
+            "176603.txt",
+            "176728.txt",
+            "185465.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 118.21,
+          "timing": {
+            "lexical_ms": 112.056,
+            "probe_ms": 5.321,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.002,
+            "total_ms": 117.41
+          }
+        },
+        {
+          "id": "176520-2",
+          "query": "import duty or customs issue",
+          "relevant": [
+            "176520.txt"
+          ],
+          "preferred_top": "176520.txt",
+          "returned": [
+            "178095.txt",
+            "176535.txt",
+            "176533.txt",
+            "176618.txt",
+            "176622.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 127.21,
+          "timing": {
+            "lexical_ms": 121.738,
+            "probe_ms": 4.565,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.003,
+            "total_ms": 126.339
+          }
+        },
+        {
+          "id": "176520-3",
+          "query": "customs dispute case m/s. vatan textiles ltd.",
+          "relevant": [
+            "176520.txt"
+          ],
+          "preferred_top": "176520.txt",
+          "returned": [
+            "176520.txt",
+            "177987.txt",
+            "176720.txt",
+            "179918.txt",
+            "176738.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 2366.88,
+          "timing": {
+            "lexical_ms": 2359.413,
+            "probe_ms": 6.367,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.002,
+            "total_ms": 2365.856
+          }
+        },
+        {
+          "id": "176521-1",
+          "query": "customs dispute case",
+          "relevant": [
+            "176521.txt"
+          ],
+          "preferred_top": "176521.txt",
+          "returned": [
+            "180251.txt",
+            "180059.txt",
+            "176603.txt",
+            "176728.txt",
+            "185465.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 118.51,
+          "timing": {
+            "lexical_ms": 112.107,
+            "probe_ms": 5.445,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.002,
+            "total_ms": 117.588
+          }
+        },
+        {
+          "id": "176521-2",
+          "query": "import duty or customs issue",
+          "relevant": [
+            "176521.txt"
+          ],
+          "preferred_top": "176521.txt",
+          "returned": [
+            "178095.txt",
+            "176535.txt",
+            "176533.txt",
+            "176618.txt",
+            "176622.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 126.57,
+          "timing": {
+            "lexical_ms": 121.051,
+            "probe_ms": 4.579,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.003,
+            "ambiguity_ms": 0.002,
+            "total_ms": 125.666
+          }
+        },
+        {
+          "id": "176521-3",
+          "query": "customs dispute case g & s international",
+          "relevant": [
+            "176521.txt"
+          ],
+          "preferred_top": "176521.txt",
+          "returned": [
+            "180059.txt",
+            "180535.txt",
+            "176594.txt",
+            "176521.txt",
+            "179801.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.25,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 0.4307,
+          "latency_ms": 2723.14,
+          "timing": {
+            "lexical_ms": 2716.277,
+            "probe_ms": 5.765,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.003,
+            "total_ms": 2722.082
+          }
+        },
+        {
+          "id": "176522-1",
+          "query": "customs dispute case",
+          "relevant": [
+            "176522.txt"
+          ],
+          "preferred_top": "176522.txt",
+          "returned": [
+            "180251.txt",
+            "180059.txt",
+            "176603.txt",
+            "176728.txt",
+            "185465.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 117.49,
+          "timing": {
+            "lexical_ms": 111.007,
+            "probe_ms": 5.454,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.003,
+            "total_ms": 116.501
+          }
+        },
+        {
+          "id": "176522-2",
+          "query": "import duty or customs issue",
+          "relevant": [
+            "176522.txt"
+          ],
+          "preferred_top": "176522.txt",
+          "returned": [
+            "178095.txt",
+            "176535.txt",
+            "176533.txt",
+            "176618.txt",
+            "176622.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 127.91,
+          "timing": {
+            "lexical_ms": 122.272,
+            "probe_ms": 4.628,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.005,
+            "ambiguity_ms": 0.003,
+            "total_ms": 126.938
+          }
+        },
+        {
+          "id": "176522-3",
+          "query": "customs dispute case commissioner of customs (imports) , nhava shva",
+          "relevant": [
+            "176522.txt"
+          ],
+          "preferred_top": "176522.txt",
+          "returned": [
+            "176522.txt",
+            "178093.txt",
+            "179492.txt",
+            "176619.txt",
+            "176628.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 431.96,
+          "timing": {
+            "lexical_ms": 425.219,
+            "probe_ms": 5.723,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.002,
+            "total_ms": 430.982
+          }
+        },
+        {
+          "id": "176318-1",
+          "query": "income tax appeal case",
+          "relevant": [
+            "176318.txt"
+          ],
+          "preferred_top": "176318.txt",
+          "returned": [
+            "177195.txt",
+            "182596.txt",
+            "178635.txt",
+            "182155.txt",
+            "176531.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 56.17,
+          "timing": {
+            "lexical_ms": 50.902,
+            "probe_ms": 4.351,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.005,
+            "ambiguity_ms": 0.002,
+            "total_ms": 55.29
+          }
+        },
+        {
+          "id": "176318-2",
+          "query": "tax addition disallowance dispute",
+          "relevant": [
+            "176318.txt"
+          ],
+          "preferred_top": "176318.txt",
+          "returned": [
+            "177785.txt",
+            "180341.txt",
+            "177324.txt",
+            "177144.txt",
+            "177784.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 129.26,
+          "timing": {
+            "lexical_ms": 122.165,
+            "probe_ms": 6.221,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.002,
+            "total_ms": 128.418
+          }
+        },
+        {
+          "id": "176318-3",
+          "query": "income tax appeal case bharat jayantilal patel",
+          "relevant": [
+            "176318.txt"
+          ],
+          "preferred_top": "176318.txt",
+          "returned": [
+            "176318.txt",
+            "176680.txt",
+            "180944.txt",
+            "195726.txt",
+            "177724.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 264.74,
+          "timing": {
+            "lexical_ms": 258.068,
+            "probe_ms": 5.799,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.013,
+            "ambiguity_ms": 0.003,
+            "total_ms": 263.91
+          }
+        },
+        {
+          "id": "176319-1",
+          "query": "income tax appeal case",
+          "relevant": [
+            "176319.txt"
+          ],
+          "preferred_top": "176319.txt",
+          "returned": [
+            "177195.txt",
+            "182596.txt",
+            "178635.txt",
+            "182155.txt",
+            "176531.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 55.67,
+          "timing": {
+            "lexical_ms": 50.632,
+            "probe_ms": 4.177,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.003,
+            "total_ms": 54.841
+          }
+        },
+        {
+          "id": "176319-2",
+          "query": "tax addition disallowance dispute",
+          "relevant": [
+            "176319.txt"
+          ],
+          "preferred_top": "176319.txt",
+          "returned": [
+            "177785.txt",
+            "180341.txt",
+            "177324.txt",
+            "177144.txt",
+            "177784.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 128.14,
+          "timing": {
+            "lexical_ms": 121.011,
+            "probe_ms": 6.313,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.002,
+            "total_ms": 127.362
+          }
+        },
+        {
+          "id": "176319-3",
+          "query": "income tax appeal case m/s. shoreline hotel pvt. ltd.",
+          "relevant": [
+            "176319.txt"
+          ],
+          "preferred_top": "176319.txt",
+          "returned": [
+            "176319.txt",
+            "180653.txt",
+            "177585.txt",
+            "179013.txt",
+            "179921.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 2505.02,
+          "timing": {
+            "lexical_ms": 2498.858,
+            "probe_ms": 5.297,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.002,
+            "total_ms": 2504.192
+          }
+        },
+        {
+          "id": "176530-1",
+          "query": "income tax appeal case",
+          "relevant": [
+            "176530.txt"
+          ],
+          "preferred_top": "176530.txt",
+          "returned": [
+            "177195.txt",
+            "182596.txt",
+            "178635.txt",
+            "182155.txt",
+            "176531.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 55.71,
+          "timing": {
+            "lexical_ms": 50.394,
+            "probe_ms": 4.457,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.002,
+            "total_ms": 54.882
+          }
+        },
+        {
+          "id": "176530-2",
+          "query": "tax addition disallowance dispute",
+          "relevant": [
+            "176530.txt"
+          ],
+          "preferred_top": "176530.txt",
+          "returned": [
+            "177785.txt",
+            "180341.txt",
+            "177324.txt",
+            "177144.txt",
+            "177784.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 127.29,
+          "timing": {
+            "lexical_ms": 120.133,
+            "probe_ms": 6.336,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.002,
+            "total_ms": 126.5
+          }
+        },
+        {
+          "id": "176530-3",
+          "query": "income tax appeal case visual graphics computing services india p. ltd.",
+          "relevant": [
+            "176530.txt"
+          ],
+          "preferred_top": "176530.txt",
+          "returned": [
+            "176530.txt",
+            "178209.txt",
+            "176564.txt",
+            "177063.txt",
+            "177452.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 1496.23,
+          "timing": {
+            "lexical_ms": 1488.9,
+            "probe_ms": 6.442,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.002,
+            "total_ms": 1495.379
+          }
+        },
+        {
+          "id": "176531-1",
+          "query": "income tax appeal case",
+          "relevant": [
+            "176531.txt"
+          ],
+          "preferred_top": "176531.txt",
+          "returned": [
+            "177195.txt",
+            "182596.txt",
+            "178635.txt",
+            "182155.txt",
+            "176531.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.2,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 0.3869,
+          "latency_ms": 56.17,
+          "timing": {
+            "lexical_ms": 51.182,
+            "probe_ms": 4.172,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.011,
+            "ambiguity_ms": 0.002,
+            "total_ms": 55.395
+          }
+        },
+        {
+          "id": "176531-2",
+          "query": "tax addition disallowance dispute",
+          "relevant": [
+            "176531.txt"
+          ],
+          "preferred_top": "176531.txt",
+          "returned": [
+            "177785.txt",
+            "180341.txt",
+            "177324.txt",
+            "177144.txt",
+            "177784.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 126.15,
+          "timing": {
+            "lexical_ms": 118.956,
+            "probe_ms": 6.324,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.005,
+            "ambiguity_ms": 0.003,
+            "total_ms": 125.318
+          }
+        },
+        {
+          "id": "176531-3",
+          "query": "income tax appeal case deputy commissioner of income-tax",
+          "relevant": [
+            "176531.txt"
+          ],
+          "preferred_top": "176531.txt",
+          "returned": [
+            "176531.txt",
+            "176683.txt",
+            "177065.txt",
+            "176530.txt",
+            "179013.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 426.17,
+          "timing": {
+            "lexical_ms": 419.4,
+            "probe_ms": 5.874,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.003,
+            "total_ms": 425.307
+          }
+        }
+      ]
+    },
+    {
+      "variant": "fts_bm25l_rrf",
+      "kind": "fts_bm25l_rrf",
+      "evaluated_queries": 75,
+      "skipped_queries": 0,
+      "success_at_1": 0.2933,
+      "mrr": 0.3438,
+      "recall_at_k": 0.44,
+      "ndcg_at_k": 0.3676,
+      "avg_latency_ms": 551.03,
+      "avg_stage_timing_ms": {
+        "ambiguity_ms": 0.003,
+        "finalize_ms": 0.005,
+        "fusion_ms": 0.001,
+        "lexical_ms": 543.699,
+        "probe_ms": 5.625,
+        "rerank_ms": 0.001,
+        "retrieval_ms": 0.001,
+        "total_ms": 549.36
+      },
+      "cases": [
+        {
+          "id": "176294-1",
+          "query": "cheque dishonour section 138 case",
+          "relevant": [
+            "176294.txt"
+          ],
+          "preferred_top": "176294.txt",
+          "returned": [
+            "259406.txt",
+            "176294.txt",
+            "257129.txt",
+            "193654.txt",
+            "193633.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.5,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 0.6309,
+          "latency_ms": 140.63,
+          "timing": {
+            "lexical_ms": 131.567,
+            "probe_ms": 5.929,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.005,
+            "ambiguity_ms": 0.003,
+            "total_ms": 137.531
+          }
+        },
+        {
+          "id": "176294-2",
+          "query": "cheque bounce complaint section 138",
+          "relevant": [
+            "176294.txt"
+          ],
+          "preferred_top": "176294.txt",
+          "returned": [
+            "259406.txt",
+            "259174.txt",
+            "256866.txt",
+            "257129.txt",
+            "257923.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 144.91,
+          "timing": {
+            "lexical_ms": 136.975,
+            "probe_ms": 6.458,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.005,
+            "ambiguity_ms": 0.003,
+            "total_ms": 143.466
+          }
+        },
+        {
+          "id": "176294-3",
+          "query": "cheque dishonour section 138 case p. pandiyarajan",
+          "relevant": [
+            "176294.txt"
+          ],
+          "preferred_top": "176294.txt",
+          "returned": [
+            "176294.txt",
+            "259406.txt",
+            "193654.txt",
+            "257129.txt",
+            "193633.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 1001.06,
+          "timing": {
+            "lexical_ms": 992.949,
+            "probe_ms": 6.684,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.014,
+            "ambiguity_ms": 0.003,
+            "total_ms": 999.678
+          }
+        },
+        {
+          "id": "193633-1",
+          "query": "cheque dishonour section 138 case",
+          "relevant": [
+            "193633.txt"
+          ],
+          "preferred_top": "193633.txt",
+          "returned": [
+            "259406.txt",
+            "176294.txt",
+            "257129.txt",
+            "193654.txt",
+            "193633.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.2,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 0.3869,
+          "latency_ms": 137.79,
+          "timing": {
+            "lexical_ms": 130.538,
+            "probe_ms": 5.782,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.003,
+            "total_ms": 136.352
+          }
+        },
+        {
+          "id": "193633-2",
+          "query": "cheque bounce complaint section 138",
+          "relevant": [
+            "193633.txt"
+          ],
+          "preferred_top": "193633.txt",
+          "returned": [
+            "259406.txt",
+            "259174.txt",
+            "256866.txt",
+            "257129.txt",
+            "257923.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 144.52,
+          "timing": {
+            "lexical_ms": 136.929,
+            "probe_ms": 6.249,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.003,
+            "total_ms": 143.209
+          }
+        },
+        {
+          "id": "193633-3",
+          "query": "cheque dishonour section 138 case n. sivasamy",
+          "relevant": [
+            "193633.txt"
+          ],
+          "preferred_top": "193633.txt",
+          "returned": [
+            "193633.txt",
+            "259406.txt",
+            "176294.txt",
+            "257129.txt",
+            "193654.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 746.63,
+          "timing": {
+            "lexical_ms": 738.99,
+            "probe_ms": 6.206,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.003,
+            "total_ms": 745.23
+          }
+        },
+        {
+          "id": "193654-1",
+          "query": "cheque dishonour section 138 case",
+          "relevant": [
+            "193654.txt"
+          ],
+          "preferred_top": "193654.txt",
+          "returned": [
+            "259406.txt",
+            "176294.txt",
+            "257129.txt",
+            "193654.txt",
+            "193633.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.25,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 0.4307,
+          "latency_ms": 139.94,
+          "timing": {
+            "lexical_ms": 132.804,
+            "probe_ms": 5.786,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.003,
+            "ambiguity_ms": 0.003,
+            "total_ms": 138.621
+          }
+        },
+        {
+          "id": "193654-2",
+          "query": "cheque bounce complaint section 138",
+          "relevant": [
+            "193654.txt"
+          ],
+          "preferred_top": "193654.txt",
+          "returned": [
+            "259406.txt",
+            "259174.txt",
+            "256866.txt",
+            "257129.txt",
+            "257923.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 142.6,
+          "timing": {
+            "lexical_ms": 134.965,
+            "probe_ms": 6.214,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.003,
+            "total_ms": 141.214
+          }
+        },
+        {
+          "id": "193654-3",
+          "query": "cheque dishonour section 138 case veera constructions and ors.",
+          "relevant": [
+            "193654.txt"
+          ],
+          "preferred_top": "193654.txt",
+          "returned": [
+            "193654.txt",
+            "259406.txt",
+            "259174.txt",
+            "176294.txt",
+            "257129.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 332.14,
+          "timing": {
+            "lexical_ms": 314.39,
+            "probe_ms": 7.144,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.002,
+            "total_ms": 321.57
+          }
+        },
+        {
+          "id": "176295-1",
+          "query": "regular bail pmla case",
+          "relevant": [
+            "176295.txt"
+          ],
+          "preferred_top": "176295.txt",
+          "returned": [
+            "188492.txt",
+            "188422.txt",
+            "176295.txt",
+            "188494.txt",
+            "191265.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.3333,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 0.5,
+          "latency_ms": 101.95,
+          "timing": {
+            "lexical_ms": 94.895,
+            "probe_ms": 5.597,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.003,
+            "ambiguity_ms": 0.003,
+            "total_ms": 100.523
+          }
+        },
+        {
+          "id": "176295-2",
+          "query": "bail in enforcement matter",
+          "relevant": [
+            "176295.txt"
+          ],
+          "preferred_top": "176295.txt",
+          "returned": [
+            "188492.txt",
+            "176295.txt",
+            "181392.txt",
+            "191265.txt",
+            "197767.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.5,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 0.6309,
+          "latency_ms": 196.46,
+          "timing": {
+            "lexical_ms": 190.132,
+            "probe_ms": 4.822,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.003,
+            "total_ms": 194.988
+          }
+        },
+        {
+          "id": "176295-3",
+          "query": "regular bail pmla case rakesh manekchand kothari",
+          "relevant": [
+            "176295.txt"
+          ],
+          "preferred_top": "176295.txt",
+          "returned": [
+            "176295.txt",
+            "188494.txt",
+            "188493.txt",
+            "188423.txt",
+            "188492.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 144.6,
+          "timing": {
+            "lexical_ms": 137.448,
+            "probe_ms": 5.681,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.003,
+            "ambiguity_ms": 0.003,
+            "total_ms": 143.163
+          }
+        },
+        {
+          "id": "181392-1",
+          "query": "regular bail fema case",
+          "relevant": [
+            "181392.txt"
+          ],
+          "preferred_top": "181392.txt",
+          "returned": [
+            "181392.txt",
+            "188492.txt",
+            "188422.txt",
+            "197767.txt",
+            "176295.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 136.87,
+          "timing": {
+            "lexical_ms": 130.095,
+            "probe_ms": 5.403,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.002,
+            "total_ms": 135.534
+          }
+        },
+        {
+          "id": "181392-2",
+          "query": "bail in enforcement matter",
+          "relevant": [
+            "181392.txt"
+          ],
+          "preferred_top": "181392.txt",
+          "returned": [
+            "188492.txt",
+            "176295.txt",
+            "181392.txt",
+            "191265.txt",
+            "197767.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.3333,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 0.5,
+          "latency_ms": 193.48,
+          "timing": {
+            "lexical_ms": 187.303,
+            "probe_ms": 4.8,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.002,
+            "total_ms": 192.134
+          }
+        },
+        {
+          "id": "181392-3",
+          "query": "regular bail fema case rajesh kumar prasad",
+          "relevant": [
+            "181392.txt"
+          ],
+          "preferred_top": "181392.txt",
+          "returned": [
+            "181392.txt",
+            "197767.txt",
+            "188492.txt",
+            "196132.txt",
+            "188422.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 214.07,
+          "timing": {
+            "lexical_ms": 206.126,
+            "probe_ms": 6.487,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.002,
+            "total_ms": 212.65
+          }
+        },
+        {
+          "id": "182263-1",
+          "query": "regular bail customs case",
+          "relevant": [
+            "182263.txt"
+          ],
+          "preferred_top": "182263.txt",
+          "returned": [
+            "188492.txt",
+            "188422.txt",
+            "176295.txt",
+            "188749.txt",
+            "197767.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 225.93,
+          "timing": {
+            "lexical_ms": 218.903,
+            "probe_ms": 5.384,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.003,
+            "total_ms": 224.323
+          }
+        },
+        {
+          "id": "182263-2",
+          "query": "bail in enforcement matter",
+          "relevant": [
+            "182263.txt"
+          ],
+          "preferred_top": "182263.txt",
+          "returned": [
+            "188492.txt",
+            "176295.txt",
+            "181392.txt",
+            "191265.txt",
+            "197767.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 192.51,
+          "timing": {
+            "lexical_ms": 186.024,
+            "probe_ms": 4.911,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.003,
+            "total_ms": 190.971
+          }
+        },
+        {
+          "id": "182263-3",
+          "query": "regular bail customs case directorate of revenue intelligence",
+          "relevant": [
+            "182263.txt"
+          ],
+          "preferred_top": "182263.txt",
+          "returned": [
+            "182263.txt",
+            "177981.txt",
+            "188492.txt",
+            "176295.txt",
+            "181392.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 428.52,
+          "timing": {
+            "lexical_ms": 420.994,
+            "probe_ms": 6.037,
+            "retrieval_ms": 0.007,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.005,
+            "ambiguity_ms": 0.003,
+            "total_ms": 427.075
+          }
+        },
+        {
+          "id": "176519-1",
+          "query": "cenvat credit dispute",
+          "relevant": [
+            "176519.txt"
+          ],
+          "preferred_top": "176519.txt",
+          "returned": [
+            "180501.txt",
+            "185465.txt",
+            "180808.txt",
+            "182250.txt",
+            "176589.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 48.8,
+          "timing": {
+            "lexical_ms": 42.131,
+            "probe_ms": 5.268,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.005,
+            "ambiguity_ms": 0.003,
+            "total_ms": 47.432
+          }
+        },
+        {
+          "id": "176519-2",
+          "query": "input credit issue in excise or service tax",
+          "relevant": [
+            "176519.txt"
+          ],
+          "preferred_top": "176519.txt",
+          "returned": [
+            "185466.txt",
+            "177719.txt",
+            "176759.txt",
+            "178655.txt",
+            "185935.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 370.13,
+          "timing": {
+            "lexical_ms": 363.18,
+            "probe_ms": 5.498,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.003,
+            "ambiguity_ms": 0.003,
+            "total_ms": 368.713
+          }
+        },
+        {
+          "id": "176519-3",
+          "query": "cenvat credit dispute m/s. l&t ltd.",
+          "relevant": [
+            "176519.txt"
+          ],
+          "preferred_top": "176519.txt",
+          "returned": [
+            "185465.txt",
+            "182250.txt",
+            "180808.txt",
+            "176589.txt",
+            "177361.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 3380.65,
+          "timing": {
+            "lexical_ms": 3365.629,
+            "probe_ms": 5.539,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.003,
+            "ambiguity_ms": 0.002,
+            "total_ms": 3371.2
+          }
+        },
+        {
+          "id": "176524-1",
+          "query": "cenvat credit dispute",
+          "relevant": [
+            "176524.txt"
+          ],
+          "preferred_top": "176524.txt",
+          "returned": [
+            "180501.txt",
+            "185465.txt",
+            "180808.txt",
+            "182250.txt",
+            "176589.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 46.0,
+          "timing": {
+            "lexical_ms": 39.865,
+            "probe_ms": 4.876,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.0,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.003,
+            "ambiguity_ms": 0.003,
+            "total_ms": 44.77
+          }
+        },
+        {
+          "id": "176524-2",
+          "query": "input credit issue in excise or service tax",
+          "relevant": [
+            "176524.txt"
+          ],
+          "preferred_top": "176524.txt",
+          "returned": [
+            "185466.txt",
+            "177719.txt",
+            "176759.txt",
+            "178655.txt",
+            "185935.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 353.51,
+          "timing": {
+            "lexical_ms": 347.003,
+            "probe_ms": 5.272,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.011,
+            "total_ms": 352.316
+          }
+        },
+        {
+          "id": "176524-3",
+          "query": "cenvat credit dispute commissioner of c. ex., cus. & s.t., tirupati",
+          "relevant": [
+            "176524.txt"
+          ],
+          "preferred_top": "176524.txt",
+          "returned": [
+            "177862.txt",
+            "176524.txt",
+            "176758.txt",
+            "180501.txt",
+            "180808.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.5,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 0.6309,
+          "latency_ms": 6627.96,
+          "timing": {
+            "lexical_ms": 6619.967,
+            "probe_ms": 6.442,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.005,
+            "ambiguity_ms": 0.003,
+            "total_ms": 6626.446
+          }
+        },
+        {
+          "id": "176526-1",
+          "query": "cenvat credit dispute",
+          "relevant": [
+            "176526.txt"
+          ],
+          "preferred_top": "176526.txt",
+          "returned": [
+            "180501.txt",
+            "185465.txt",
+            "180808.txt",
+            "182250.txt",
+            "176589.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 48.89,
+          "timing": {
+            "lexical_ms": 42.405,
+            "probe_ms": 5.163,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.003,
+            "ambiguity_ms": 0.002,
+            "total_ms": 47.595
+          }
+        },
+        {
+          "id": "176526-2",
+          "query": "input credit issue in excise or service tax",
+          "relevant": [
+            "176526.txt"
+          ],
+          "preferred_top": "176526.txt",
+          "returned": [
+            "185466.txt",
+            "177719.txt",
+            "176759.txt",
+            "178655.txt",
+            "185935.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 372.39,
+          "timing": {
+            "lexical_ms": 365.453,
+            "probe_ms": 5.544,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.005,
+            "ambiguity_ms": 0.003,
+            "total_ms": 371.032
+          }
+        },
+        {
+          "id": "176526-3",
+          "query": "cenvat credit dispute commissioner of c. ex., delhi-iii",
+          "relevant": [
+            "176526.txt"
+          ],
+          "preferred_top": "176526.txt",
+          "returned": [
+            "180501.txt",
+            "180808.txt",
+            "176526.txt",
+            "183852.txt",
+            "177126.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.3333,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 0.5,
+          "latency_ms": 2974.64,
+          "timing": {
+            "lexical_ms": 2967.488,
+            "probe_ms": 5.663,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.003,
+            "total_ms": 2973.185
+          }
+        },
+        {
+          "id": "176523-1",
+          "query": "refund claim dispute",
+          "relevant": [
+            "176523.txt"
+          ],
+          "preferred_top": "176523.txt",
+          "returned": [
+            "176527.txt",
+            "179496.txt",
+            "179918.txt",
+            "180810.txt",
+            "181782.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 47.54,
+          "timing": {
+            "lexical_ms": 41.202,
+            "probe_ms": 4.997,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.002,
+            "total_ms": 46.23
+          }
+        },
+        {
+          "id": "176523-2",
+          "query": "refund denied because of procedure",
+          "relevant": [
+            "176523.txt"
+          ],
+          "preferred_top": "176523.txt",
+          "returned": [
+            "180810.txt",
+            "183050.txt",
+            "179915.txt",
+            "177684.txt",
+            "176766.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 112.07,
+          "timing": {
+            "lexical_ms": 105.296,
+            "probe_ms": 5.327,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.003,
+            "total_ms": 110.657
+          }
+        },
+        {
+          "id": "176523-3",
+          "query": "refund claim dispute agappe diagnostics ltd.",
+          "relevant": [
+            "176523.txt"
+          ],
+          "preferred_top": "176523.txt",
+          "returned": [
+            "176523.txt",
+            "176527.txt",
+            "179496.txt",
+            "179918.txt",
+            "180810.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 234.34,
+          "timing": {
+            "lexical_ms": 226.745,
+            "probe_ms": 6.08,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.005,
+            "ambiguity_ms": 0.003,
+            "total_ms": 232.864
+          }
+        },
+        {
+          "id": "176525-1",
+          "query": "refund claim dispute",
+          "relevant": [
+            "176525.txt"
+          ],
+          "preferred_top": "176525.txt",
+          "returned": [
+            "176527.txt",
+            "179496.txt",
+            "179918.txt",
+            "180810.txt",
+            "181782.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 48.8,
+          "timing": {
+            "lexical_ms": 42.007,
+            "probe_ms": 5.092,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.0,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.003,
+            "ambiguity_ms": 0.003,
+            "total_ms": 47.129
+          }
+        },
+        {
+          "id": "176525-2",
+          "query": "refund denied because of procedure",
+          "relevant": [
+            "176525.txt"
+          ],
+          "preferred_top": "176525.txt",
+          "returned": [
+            "180810.txt",
+            "183050.txt",
+            "179915.txt",
+            "177684.txt",
+            "176766.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 113.3,
+          "timing": {
+            "lexical_ms": 106.64,
+            "probe_ms": 5.328,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.003,
+            "total_ms": 112.0
+          }
+        },
+        {
+          "id": "176525-3",
+          "query": "refund claim dispute bola surendra kamath & sons",
+          "relevant": [
+            "176525.txt"
+          ],
+          "preferred_top": "176525.txt",
+          "returned": [
+            "176525.txt",
+            "179918.txt",
+            "176527.txt",
+            "179496.txt",
+            "177584.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 149.89,
+          "timing": {
+            "lexical_ms": 142.286,
+            "probe_ms": 6.205,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.005,
+            "ambiguity_ms": 0.008,
+            "total_ms": 148.533
+          }
+        },
+        {
+          "id": "176527-1",
+          "query": "refund claim dispute",
+          "relevant": [
+            "176527.txt"
+          ],
+          "preferred_top": "176527.txt",
+          "returned": [
+            "176527.txt",
+            "179496.txt",
+            "179918.txt",
+            "180810.txt",
+            "181782.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 47.75,
+          "timing": {
+            "lexical_ms": 41.237,
+            "probe_ms": 5.12,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.003,
+            "total_ms": 46.389
+          }
+        },
+        {
+          "id": "176527-2",
+          "query": "refund denied because of procedure",
+          "relevant": [
+            "176527.txt"
+          ],
+          "preferred_top": "176527.txt",
+          "returned": [
+            "180810.txt",
+            "183050.txt",
+            "179915.txt",
+            "177684.txt",
+            "176766.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 113.0,
+          "timing": {
+            "lexical_ms": 106.097,
+            "probe_ms": 5.51,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.003,
+            "total_ms": 111.64
+          }
+        },
+        {
+          "id": "176527-3",
+          "query": "refund claim dispute commissioner of c. ex. & s.t., raipur",
+          "relevant": [
+            "176527.txt"
+          ],
+          "preferred_top": "176527.txt",
+          "returned": [
+            "176527.txt",
+            "177361.txt",
+            "182614.txt",
+            "183644.txt",
+            "179496.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 4808.08,
+          "timing": {
+            "lexical_ms": 4800.11,
+            "probe_ms": 6.278,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.025,
+            "ambiguity_ms": 0.003,
+            "total_ms": 4806.457
+          }
+        },
+        {
+          "id": "176290-1",
+          "query": "penalty dispute",
+          "relevant": [
+            "176290.txt"
+          ],
+          "preferred_top": "176290.txt",
+          "returned": [
+            "180501.txt",
+            "177144.txt",
+            "176728.txt",
+            "176589.txt",
+            "180808.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 34.4,
+          "timing": {
+            "lexical_ms": 27.487,
+            "probe_ms": 5.098,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.006,
+            "ambiguity_ms": 0.003,
+            "total_ms": 32.629
+          }
+        },
+        {
+          "id": "176290-2",
+          "query": "can penalty be set aside case",
+          "relevant": [
+            "176290.txt"
+          ],
+          "preferred_top": "176290.txt",
+          "returned": [
+            "183229.txt",
+            "180808.txt",
+            "181744.txt",
+            "176622.txt",
+            "182752.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 282.44,
+          "timing": {
+            "lexical_ms": 275.312,
+            "probe_ms": 5.568,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.005,
+            "ambiguity_ms": 0.003,
+            "total_ms": 280.919
+          }
+        },
+        {
+          "id": "176290-3",
+          "query": "penalty dispute j.k. mital",
+          "relevant": [
+            "176290.txt"
+          ],
+          "preferred_top": "176290.txt",
+          "returned": [
+            "176290.txt",
+            "180501.txt",
+            "177144.txt",
+            "176728.txt",
+            "176589.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 283.7,
+          "timing": {
+            "lexical_ms": 276.259,
+            "probe_ms": 5.915,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.003,
+            "total_ms": 282.211
+          }
+        },
+        {
+          "id": "176532-1",
+          "query": "penalty dispute",
+          "relevant": [
+            "176532.txt"
+          ],
+          "preferred_top": "176532.txt",
+          "returned": [
+            "180501.txt",
+            "177144.txt",
+            "176728.txt",
+            "176589.txt",
+            "180808.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 33.68,
+          "timing": {
+            "lexical_ms": 27.393,
+            "probe_ms": 5.023,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.002,
+            "total_ms": 32.445
+          }
+        },
+        {
+          "id": "176532-2",
+          "query": "can penalty be set aside case",
+          "relevant": [
+            "176532.txt"
+          ],
+          "preferred_top": "176532.txt",
+          "returned": [
+            "183229.txt",
+            "180808.txt",
+            "181744.txt",
+            "176622.txt",
+            "182752.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 282.81,
+          "timing": {
+            "lexical_ms": 275.84,
+            "probe_ms": 5.626,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.003,
+            "total_ms": 281.499
+          }
+        },
+        {
+          "id": "176532-3",
+          "query": "penalty dispute nuance group (india) pvt ltd",
+          "relevant": [
+            "176532.txt"
+          ],
+          "preferred_top": "176532.txt",
+          "returned": [
+            "176532.txt",
+            "176535.txt",
+            "176563.txt",
+            "180756.txt",
+            "182250.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 196.36,
+          "timing": {
+            "lexical_ms": 187.861,
+            "probe_ms": 7.033,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.006,
+            "ambiguity_ms": 0.003,
+            "total_ms": 194.931
+          }
+        },
+        {
+          "id": "176533-1",
+          "query": "penalty dispute",
+          "relevant": [
+            "176533.txt"
+          ],
+          "preferred_top": "176533.txt",
+          "returned": [
+            "180501.txt",
+            "177144.txt",
+            "176728.txt",
+            "176589.txt",
+            "180808.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 34.32,
+          "timing": {
+            "lexical_ms": 27.351,
+            "probe_ms": 5.473,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.006,
+            "ambiguity_ms": 0.003,
+            "total_ms": 32.861
+          }
+        },
+        {
+          "id": "176533-2",
+          "query": "can penalty be set aside case",
+          "relevant": [
+            "176533.txt"
+          ],
+          "preferred_top": "176533.txt",
+          "returned": [
+            "183229.txt",
+            "180808.txt",
+            "181744.txt",
+            "176622.txt",
+            "182752.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 282.78,
+          "timing": {
+            "lexical_ms": 275.614,
+            "probe_ms": 5.7,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.005,
+            "ambiguity_ms": 0.003,
+            "total_ms": 281.354
+          }
+        },
+        {
+          "id": "176533-3",
+          "query": "penalty dispute kuresh t rajkotwala",
+          "relevant": [
+            "176533.txt"
+          ],
+          "preferred_top": "176533.txt",
+          "returned": [
+            "176533.txt",
+            "180501.txt",
+            "177144.txt",
+            "176728.txt",
+            "176589.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 1890.03,
+          "timing": {
+            "lexical_ms": 1881.989,
+            "probe_ms": 6.578,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.005,
+            "ambiguity_ms": 0.003,
+            "total_ms": 1888.604
+          }
+        },
+        {
+          "id": "176528-1",
+          "query": "cenvat credit dispute",
+          "relevant": [
+            "176528.txt"
+          ],
+          "preferred_top": "176528.txt",
+          "returned": [
+            "180501.txt",
+            "185465.txt",
+            "180808.txt",
+            "182250.txt",
+            "176589.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 50.29,
+          "timing": {
+            "lexical_ms": 43.536,
+            "probe_ms": 5.286,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.016,
+            "ambiguity_ms": 0.003,
+            "total_ms": 48.867
+          }
+        },
+        {
+          "id": "176528-2",
+          "query": "input credit issue in excise or service tax",
+          "relevant": [
+            "176528.txt"
+          ],
+          "preferred_top": "176528.txt",
+          "returned": [
+            "185466.txt",
+            "177719.txt",
+            "176759.txt",
+            "178655.txt",
+            "185935.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 368.84,
+          "timing": {
+            "lexical_ms": 361.732,
+            "probe_ms": 5.644,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.003,
+            "total_ms": 367.412
+          }
+        },
+        {
+          "id": "176528-3",
+          "query": "cenvat credit dispute balkrishna industries ltd.",
+          "relevant": [
+            "176528.txt"
+          ],
+          "preferred_top": "176528.txt",
+          "returned": [
+            "176528.txt",
+            "176600.txt",
+            "176756.txt",
+            "177128.txt",
+            "181148.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 141.96,
+          "timing": {
+            "lexical_ms": 134.73,
+            "probe_ms": 5.752,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.003,
+            "total_ms": 140.516
+          }
+        },
+        {
+          "id": "176529-1",
+          "query": "cenvat credit dispute",
+          "relevant": [
+            "176529.txt"
+          ],
+          "preferred_top": "176529.txt",
+          "returned": [
+            "180501.txt",
+            "185465.txt",
+            "180808.txt",
+            "182250.txt",
+            "176589.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 49.48,
+          "timing": {
+            "lexical_ms": 42.595,
+            "probe_ms": 5.467,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.003,
+            "total_ms": 48.093
+          }
+        },
+        {
+          "id": "176529-2",
+          "query": "input credit issue in excise or service tax",
+          "relevant": [
+            "176529.txt"
+          ],
+          "preferred_top": "176529.txt",
+          "returned": [
+            "185466.txt",
+            "177719.txt",
+            "176759.txt",
+            "178655.txt",
+            "185935.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 371.46,
+          "timing": {
+            "lexical_ms": 364.381,
+            "probe_ms": 5.676,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.003,
+            "total_ms": 370.091
+          }
+        },
+        {
+          "id": "176529-3",
+          "query": "cenvat credit dispute time technoplast ltd.",
+          "relevant": [
+            "176529.txt"
+          ],
+          "preferred_top": "176529.txt",
+          "returned": [
+            "176529.txt",
+            "177854.txt",
+            "176737.txt",
+            "185465.txt",
+            "180501.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 170.48,
+          "timing": {
+            "lexical_ms": 163.034,
+            "probe_ms": 6.016,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.003,
+            "total_ms": 169.083
+          }
+        },
+        {
+          "id": "176567-1",
+          "query": "service tax demand dispute",
+          "relevant": [
+            "176567.txt"
+          ],
+          "preferred_top": "176567.txt",
+          "returned": [
+            "182613.txt",
+            "183449.txt",
+            "183640.txt",
+            "180535.txt",
+            "181607.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 95.95,
+          "timing": {
+            "lexical_ms": 88.591,
+            "probe_ms": 5.538,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.003,
+            "total_ms": 94.163
+          }
+        },
+        {
+          "id": "176567-2",
+          "query": "taxable service issue case",
+          "relevant": [
+            "176567.txt"
+          ],
+          "preferred_top": "176567.txt",
+          "returned": [
+            "184771.txt",
+            "182751.txt",
+            "176781.txt",
+            "186011.txt",
+            "176767.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 119.85,
+          "timing": {
+            "lexical_ms": 113.086,
+            "probe_ms": 5.291,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.007,
+            "ambiguity_ms": 0.002,
+            "total_ms": 118.414
+          }
+        },
+        {
+          "id": "176567-3",
+          "query": "service tax demand dispute barbrik project ltd. & bajrang lal agarwal",
+          "relevant": [
+            "176567.txt"
+          ],
+          "preferred_top": "176567.txt",
+          "returned": [
+            "176567.txt",
+            "183364.txt",
+            "180945.txt",
+            "176622.txt",
+            "183363.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 287.16,
+          "timing": {
+            "lexical_ms": 278.749,
+            "probe_ms": 6.831,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.003,
+            "total_ms": 285.622
+          }
+        },
+        {
+          "id": "176520-1",
+          "query": "customs dispute case",
+          "relevant": [
+            "176520.txt"
+          ],
+          "preferred_top": "176520.txt",
+          "returned": [
+            "180251.txt",
+            "176603.txt",
+            "183449.txt",
+            "182311.txt",
+            "185465.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 116.72,
+          "timing": {
+            "lexical_ms": 109.914,
+            "probe_ms": 5.374,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.003,
+            "total_ms": 115.321
+          }
+        },
+        {
+          "id": "176520-2",
+          "query": "import duty or customs issue",
+          "relevant": [
+            "176520.txt"
+          ],
+          "preferred_top": "176520.txt",
+          "returned": [
+            "178095.txt",
+            "176535.txt",
+            "179918.txt",
+            "182598.txt",
+            "176533.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 126.15,
+          "timing": {
+            "lexical_ms": 120.296,
+            "probe_ms": 4.54,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.003,
+            "total_ms": 124.868
+          }
+        },
+        {
+          "id": "176520-3",
+          "query": "customs dispute case m/s. vatan textiles ltd.",
+          "relevant": [
+            "176520.txt"
+          ],
+          "preferred_top": "176520.txt",
+          "returned": [
+            "176520.txt",
+            "177987.txt",
+            "176720.txt",
+            "176778.txt",
+            "180251.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 2364.13,
+          "timing": {
+            "lexical_ms": 2355.636,
+            "probe_ms": 6.894,
+            "retrieval_ms": 0.002,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.006,
+            "ambiguity_ms": 0.004,
+            "total_ms": 2362.572
+          }
+        },
+        {
+          "id": "176521-1",
+          "query": "customs dispute case",
+          "relevant": [
+            "176521.txt"
+          ],
+          "preferred_top": "176521.txt",
+          "returned": [
+            "180251.txt",
+            "176603.txt",
+            "183449.txt",
+            "182311.txt",
+            "185465.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 119.68,
+          "timing": {
+            "lexical_ms": 112.64,
+            "probe_ms": 5.492,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.003,
+            "total_ms": 118.172
+          }
+        },
+        {
+          "id": "176521-2",
+          "query": "import duty or customs issue",
+          "relevant": [
+            "176521.txt"
+          ],
+          "preferred_top": "176521.txt",
+          "returned": [
+            "178095.txt",
+            "176535.txt",
+            "179918.txt",
+            "182598.txt",
+            "176533.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 130.03,
+          "timing": {
+            "lexical_ms": 123.982,
+            "probe_ms": 4.588,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.003,
+            "ambiguity_ms": 0.003,
+            "total_ms": 128.606
+          }
+        },
+        {
+          "id": "176521-3",
+          "query": "customs dispute case g & s international",
+          "relevant": [
+            "176521.txt"
+          ],
+          "preferred_top": "176521.txt",
+          "returned": [
+            "180059.txt",
+            "176594.txt",
+            "180535.txt",
+            "176521.txt",
+            "179801.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.25,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 0.4307,
+          "latency_ms": 2731.05,
+          "timing": {
+            "lexical_ms": 2723.758,
+            "probe_ms": 5.791,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.003,
+            "total_ms": 2729.586
+          }
+        },
+        {
+          "id": "176522-1",
+          "query": "customs dispute case",
+          "relevant": [
+            "176522.txt"
+          ],
+          "preferred_top": "176522.txt",
+          "returned": [
+            "180251.txt",
+            "176603.txt",
+            "183449.txt",
+            "182311.txt",
+            "185465.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 118.72,
+          "timing": {
+            "lexical_ms": 111.825,
+            "probe_ms": 5.423,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.003,
+            "total_ms": 117.281
+          }
+        },
+        {
+          "id": "176522-2",
+          "query": "import duty or customs issue",
+          "relevant": [
+            "176522.txt"
+          ],
+          "preferred_top": "176522.txt",
+          "returned": [
+            "178095.txt",
+            "176535.txt",
+            "179918.txt",
+            "182598.txt",
+            "176533.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 126.63,
+          "timing": {
+            "lexical_ms": 120.317,
+            "probe_ms": 4.702,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.005,
+            "ambiguity_ms": 0.003,
+            "total_ms": 125.059
+          }
+        },
+        {
+          "id": "176522-3",
+          "query": "customs dispute case commissioner of customs (imports) , nhava shva",
+          "relevant": [
+            "176522.txt"
+          ],
+          "preferred_top": "176522.txt",
+          "returned": [
+            "176522.txt",
+            "178093.txt",
+            "179492.txt",
+            "176628.txt",
+            "176619.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 437.66,
+          "timing": {
+            "lexical_ms": 430.491,
+            "probe_ms": 5.657,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.003,
+            "total_ms": 436.188
+          }
+        },
+        {
+          "id": "176318-1",
+          "query": "income tax appeal case",
+          "relevant": [
+            "176318.txt"
+          ],
+          "preferred_top": "176318.txt",
+          "returned": [
+            "178635.txt",
+            "184983.txt",
+            "182155.txt",
+            "176586.txt",
+            "176982.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 55.99,
+          "timing": {
+            "lexical_ms": 50.354,
+            "probe_ms": 4.255,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.003,
+            "total_ms": 54.641
+          }
+        },
+        {
+          "id": "176318-2",
+          "query": "tax addition disallowance dispute",
+          "relevant": [
+            "176318.txt"
+          ],
+          "preferred_top": "176318.txt",
+          "returned": [
+            "180341.txt",
+            "177324.txt",
+            "178208.txt",
+            "176531.txt",
+            "177146.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 127.82,
+          "timing": {
+            "lexical_ms": 120.184,
+            "probe_ms": 6.158,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.003,
+            "ambiguity_ms": 0.003,
+            "total_ms": 126.375
+          }
+        },
+        {
+          "id": "176318-3",
+          "query": "income tax appeal case bharat jayantilal patel",
+          "relevant": [
+            "176318.txt"
+          ],
+          "preferred_top": "176318.txt",
+          "returned": [
+            "176318.txt",
+            "176680.txt",
+            "180944.txt",
+            "177724.txt",
+            "195726.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 269.49,
+          "timing": {
+            "lexical_ms": 261.92,
+            "probe_ms": 6.086,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.003,
+            "total_ms": 268.043
+          }
+        },
+        {
+          "id": "176319-1",
+          "query": "income tax appeal case",
+          "relevant": [
+            "176319.txt"
+          ],
+          "preferred_top": "176319.txt",
+          "returned": [
+            "178635.txt",
+            "184983.txt",
+            "182155.txt",
+            "176586.txt",
+            "176982.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 57.78,
+          "timing": {
+            "lexical_ms": 52.1,
+            "probe_ms": 4.292,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.003,
+            "total_ms": 56.423
+          }
+        },
+        {
+          "id": "176319-2",
+          "query": "tax addition disallowance dispute",
+          "relevant": [
+            "176319.txt"
+          ],
+          "preferred_top": "176319.txt",
+          "returned": [
+            "180341.txt",
+            "177324.txt",
+            "178208.txt",
+            "176531.txt",
+            "177146.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 127.04,
+          "timing": {
+            "lexical_ms": 119.579,
+            "probe_ms": 6.02,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.003,
+            "ambiguity_ms": 0.002,
+            "total_ms": 125.631
+          }
+        },
+        {
+          "id": "176319-3",
+          "query": "income tax appeal case m/s. shoreline hotel pvt. ltd.",
+          "relevant": [
+            "176319.txt"
+          ],
+          "preferred_top": "176319.txt",
+          "returned": [
+            "176319.txt",
+            "179013.txt",
+            "179921.txt",
+            "177744.txt",
+            "177745.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 2509.53,
+          "timing": {
+            "lexical_ms": 2502.745,
+            "probe_ms": 5.264,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.003,
+            "ambiguity_ms": 0.003,
+            "total_ms": 2508.044
+          }
+        },
+        {
+          "id": "176530-1",
+          "query": "income tax appeal case",
+          "relevant": [
+            "176530.txt"
+          ],
+          "preferred_top": "176530.txt",
+          "returned": [
+            "178635.txt",
+            "184983.txt",
+            "182155.txt",
+            "176586.txt",
+            "176982.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 56.07,
+          "timing": {
+            "lexical_ms": 50.544,
+            "probe_ms": 4.188,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.003,
+            "total_ms": 54.761
+          }
+        },
+        {
+          "id": "176530-2",
+          "query": "tax addition disallowance dispute",
+          "relevant": [
+            "176530.txt"
+          ],
+          "preferred_top": "176530.txt",
+          "returned": [
+            "180341.txt",
+            "177324.txt",
+            "178208.txt",
+            "176531.txt",
+            "177146.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 125.65,
+          "timing": {
+            "lexical_ms": 118.246,
+            "probe_ms": 6.041,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.003,
+            "total_ms": 124.317
+          }
+        },
+        {
+          "id": "176530-3",
+          "query": "income tax appeal case visual graphics computing services india p. ltd.",
+          "relevant": [
+            "176530.txt"
+          ],
+          "preferred_top": "176530.txt",
+          "returned": [
+            "176530.txt",
+            "176564.txt",
+            "177063.txt",
+            "176577.txt",
+            "177452.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 1488.48,
+          "timing": {
+            "lexical_ms": 1480.553,
+            "probe_ms": 6.518,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.003,
+            "total_ms": 1487.107
+          }
+        },
+        {
+          "id": "176531-1",
+          "query": "income tax appeal case",
+          "relevant": [
+            "176531.txt"
+          ],
+          "preferred_top": "176531.txt",
+          "returned": [
+            "178635.txt",
+            "184983.txt",
+            "182155.txt",
+            "176586.txt",
+            "176982.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.0,
+          "recall_at_k": 0.0,
+          "ndcg_at_k": 0.0,
+          "latency_ms": 55.83,
+          "timing": {
+            "lexical_ms": 50.197,
+            "probe_ms": 4.273,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.003,
+            "total_ms": 54.503
+          }
+        },
+        {
+          "id": "176531-2",
+          "query": "tax addition disallowance dispute",
+          "relevant": [
+            "176531.txt"
+          ],
+          "preferred_top": "176531.txt",
+          "returned": [
+            "180341.txt",
+            "177324.txt",
+            "178208.txt",
+            "176531.txt",
+            "177146.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.25,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 0.4307,
+          "latency_ms": 126.1,
+          "timing": {
+            "lexical_ms": 118.703,
+            "probe_ms": 6.004,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.003,
+            "total_ms": 124.74
+          }
+        },
+        {
+          "id": "176531-3",
+          "query": "income tax appeal case deputy commissioner of income-tax",
+          "relevant": [
+            "176531.txt"
+          ],
+          "preferred_top": "176531.txt",
+          "returned": [
+            "176683.txt",
+            "177065.txt",
+            "176531.txt",
+            "179013.txt",
+            "177453.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.3333,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 0.5,
+          "latency_ms": 418.6,
+          "timing": {
+            "lexical_ms": 411.169,
+            "probe_ms": 6.032,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.004,
+            "ambiguity_ms": 0.003,
+            "total_ms": 417.234
+          }
+        }
+      ]
+    }
+  ]
+}

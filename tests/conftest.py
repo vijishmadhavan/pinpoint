@@ -53,8 +53,11 @@ def client(test_db):
         patch.object(api.helpers, "DB_PATH", db_path),
         patch("api.search.DB_PATH", db_path),
         patch("search.DB_PATH", db_path),
+        patch("search_pipeline.DB_PATH", db_path),
         patch("database.DB_PATH", db_path),
         patch.object(api, "API_SECRET", ""),
+        patch("api.files.scan_paths_background", lambda: None),  # Prevent WSL filesystem hang
+        patch("api.files._get_common_folders", lambda: []),  # Belt-and-suspenders
     ):
         from api import app
 

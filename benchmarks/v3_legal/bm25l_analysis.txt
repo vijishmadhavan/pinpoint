@@ -1,0 +1,70 @@
+BM25L vs FTS5 on v3 legal subset
+Date: 2026-03-15
+Dataset: benchmarks/v3_legal/expanded_queries.json
+Corpus: benchmarks/v3_legal/subset_corpus (500 files)
+Report: benchmarks/v3_legal/bm25l_report.json
+
+Headline:
+- FTS5 remains best for top-1 precision.
+- BM25L improves recall and slightly improves NDCG, but hurts success@1.
+- FTS + BM25L RRF is the best overall lexical blend so far, but it still does not beat FTS5 on top-1.
+
+Metrics:
+- fts_only: s@1 0.3067, MRR 0.3438, Recall@5 0.4133, NDCG 0.3611, 496.05 ms
+- bm25l_only: s@1 0.2667, MRR 0.3313, Recall@5 0.4533, NDCG 0.3614, 0.04 ms
+- fts_bm25l_rrf: s@1 0.2933, MRR 0.3449, Recall@5 0.4400, NDCG 0.3684, 495.18 ms
+
+Interpretation:
+- BM25L is a better secondary lexical signal than a primary replacement.
+- BM25L helps surface additional relevant documents, but it also displaces some strong FTS top hits.
+- RRF fusion recovers some of the BM25L recall gain while preserving most of FTS5's ranking quality.
+
+Where BM25L helped:
+- Cenvat credit disputes with commissioner/location detail.
+- Some customs-dispute lookups.
+- Some generic tax addition/disallowance queries where FTS5 scattered across similar tax cases.
+
+Where BM25L hurt:
+- Bail/FEMA/PMLA lookups where FTS5 already had a precise title/party match.
+- Refund claim disputes with strong exact lexical anchors.
+- Some income-tax appeal queries with specific party/office phrasing.
+- Section 138 / cheque dishonour remains highly ambiguous for both rankers because many cases share nearly identical wording.
+
+Query-level examples:
+- Better with BM25L:
+  - 176524-3: "cenvat credit dispute commissioner of c. ex., cus. & s.t., tirupati"
+    - FTS RR: 0.3333
+    - BM25L RR: 1.0
+  - 176521-3: "customs dispute case g & s international"
+    - FTS RR: 0.25
+    - BM25L RR: 0.3333
+- Worse with BM25L:
+  - 176295-3: "regular bail pmla case rakesh manekchand kothari"
+    - FTS RR: 1.0
+    - BM25L RR: 0.5
+  - 176527-1: "refund claim dispute"
+    - FTS RR: 1.0
+    - BM25L RR: 0.5
+  - 176531-3: "income tax appeal case deputy commissioner of income-tax"
+    - FTS RR: 1.0
+    - BM25L RR: 0.2
+
+Per-topic top-1 pattern:
+- Section 138: tie on success@1 between FTS5, BM25L, and fusion.
+- Bail: FTS5 better than BM25L; fusion falls back to FTS-level.
+- Cenvat credit: BM25L better than FTS5.
+- Refund: FTS5 better than BM25L; fusion falls back to FTS-level.
+- Customs: tie on success@1, BM25L sometimes helps rank relevant docs slightly higher.
+- Income tax: FTS5 better than BM25L.
+
+Decision:
+- Do not replace FTS5 with BM25L.
+- If BM25L is used, use it as a secondary lexical ranker or recall augmenter.
+- Do not add BM25L to the production app yet without a cleaner retrieval path and a more representative mixed-domain benchmark.
+
+Best next step:
+- Inspect a larger sample of FTS vs BM25L disagreements.
+- If the disagreements consistently help in non-legal corpora too, consider an optional lexical fusion mode:
+  - FTS5 first for top precision
+  - BM25L as secondary candidate source
+  - RRF only when the FTS result set is weak

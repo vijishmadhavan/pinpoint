@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 import shutil
 import sqlite3
+from types import SimpleNamespace
+from unittest.mock import patch
 
 
 class TestListFiles:
@@ -61,6 +63,13 @@ class TestFileInfo:
 
 
 class TestReadFile:
+    def test_read_file_triggers_background_index_for_text(self, client, sample_folder):
+        path = str(sample_folder / "hello.txt")
+        with patch("api.files._background_index") as background_index:
+            r = client.post("/read_file", json={"path": path})
+        assert r.status_code == 200
+        background_index.assert_called_once_with(path)
+
     def test_read_text_file(self, client, sample_folder):
         path = str(sample_folder / "hello.txt")
         r = client.post("/read_file", json={"path": path})
@@ -227,6 +236,216 @@ class TestMoveUpdatesPathTables:
             "SELECT path FROM documents WHERE path = ?", (src,)
         ).fetchone()
         assert old is None
+
+    def test_move_updates_generated_files_and_known_faces(self, client, test_db, sample_folder):
+        src = str(sample_folder / "hello.txt")
+        dest = str(sample_folder / "hello_moved.txt")
+        test_db.execute(
+            "INSERT INTO generated_files(path, tool_name, description, created_at) VALUES (?, 'tool', '', '2024-01-01')",
+            (src,),
+        )
+        test_db.execute(
+            "INSERT INTO known_faces(name, embedding, source_image, created_at) VALUES ('alice', X'00', ?, '2024-01-01')",
+            (src,),
+        )
+        test_db.commit()
+        r = client.post("/move_file", json={"source": src, "destination": dest})
+        assert r.status_code == 200
+        assert test_db.execute("SELECT path FROM generated_files WHERE path = ?", (dest,)).fetchone() is not None
+        assert test_db.execute(
+            "SELECT source_image FROM known_faces WHERE source_image = ?",
+            (dest,),
+        ).fetchone() is not None
+
+
+class TestWatchFolders:
+    def test_watch_and_unwatch_folder(self, client, sample_folder):
+        folder = str(sample_folder)
+        r = client.post("/watch-folder", json={"path": folder})
+        assert r.status_code == 200
+        assert r.json()["status"] in {"watching", "already_watching"}
+
+        listed = client.get("/watched-folders")
+        assert listed.status_code == 200
+        assert any(item["path"] == folder for item in listed.json()["folders"])
+
+        r = client.post("/unwatch-folder", json={"path": folder})
+        assert r.status_code == 200
+        assert r.json()["status"] in {"unwatched", "not_found"}
+
+    def test_unwatch_folder_checks_safe_path(self, client):
+        r = client.post("/unwatch-folder", json={"path": "/etc"})
+        assert r.status_code == 403
+
+    def test_unwatch_folder_requests_watch_job_cancellation(self, client, test_db, sample_folder):
+        from datetime import UTC, datetime
+
+        folder = str(sample_folder)
+        test_db.execute(
+            "INSERT INTO watched_folders(path, added_at) VALUES (?, ?)",
+            (folder, datetime.now(UTC).isoformat()),
+        )
+        test_db.execute(
+            """
+            INSERT INTO background_jobs(
+                job_type, target_path, target_hash, status, current_stage,
+                total_items, completed_items, details_json,
+                started_at, finished_at, created_at, updated_at, failure_reason, retry_count
+            ) VALUES (?, ?, '', 'running', 'walking', 5, 2, ?, ?, NULL, ?, ?, '', 0)
+            """,
+            (
+                "watch_initial_index",
+                folder,
+                '{"folder": "sample", "discovered": 5}',
+                datetime.now(UTC).isoformat(),
+                datetime.now(UTC).isoformat(),
+                datetime.now(UTC).isoformat(),
+            ),
+        )
+        test_db.commit()
+
+        r = client.post("/unwatch-folder", json={"path": folder})
+        assert r.status_code == 200
+        row = test_db.execute(
+            "SELECT status FROM background_jobs WHERE job_type = ? AND target_path = ? ORDER BY id DESC LIMIT 1",
+            ("watch_initial_index", folder),
+        ).fetchone()
+        assert row is not None
+        assert row["status"] == "cancelling"
+
+
+class TestBackgroundJobsApi:
+    def test_list_background_jobs(self, client, test_db):
+        from datetime import UTC, datetime
+
+        now = datetime.now(UTC).isoformat()
+        test_db.execute(
+            """
+            INSERT INTO background_jobs(
+                job_type, target_path, target_hash, status, current_stage,
+                total_items, completed_items, details_json,
+                started_at, finished_at, created_at, updated_at, failure_reason, retry_count
+            ) VALUES (?, '', '', 'pending', 'queued', 10, 3, ?, NULL, NULL, ?, ?, '', 0)
+            """,
+            ("auto_index_file", '{"path": "/tmp/demo.txt"}', now, now),
+        )
+        test_db.commit()
+
+        r = client.get("/background-jobs")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["count"] >= 1
+        job = next(job for job in data["jobs"] if job["job_type"] == "auto_index_file")
+        assert job["total_items"] == 10
+        assert job["completed_items"] == 3
+        assert job["details"]["path"] == "/tmp/demo.txt"
+
+    def test_cancel_background_job(self, client, test_db):
+        from datetime import UTC, datetime
+
+        now = datetime.now(UTC).isoformat()
+        cur = test_db.execute(
+            """
+            INSERT INTO background_jobs(
+                job_type, target_path, target_hash, status, current_stage,
+                total_items, completed_items, details_json,
+                started_at, finished_at, created_at, updated_at, failure_reason, retry_count
+            ) VALUES (?, '', '', 'running', 'indexing', 4, 1, '', ?, NULL, ?, ?, '', 0)
+            """,
+            ("auto_index_file", now, now, now),
+        )
+        test_db.commit()
+
+        r = client.post(f"/background-jobs/{cur.lastrowid}/cancel")
+        assert r.status_code == 200
+        row = test_db.execute("SELECT status FROM background_jobs WHERE id = ?", (cur.lastrowid,)).fetchone()
+        assert row is not None
+        assert row["status"] == "cancelling"
+
+
+class TestBackgroundIndexing:
+    def test_background_index_dedupes_same_path_submission(self, sample_folder):
+        from api.helpers import _AUTO_INDEX_IN_FLIGHT, _background_index
+
+        path = str(sample_folder / "hello.txt")
+        submitted = []
+
+        def fake_submit(fn):
+            submitted.append(fn)
+            return SimpleNamespace()
+
+        _AUTO_INDEX_IN_FLIGHT.clear()
+        with patch("api.helpers._AUTO_INDEX_EXECUTOR.submit", side_effect=fake_submit):
+            _background_index(path)
+            _background_index(path)
+
+        assert len(submitted) == 1
+        _AUTO_INDEX_IN_FLIGHT.clear()
+
+    def test_background_index_honors_pre_start_cancellation(self, sample_folder):
+        from api.helpers import _AUTO_INDEX_IN_FLIGHT, _background_index
+
+        path = str(sample_folder / "hello.txt")
+        submitted = []
+
+        def fake_submit(fn):
+            submitted.append(fn)
+            fn()
+            return SimpleNamespace()
+
+        _AUTO_INDEX_IN_FLIGHT.clear()
+        with (
+            patch("api.helpers.init_db", return_value=SimpleNamespace(close=lambda: None)),
+            patch("api.helpers._AUTO_INDEX_EXECUTOR.submit", side_effect=fake_submit),
+            patch("api.helpers.get_or_create_job", return_value=(99, True)),
+            patch("api.helpers.is_job_cancelling", return_value=True),
+            patch("api.helpers.mark_job_cancelled") as cancelled,
+            patch("api.helpers.mark_job_running") as running,
+            patch("api.helpers.index_single_file") as index_single_file,
+        ):
+            _background_index(path)
+
+        assert len(submitted) == 1
+        cancelled.assert_called_once()
+        running.assert_not_called()
+        index_single_file.assert_not_called()
+        _AUTO_INDEX_IN_FLIGHT.clear()
+
+    def test_auto_index_docs_logs_partial_failures(self):
+        from api import files as api_files
+
+        conn = object()
+        paths = ["/tmp/one.txt", "/tmp/two.txt", "/tmp/three.txt"]
+        side_effects = [
+            {"status": "indexed"},
+            RuntimeError("boom"),
+            {"status": "skipped", "reason": "unchanged"},
+        ]
+
+        def fake_index_single_file(*args, **kwargs):
+            result = side_effects.pop(0)
+            if isinstance(result, Exception):
+                raise result
+            return result
+
+        api_files._scan_status["indexed"] = 0
+        with (
+            patch("api.files.index_single_file", side_effect=fake_index_single_file),
+            patch("api.files.get_or_create_job", return_value=("fake-job-id", True)),
+            patch("api.files.mark_job_running", return_value=None),
+            patch("api.files.mark_job_completed", return_value=None),
+            patch("api.files.mark_job_failed", return_value=None),
+            patch("api.files.update_job_progress", return_value=None),
+            patch("api.files.logger.info") as info_log,
+            patch("api.files.logger.warning") as warning_log,
+            patch("api.files.logger.exception") as exception_log,
+        ):
+            api_files._auto_index_docs(conn, paths)
+
+        assert api_files._scan_status["indexed"] == 1
+        info_log.assert_called_once()
+        warning_log.assert_called_once()
+        exception_log.assert_called_once()
 
 
 class TestSecurity:

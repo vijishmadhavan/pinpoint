@@ -1,0 +1,49 @@
+Benchmark V3 Legal Workflow
+
+Corpus
+- Source: real legal text corpus
+- Path example: /mnt/c/Users/Vijish/Desktop/New folder (2)
+- Size observed: ~10.7k txt files
+
+Why this corpus is useful
+- Large enough to create ranking noise
+- Heavy topic overlap across tax, excise, customs, service tax
+- Many cases share legal boilerplate and party/court formatting
+- Good environment to test lexical vs semantic retrieval under ambiguity
+
+Builder
+- Run:
+  python build_legal_benchmark_v3.py --corpus "/mnt/c/Users/Vijish/Desktop/New folder (2)" --out-dir benchmarks/v3_legal
+
+Outputs
+- benchmarks/v3_legal/manifest.jsonl
+- benchmarks/v3_legal/summary.json
+- benchmarks/v3_legal/starter_queries.json
+
+What to do next
+1. Review starter_queries.json
+2. Add real hard queries in 4 buckets:
+   - party lookup
+   - legal issue lookup
+   - paraphrase lookup
+   - ranking-sensitive ambiguity
+3. For each query, set:
+   - relevant
+   - preferred_top if order matters
+
+Recommended hard query types
+- "cheque bounce complaint limitation" -> Section 138 cases
+- "unpaid tax penalty can be waived" -> penalty disputes
+- "credit on input services for factory" -> cenvat / service tax overlap
+- "refund denied because of procedural lapse" -> refund cases
+- "regular bail in enforcement matter" -> PMLA/FEMA/customs overlap
+
+Evaluation advice
+- First run: FTS only
+- Second run: FTS + expansion
+- Third run: FTS + embeddings
+- Fourth run: full pipeline
+- Compare success@1, recall@k, ndcg, latency
+
+Decision rule
+- Keep heavy stages only if they win enough on this corpus to justify latency and cost.

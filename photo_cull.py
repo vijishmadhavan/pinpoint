@@ -1202,10 +1202,15 @@ def group_photos(folder: str, categories: list[str], uncategorized_folder: str |
                 best_idx = int(np.argmax(similarities))
                 best_cat = categories[best_idx]
 
-                mtime = os.path.getmtime(fpath)
-                _save_classification(fpath, mtime, best_cat)
-                classified.append({"path": fpath, "category": best_cat, "cached": False})
-                progress["classified"] += 1
+                try:
+                    mtime = os.path.getmtime(fpath)
+                    _save_classification(fpath, mtime, best_cat)
+                    classified.append({"path": fpath, "category": best_cat, "cached": False})
+                except OSError as e:
+                    print(f"[Group] File unavailable during classification: {os.path.basename(fpath)}: {e}")
+                    progress["errors"] += 1
+                finally:
+                    progress["classified"] += 1
 
         if not classified:
             progress["status"] = "error"

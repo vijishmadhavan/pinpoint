@@ -25,6 +25,7 @@ openclaw-main/
 opencode-main/
 qmd-main/
 supermemory/
+bm25s/
 
 # Test files/data (root-level ad-hoc scripts, not tests/ directory)
 test_data/
@@ -39,6 +40,17 @@ build_plan.md
 
 # Legacy docs
 PINPOINT_IDEA.txt
+
+# Internal planning/review docs
+app rating.txt
+my findings.txt
+engineering maturity*.txt
+engineering phases*.txt
+logic fixes*.txt
+AUDIT_ISSUES.txt
+AUDIT_V2.txt
+AUDIT_V3.txt
+CHANGELOG.md
 
 # Claude Code session data
 .claude/

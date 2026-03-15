@@ -2,14 +2,28 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import sqlite3
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
 from fastapi import HTTPException
 
 from database import DB_PATH, init_db
+from indexing_service import index_single_file
+from job_service import (
+    get_or_create_job,
+    is_job_cancelling,
+    mark_job_cancelled,
+    mark_job_completed,
+    mark_job_failed,
+    mark_job_running,
+    update_job_stage,
+)
+
+logger = logging.getLogger(__name__)
 
 # --- Thread-local DB connections ---
 _local = threading.local()
@@ -47,8 +61,8 @@ def _get_conn() -> sqlite3.Connection:
                         )""")
                         conn.commit()
                     _migrations_done = True
-                except Exception as e:
-                    print(f"[Migration] Failed: {e}")
+                except Exception:
+                    logger.exception("db_helper_migration_failed")
     return conn
 
 
@@ -65,7 +79,7 @@ def record_generated_file(path: str, tool_name: str, description: str = "") -> N
         )
         conn.commit()
     except Exception:
-        pass  # best-effort — don't break the tool
+        logger.exception("record_generated_file_failed", extra={"path": path, "tool_name": tool_name})
 
 
 # --- Formatting helpers ---
@@ -199,6 +213,72 @@ EXCEL_EXTS = {".xlsx", ".xlsm"}
 
 MAX_READ_SIZE = 10 * 1024 * 1024  # 10 MB max
 MAX_TEXT_CHARS = 8000  # truncate text for Gemini context
+_AUTO_INDEX_EXECUTOR = ThreadPoolExecutor(max_workers=4, thread_name_prefix="auto-index")
+_AUTO_INDEX_IN_FLIGHT: set[str] = set()
+_AUTO_INDEX_LOCK = threading.Lock()
+
+
+def _background_index(path: str) -> None:
+    """Fire-and-forget: index + chunk + embed a file in a background thread.
+    Skips if already indexed and unchanged (mtime check). Best-effort."""
+    abs_path = os.path.abspath(path)
+    conn = init_db(DB_PATH)
+    try:
+        job_id, created = get_or_create_job(conn, "auto_index_file", target_path=abs_path, current_stage="queued")
+    finally:
+        conn.close()
+    if not created:
+        return
+
+    with _AUTO_INDEX_LOCK:
+        if abs_path in _AUTO_INDEX_IN_FLIGHT:
+            return
+        _AUTO_INDEX_IN_FLIGHT.add(abs_path)
+
+    def _do_index():
+        job_conn = init_db(DB_PATH)
+        try:
+            if is_job_cancelling(job_conn, job_id):
+                mark_job_cancelled(job_conn, job_id)
+                return
+            mark_job_running(job_conn, job_id, current_stage="indexing")
+            outcome = index_single_file(job_conn, abs_path, skip_unchanged=True, facts_enabled=False)
+            if is_job_cancelling(job_conn, job_id):
+                mark_job_cancelled(job_conn, job_id)
+                logger.info("background_index_cancelled", extra={"path": abs_path})
+                return
+            if outcome["status"] == "skipped":
+                mark_job_completed(job_conn, job_id, current_stage=f"skipped:{outcome.get('reason', 'unknown')}")
+                logger.info(
+                    "background_index_skipped",
+                    extra={"path": abs_path, "reason": outcome.get("reason", "unknown")},
+                )
+                return
+            if outcome["status"] != "indexed":
+                mark_job_failed(job_conn, job_id, f"unexpected status: {outcome['status']}", current_stage="failed")
+                logger.warning("background_index_unknown_status", extra={"path": abs_path, "status": outcome["status"]})
+                return
+            update_job_stage(job_conn, job_id, "embedding")
+            mark_job_completed(job_conn, job_id, current_stage="completed")
+            logger.info(
+                "background_index_completed",
+                extra={"path": abs_path, "chunks": outcome["chunks"], "embedded_chunks": outcome["embedded_chunks"]},
+            )
+        except Exception as exc:
+            try:
+                mark_job_failed(job_conn, job_id, str(exc), current_stage="failed")
+            except Exception:
+                logger.info(
+                    "background_index_job_update_failed",
+                    extra={"path": abs_path, "job_id": job_id},
+                )
+            logger.exception("background_index_failed", extra={"path": abs_path})
+        finally:
+            job_conn.close()
+            with _AUTO_INDEX_LOCK:
+                _AUTO_INDEX_IN_FLIGHT.discard(abs_path)
+
+    _AUTO_INDEX_EXECUTOR.submit(_do_index)
 
 
 def _get_images_in_folder(folder: str) -> list[str]:

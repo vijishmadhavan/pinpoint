@@ -1,0 +1,80 @@
+{
+  "subset_limit": 500,
+  "selected_files": 500,
+  "law_areas": [
+    [
+      "Income Tax",
+      166
+    ],
+    [
+      "Central Excise",
+      110
+    ],
+    [
+      "Customs",
+      103
+    ],
+    [
+      "Service Tax",
+      75
+    ],
+    [
+      "Indian Laws",
+      20
+    ],
+    [
+      "CST, VAT & Sales Tax",
+      15
+    ],
+    [
+      "PMLA",
+      7
+    ],
+    [
+      "Corporate Laws",
+      3
+    ],
+    [
+      "FEMA",
+      1
+    ]
+  ],
+  "topics": [
+    [
+      "income tax",
+      169
+    ],
+    [
+      "customs",
+      151
+    ],
+    [
+      "service tax",
+      125
+    ],
+    [
+      "penalty",
+      100
+    ],
+    [
+      "cenvat",
+      97
+    ],
+    [
+      "refund",
+      66
+    ],
+    [
+      "bail",
+      19
+    ],
+    [
+      "section 138",
+      16
+    ],
+    [
+      "classification",
+      13
+    ]
+  ]
+}

@@ -121,6 +121,57 @@ class TestSearchImagesVisual:
             r = client.post("/search-images-visual", json={"folder": folder, "query": "sunset"})
         assert r.status_code == 200
 
+    def test_search_images_visual_large_embedding_job_returns_job_id(self, client, tmp_path):
+        folder = str(tmp_path)
+        files = [f"/tmp/img_{i}.jpg" for i in range(60)]
+        with (
+            patch("image_search._get_image_files", return_value=files),
+            patch("image_search._load_cached_embeddings", return_value=[]),
+            patch("api.media.get_or_create_job", return_value=(456, True)),
+            patch("api.media.threading.Thread") as thread_cls,
+        ):
+            r = client.post("/search-images-visual", json={"folder": folder, "query": "sunset"})
+        assert r.status_code == 200
+        data = r.json()
+        assert data["status"] == "embedding"
+        assert data["job_id"] == 456
+        thread_cls.assert_called_once()
+
+    def test_search_images_visual_marks_cancelled_job(self, client, tmp_path):
+        class ImmediateThread:
+            def __init__(self, target=None, daemon=None):
+                self._target = target
+
+            def start(self):
+                if self._target:
+                    self._target()
+
+        folder = str(tmp_path)
+        files = [f"/tmp/img_{i}.jpg" for i in range(60)]
+
+        def fake_embed_images(_folder, progress_callback=None):
+            assert progress_callback is not None
+            progress_callback(1, 60)
+            return {}
+
+        with (
+            patch("image_search._get_image_files", return_value=files),
+            patch("image_search._load_cached_embeddings", return_value=[]),
+            patch("api.media.get_or_create_job", return_value=(456, True)),
+            patch("api.media.threading.Thread", ImmediateThread),
+            patch("api.media.is_job_cancelling", side_effect=[False, True]),
+            patch("api.media.update_job_progress"),
+            patch("api.media.mark_job_running"),
+            patch("api.media.mark_job_cancelled") as cancelled,
+            patch("api.media.mark_job_completed"),
+            patch("image_search.embed_images", side_effect=fake_embed_images),
+        ):
+            r = client.post("/search-images-visual", json={"folder": folder, "query": "sunset"})
+
+        assert r.status_code == 200
+        assert r.json()["job_id"] == 456
+        cancelled.assert_called_once()
+
     def test_search_images_visual_no_folder(self, client):
         r = client.post("/search-images-visual", json={"query": "sunset"})
         assert r.status_code == 422

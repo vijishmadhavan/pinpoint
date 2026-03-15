@@ -1,0 +1,1051 @@
+{
+  "dataset": {
+    "name": "pinpoint-search-relevance-v2",
+    "path": "benchmarks/search_relevance_v2.json",
+    "version": 1
+  },
+  "corpus": "benchmarks/corpus_v2",
+  "limit": 5,
+  "indexing": {
+    "indexed_files": [
+      "accounts_receivable_report.txt",
+      "billing_faq.txt",
+      "collections_playbook.txt",
+      "expense_claim_guide.txt",
+      "incident_escalation_runbook.txt",
+      "new_hire_checklist.txt",
+      "onboarding_guide.txt",
+      "outstanding_invoices.txt",
+      "qbr_template.txt",
+      "queue_backlog_postmortem.txt",
+      "remote_work_policy.txt",
+      "renewal_health_dashboard.txt",
+      "security_response_guide.txt",
+      "travel_reimbursement_policy.txt"
+    ],
+    "skipped_files": [],
+    "embedded_chunks": 0
+  },
+  "environment": {
+    "gemini_api_key_configured": true,
+    "semantic_search_effective": false
+  },
+  "results": [
+    {
+      "variant": "fts_only",
+      "evaluated_queries": 12,
+      "skipped_queries": 0,
+      "success_at_1": 0.9167,
+      "mrr": 1.0,
+      "recall_at_k": 0.9167,
+      "ndcg_at_k": 0.9186,
+      "avg_latency_ms": 5.13,
+      "cases": [
+        {
+          "id": "money-i-owe",
+          "query": "money I owe",
+          "relevant": [
+            "accounts_receivable_report.txt",
+            "outstanding_invoices.txt"
+          ],
+          "preferred_top": "outstanding_invoices.txt",
+          "returned": [
+            "outstanding_invoices.txt",
+            "incident_escalation_runbook.txt",
+            "billing_faq.txt",
+            "security_response_guide.txt",
+            "new_hire_checklist.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 0.5,
+          "ndcg_at_k": 0.6131,
+          "latency_ms": 4.25
+        },
+        {
+          "id": "late-payment-followup",
+          "query": "late payment follow up email",
+          "relevant": [
+            "billing_faq.txt",
+            "collections_playbook.txt"
+          ],
+          "preferred_top": "collections_playbook.txt",
+          "returned": [
+            "collections_playbook.txt",
+            "outstanding_invoices.txt",
+            "security_response_guide.txt",
+            "billing_faq.txt",
+            "travel_reimbursement_policy.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 0.8772,
+          "latency_ms": 3.73
+        },
+        {
+          "id": "bring-first-day",
+          "query": "what should I bring on my first day",
+          "relevant": [
+            "new_hire_checklist.txt",
+            "onboarding_guide.txt"
+          ],
+          "preferred_top": "new_hire_checklist.txt",
+          "returned": [
+            "new_hire_checklist.txt",
+            "billing_faq.txt",
+            "onboarding_guide.txt",
+            "collections_playbook.txt",
+            "accounts_receivable_report.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 0.9197,
+          "latency_ms": 6.39
+        },
+        {
+          "id": "drop-in-weekly-usage",
+          "query": "customer renewal risk if weekly usage drops",
+          "relevant": [
+            "qbr_template.txt",
+            "renewal_health_dashboard.txt"
+          ],
+          "preferred_top": "renewal_health_dashboard.txt",
+          "returned": [
+            "renewal_health_dashboard.txt",
+            "qbr_template.txt",
+            "incident_escalation_runbook.txt",
+            "outstanding_invoices.txt",
+            "accounts_receivable_report.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 6.31
+        },
+        {
+          "id": "executive-renewal-deck",
+          "query": "template for executive renewal conversation",
+          "relevant": [
+            "qbr_template.txt"
+          ],
+          "preferred_top": "qbr_template.txt",
+          "returned": [
+            "qbr_template.txt",
+            "renewal_health_dashboard.txt",
+            "collections_playbook.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 3.62
+        },
+        {
+          "id": "customer-status-frequency",
+          "query": "how often update customers during sev1 incident",
+          "relevant": [
+            "incident_escalation_runbook.txt"
+          ],
+          "preferred_top": "incident_escalation_runbook.txt",
+          "returned": [
+            "incident_escalation_runbook.txt",
+            "queue_backlog_postmortem.txt",
+            "remote_work_policy.txt",
+            "travel_reimbursement_policy.txt",
+            "security_response_guide.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 6.61
+        },
+        {
+          "id": "queue-overload",
+          "query": "what to do when the job queue gets too deep",
+          "relevant": [
+            "incident_escalation_runbook.txt",
+            "queue_backlog_postmortem.txt"
+          ],
+          "preferred_top": "incident_escalation_runbook.txt",
+          "returned": [
+            "queue_backlog_postmortem.txt",
+            "incident_escalation_runbook.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 5.43
+        },
+        {
+          "id": "daily-food-allowance",
+          "query": "daily food allowance on work trips",
+          "relevant": [
+            "expense_claim_guide.txt",
+            "travel_reimbursement_policy.txt"
+          ],
+          "preferred_top": "travel_reimbursement_policy.txt",
+          "returned": [
+            "travel_reimbursement_policy.txt",
+            "outstanding_invoices.txt",
+            "accounts_receivable_report.txt",
+            "remote_work_policy.txt",
+            "onboarding_guide.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 0.5,
+          "ndcg_at_k": 0.6131,
+          "latency_ms": 5.23
+        },
+        {
+          "id": "claim-costs-after-trip",
+          "query": "how to get reimbursed after travel",
+          "relevant": [
+            "expense_claim_guide.txt",
+            "travel_reimbursement_policy.txt"
+          ],
+          "preferred_top": "expense_claim_guide.txt",
+          "returned": [
+            "expense_claim_guide.txt",
+            "travel_reimbursement_policy.txt",
+            "collections_playbook.txt",
+            "incident_escalation_runbook.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 3.6
+        },
+        {
+          "id": "someone-broke-into-account",
+          "query": "someone broke into my account what should I do",
+          "relevant": [
+            "security_response_guide.txt"
+          ],
+          "preferred_top": "security_response_guide.txt",
+          "returned": [
+            "security_response_guide.txt",
+            "billing_faq.txt",
+            "accounts_receivable_report.txt",
+            "onboarding_guide.txt",
+            "renewal_health_dashboard.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 6.88
+        },
+        {
+          "id": "work-from-home-days",
+          "query": "how many days can employees work from home",
+          "relevant": [
+            "remote_work_policy.txt"
+          ],
+          "preferred_top": "remote_work_policy.txt",
+          "returned": [
+            "remote_work_policy.txt",
+            "onboarding_guide.txt",
+            "new_hire_checklist.txt",
+            "travel_reimbursement_policy.txt",
+            "incident_escalation_runbook.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 5.62
+        },
+        {
+          "id": "invoice-reminder-day",
+          "query": "what day are unpaid bill reminders sent",
+          "relevant": [
+            "billing_faq.txt",
+            "outstanding_invoices.txt"
+          ],
+          "preferred_top": "billing_faq.txt",
+          "returned": [
+            "billing_faq.txt",
+            "outstanding_invoices.txt",
+            "collections_playbook.txt",
+            "accounts_receivable_report.txt",
+            "expense_claim_guide.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 3.92
+        }
+      ]
+    },
+    {
+      "variant": "fts_embeddings",
+      "evaluated_queries": 12,
+      "skipped_queries": 0,
+      "success_at_1": 0.9167,
+      "mrr": 1.0,
+      "recall_at_k": 0.9167,
+      "ndcg_at_k": 0.9186,
+      "avg_latency_ms": 4.83,
+      "cases": [
+        {
+          "id": "money-i-owe",
+          "query": "money I owe",
+          "relevant": [
+            "accounts_receivable_report.txt",
+            "outstanding_invoices.txt"
+          ],
+          "preferred_top": "outstanding_invoices.txt",
+          "returned": [
+            "outstanding_invoices.txt",
+            "incident_escalation_runbook.txt",
+            "billing_faq.txt",
+            "security_response_guide.txt",
+            "new_hire_checklist.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 0.5,
+          "ndcg_at_k": 0.6131,
+          "latency_ms": 3.75
+        },
+        {
+          "id": "late-payment-followup",
+          "query": "late payment follow up email",
+          "relevant": [
+            "billing_faq.txt",
+            "collections_playbook.txt"
+          ],
+          "preferred_top": "collections_playbook.txt",
+          "returned": [
+            "collections_playbook.txt",
+            "outstanding_invoices.txt",
+            "security_response_guide.txt",
+            "billing_faq.txt",
+            "travel_reimbursement_policy.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 0.8772,
+          "latency_ms": 3.25
+        },
+        {
+          "id": "bring-first-day",
+          "query": "what should I bring on my first day",
+          "relevant": [
+            "new_hire_checklist.txt",
+            "onboarding_guide.txt"
+          ],
+          "preferred_top": "new_hire_checklist.txt",
+          "returned": [
+            "new_hire_checklist.txt",
+            "billing_faq.txt",
+            "onboarding_guide.txt",
+            "collections_playbook.txt",
+            "accounts_receivable_report.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 0.9197,
+          "latency_ms": 6.08
+        },
+        {
+          "id": "drop-in-weekly-usage",
+          "query": "customer renewal risk if weekly usage drops",
+          "relevant": [
+            "qbr_template.txt",
+            "renewal_health_dashboard.txt"
+          ],
+          "preferred_top": "renewal_health_dashboard.txt",
+          "returned": [
+            "renewal_health_dashboard.txt",
+            "qbr_template.txt",
+            "incident_escalation_runbook.txt",
+            "outstanding_invoices.txt",
+            "accounts_receivable_report.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 6.52
+        },
+        {
+          "id": "executive-renewal-deck",
+          "query": "template for executive renewal conversation",
+          "relevant": [
+            "qbr_template.txt"
+          ],
+          "preferred_top": "qbr_template.txt",
+          "returned": [
+            "qbr_template.txt",
+            "renewal_health_dashboard.txt",
+            "collections_playbook.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 3.45
+        },
+        {
+          "id": "customer-status-frequency",
+          "query": "how often update customers during sev1 incident",
+          "relevant": [
+            "incident_escalation_runbook.txt"
+          ],
+          "preferred_top": "incident_escalation_runbook.txt",
+          "returned": [
+            "incident_escalation_runbook.txt",
+            "queue_backlog_postmortem.txt",
+            "remote_work_policy.txt",
+            "travel_reimbursement_policy.txt",
+            "security_response_guide.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 5.57
+        },
+        {
+          "id": "queue-overload",
+          "query": "what to do when the job queue gets too deep",
+          "relevant": [
+            "incident_escalation_runbook.txt",
+            "queue_backlog_postmortem.txt"
+          ],
+          "preferred_top": "incident_escalation_runbook.txt",
+          "returned": [
+            "queue_backlog_postmortem.txt",
+            "incident_escalation_runbook.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 5.31
+        },
+        {
+          "id": "daily-food-allowance",
+          "query": "daily food allowance on work trips",
+          "relevant": [
+            "expense_claim_guide.txt",
+            "travel_reimbursement_policy.txt"
+          ],
+          "preferred_top": "travel_reimbursement_policy.txt",
+          "returned": [
+            "travel_reimbursement_policy.txt",
+            "outstanding_invoices.txt",
+            "accounts_receivable_report.txt",
+            "remote_work_policy.txt",
+            "onboarding_guide.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 0.5,
+          "ndcg_at_k": 0.6131,
+          "latency_ms": 4.73
+        },
+        {
+          "id": "claim-costs-after-trip",
+          "query": "how to get reimbursed after travel",
+          "relevant": [
+            "expense_claim_guide.txt",
+            "travel_reimbursement_policy.txt"
+          ],
+          "preferred_top": "expense_claim_guide.txt",
+          "returned": [
+            "expense_claim_guide.txt",
+            "travel_reimbursement_policy.txt",
+            "collections_playbook.txt",
+            "incident_escalation_runbook.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 3.39
+        },
+        {
+          "id": "someone-broke-into-account",
+          "query": "someone broke into my account what should I do",
+          "relevant": [
+            "security_response_guide.txt"
+          ],
+          "preferred_top": "security_response_guide.txt",
+          "returned": [
+            "security_response_guide.txt",
+            "billing_faq.txt",
+            "accounts_receivable_report.txt",
+            "onboarding_guide.txt",
+            "renewal_health_dashboard.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 6.56
+        },
+        {
+          "id": "work-from-home-days",
+          "query": "how many days can employees work from home",
+          "relevant": [
+            "remote_work_policy.txt"
+          ],
+          "preferred_top": "remote_work_policy.txt",
+          "returned": [
+            "remote_work_policy.txt",
+            "onboarding_guide.txt",
+            "new_hire_checklist.txt",
+            "travel_reimbursement_policy.txt",
+            "incident_escalation_runbook.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 5.52
+        },
+        {
+          "id": "invoice-reminder-day",
+          "query": "what day are unpaid bill reminders sent",
+          "relevant": [
+            "billing_faq.txt",
+            "outstanding_invoices.txt"
+          ],
+          "preferred_top": "billing_faq.txt",
+          "returned": [
+            "billing_faq.txt",
+            "outstanding_invoices.txt",
+            "collections_playbook.txt",
+            "accounts_receivable_report.txt",
+            "expense_claim_guide.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 3.87
+        }
+      ]
+    },
+    {
+      "variant": "full_pipeline",
+      "evaluated_queries": 12,
+      "skipped_queries": 0,
+      "success_at_1": 0.9167,
+      "mrr": 1.0,
+      "recall_at_k": 0.9167,
+      "ndcg_at_k": 0.9186,
+      "avg_latency_ms": 5.27,
+      "cases": [
+        {
+          "id": "money-i-owe",
+          "query": "money I owe",
+          "relevant": [
+            "accounts_receivable_report.txt",
+            "outstanding_invoices.txt"
+          ],
+          "preferred_top": "outstanding_invoices.txt",
+          "returned": [
+            "outstanding_invoices.txt",
+            "incident_escalation_runbook.txt",
+            "billing_faq.txt",
+            "security_response_guide.txt",
+            "new_hire_checklist.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 0.5,
+          "ndcg_at_k": 0.6131,
+          "latency_ms": 6.23
+        },
+        {
+          "id": "late-payment-followup",
+          "query": "late payment follow up email",
+          "relevant": [
+            "billing_faq.txt",
+            "collections_playbook.txt"
+          ],
+          "preferred_top": "collections_playbook.txt",
+          "returned": [
+            "collections_playbook.txt",
+            "outstanding_invoices.txt",
+            "security_response_guide.txt",
+            "billing_faq.txt",
+            "travel_reimbursement_policy.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 0.8772,
+          "latency_ms": 4.85
+        },
+        {
+          "id": "bring-first-day",
+          "query": "what should I bring on my first day",
+          "relevant": [
+            "new_hire_checklist.txt",
+            "onboarding_guide.txt"
+          ],
+          "preferred_top": "new_hire_checklist.txt",
+          "returned": [
+            "new_hire_checklist.txt",
+            "billing_faq.txt",
+            "onboarding_guide.txt",
+            "collections_playbook.txt",
+            "accounts_receivable_report.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 0.9197,
+          "latency_ms": 6.92
+        },
+        {
+          "id": "drop-in-weekly-usage",
+          "query": "customer renewal risk if weekly usage drops",
+          "relevant": [
+            "qbr_template.txt",
+            "renewal_health_dashboard.txt"
+          ],
+          "preferred_top": "renewal_health_dashboard.txt",
+          "returned": [
+            "renewal_health_dashboard.txt",
+            "qbr_template.txt",
+            "incident_escalation_runbook.txt",
+            "outstanding_invoices.txt",
+            "accounts_receivable_report.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 7.07
+        },
+        {
+          "id": "executive-renewal-deck",
+          "query": "template for executive renewal conversation",
+          "relevant": [
+            "qbr_template.txt"
+          ],
+          "preferred_top": "qbr_template.txt",
+          "returned": [
+            "qbr_template.txt",
+            "renewal_health_dashboard.txt",
+            "collections_playbook.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 3.33
+        },
+        {
+          "id": "customer-status-frequency",
+          "query": "how often update customers during sev1 incident",
+          "relevant": [
+            "incident_escalation_runbook.txt"
+          ],
+          "preferred_top": "incident_escalation_runbook.txt",
+          "returned": [
+            "incident_escalation_runbook.txt",
+            "queue_backlog_postmortem.txt",
+            "remote_work_policy.txt",
+            "travel_reimbursement_policy.txt",
+            "security_response_guide.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 5.57
+        },
+        {
+          "id": "queue-overload",
+          "query": "what to do when the job queue gets too deep",
+          "relevant": [
+            "incident_escalation_runbook.txt",
+            "queue_backlog_postmortem.txt"
+          ],
+          "preferred_top": "incident_escalation_runbook.txt",
+          "returned": [
+            "queue_backlog_postmortem.txt",
+            "incident_escalation_runbook.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 5.23
+        },
+        {
+          "id": "daily-food-allowance",
+          "query": "daily food allowance on work trips",
+          "relevant": [
+            "expense_claim_guide.txt",
+            "travel_reimbursement_policy.txt"
+          ],
+          "preferred_top": "travel_reimbursement_policy.txt",
+          "returned": [
+            "travel_reimbursement_policy.txt",
+            "outstanding_invoices.txt",
+            "accounts_receivable_report.txt",
+            "remote_work_policy.txt",
+            "onboarding_guide.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 0.5,
+          "ndcg_at_k": 0.6131,
+          "latency_ms": 4.77
+        },
+        {
+          "id": "claim-costs-after-trip",
+          "query": "how to get reimbursed after travel",
+          "relevant": [
+            "expense_claim_guide.txt",
+            "travel_reimbursement_policy.txt"
+          ],
+          "preferred_top": "expense_claim_guide.txt",
+          "returned": [
+            "expense_claim_guide.txt",
+            "travel_reimbursement_policy.txt",
+            "collections_playbook.txt",
+            "incident_escalation_runbook.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 3.36
+        },
+        {
+          "id": "someone-broke-into-account",
+          "query": "someone broke into my account what should I do",
+          "relevant": [
+            "security_response_guide.txt"
+          ],
+          "preferred_top": "security_response_guide.txt",
+          "returned": [
+            "security_response_guide.txt",
+            "billing_faq.txt",
+            "accounts_receivable_report.txt",
+            "onboarding_guide.txt",
+            "renewal_health_dashboard.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 6.61
+        },
+        {
+          "id": "work-from-home-days",
+          "query": "how many days can employees work from home",
+          "relevant": [
+            "remote_work_policy.txt"
+          ],
+          "preferred_top": "remote_work_policy.txt",
+          "returned": [
+            "remote_work_policy.txt",
+            "onboarding_guide.txt",
+            "new_hire_checklist.txt",
+            "travel_reimbursement_policy.txt",
+            "incident_escalation_runbook.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 5.37
+        },
+        {
+          "id": "invoice-reminder-day",
+          "query": "what day are unpaid bill reminders sent",
+          "relevant": [
+            "billing_faq.txt",
+            "outstanding_invoices.txt"
+          ],
+          "preferred_top": "billing_faq.txt",
+          "returned": [
+            "billing_faq.txt",
+            "outstanding_invoices.txt",
+            "collections_playbook.txt",
+            "accounts_receivable_report.txt",
+            "expense_claim_guide.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 3.88
+        }
+      ]
+    },
+    {
+      "variant": "full_no_position_blend",
+      "evaluated_queries": 12,
+      "skipped_queries": 0,
+      "success_at_1": 0.9167,
+      "mrr": 1.0,
+      "recall_at_k": 0.9167,
+      "ndcg_at_k": 0.9186,
+      "avg_latency_ms": 21.6,
+      "cases": [
+        {
+          "id": "money-i-owe",
+          "query": "money I owe",
+          "relevant": [
+            "accounts_receivable_report.txt",
+            "outstanding_invoices.txt"
+          ],
+          "preferred_top": "outstanding_invoices.txt",
+          "returned": [
+            "outstanding_invoices.txt",
+            "incident_escalation_runbook.txt",
+            "billing_faq.txt",
+            "security_response_guide.txt",
+            "new_hire_checklist.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 0.5,
+          "ndcg_at_k": 0.6131,
+          "latency_ms": 26.04
+        },
+        {
+          "id": "late-payment-followup",
+          "query": "late payment follow up email",
+          "relevant": [
+            "billing_faq.txt",
+            "collections_playbook.txt"
+          ],
+          "preferred_top": "collections_playbook.txt",
+          "returned": [
+            "collections_playbook.txt",
+            "outstanding_invoices.txt",
+            "security_response_guide.txt",
+            "billing_faq.txt",
+            "travel_reimbursement_policy.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 0.8772,
+          "latency_ms": 12.24
+        },
+        {
+          "id": "bring-first-day",
+          "query": "what should I bring on my first day",
+          "relevant": [
+            "new_hire_checklist.txt",
+            "onboarding_guide.txt"
+          ],
+          "preferred_top": "new_hire_checklist.txt",
+          "returned": [
+            "new_hire_checklist.txt",
+            "billing_faq.txt",
+            "onboarding_guide.txt",
+            "collections_playbook.txt",
+            "accounts_receivable_report.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 0.9197,
+          "latency_ms": 6.35
+        },
+        {
+          "id": "drop-in-weekly-usage",
+          "query": "customer renewal risk if weekly usage drops",
+          "relevant": [
+            "qbr_template.txt",
+            "renewal_health_dashboard.txt"
+          ],
+          "preferred_top": "renewal_health_dashboard.txt",
+          "returned": [
+            "renewal_health_dashboard.txt",
+            "qbr_template.txt",
+            "incident_escalation_runbook.txt",
+            "outstanding_invoices.txt",
+            "accounts_receivable_report.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 6.37
+        },
+        {
+          "id": "executive-renewal-deck",
+          "query": "template for executive renewal conversation",
+          "relevant": [
+            "qbr_template.txt"
+          ],
+          "preferred_top": "qbr_template.txt",
+          "returned": [
+            "qbr_template.txt",
+            "renewal_health_dashboard.txt",
+            "collections_playbook.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 3.34
+        },
+        {
+          "id": "customer-status-frequency",
+          "query": "how often update customers during sev1 incident",
+          "relevant": [
+            "incident_escalation_runbook.txt"
+          ],
+          "preferred_top": "incident_escalation_runbook.txt",
+          "returned": [
+            "incident_escalation_runbook.txt",
+            "queue_backlog_postmortem.txt",
+            "remote_work_policy.txt",
+            "travel_reimbursement_policy.txt",
+            "security_response_guide.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 5.5
+        },
+        {
+          "id": "queue-overload",
+          "query": "what to do when the job queue gets too deep",
+          "relevant": [
+            "incident_escalation_runbook.txt",
+            "queue_backlog_postmortem.txt"
+          ],
+          "preferred_top": "incident_escalation_runbook.txt",
+          "returned": [
+            "queue_backlog_postmortem.txt",
+            "incident_escalation_runbook.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 5.26
+        },
+        {
+          "id": "daily-food-allowance",
+          "query": "daily food allowance on work trips",
+          "relevant": [
+            "expense_claim_guide.txt",
+            "travel_reimbursement_policy.txt"
+          ],
+          "preferred_top": "travel_reimbursement_policy.txt",
+          "returned": [
+            "travel_reimbursement_policy.txt",
+            "outstanding_invoices.txt",
+            "accounts_receivable_report.txt",
+            "remote_work_policy.txt",
+            "onboarding_guide.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 0.5,
+          "ndcg_at_k": 0.6131,
+          "latency_ms": 153.17
+        },
+        {
+          "id": "claim-costs-after-trip",
+          "query": "how to get reimbursed after travel",
+          "relevant": [
+            "expense_claim_guide.txt",
+            "travel_reimbursement_policy.txt"
+          ],
+          "preferred_top": "expense_claim_guide.txt",
+          "returned": [
+            "expense_claim_guide.txt",
+            "travel_reimbursement_policy.txt",
+            "collections_playbook.txt",
+            "incident_escalation_runbook.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 16.09
+        },
+        {
+          "id": "someone-broke-into-account",
+          "query": "someone broke into my account what should I do",
+          "relevant": [
+            "security_response_guide.txt"
+          ],
+          "preferred_top": "security_response_guide.txt",
+          "returned": [
+            "security_response_guide.txt",
+            "billing_faq.txt",
+            "accounts_receivable_report.txt",
+            "onboarding_guide.txt",
+            "renewal_health_dashboard.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 14.95
+        },
+        {
+          "id": "work-from-home-days",
+          "query": "how many days can employees work from home",
+          "relevant": [
+            "remote_work_policy.txt"
+          ],
+          "preferred_top": "remote_work_policy.txt",
+          "returned": [
+            "remote_work_policy.txt",
+            "onboarding_guide.txt",
+            "new_hire_checklist.txt",
+            "travel_reimbursement_policy.txt",
+            "incident_escalation_runbook.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 5.81
+        },
+        {
+          "id": "invoice-reminder-day",
+          "query": "what day are unpaid bill reminders sent",
+          "relevant": [
+            "billing_faq.txt",
+            "outstanding_invoices.txt"
+          ],
+          "preferred_top": "billing_faq.txt",
+          "returned": [
+            "billing_faq.txt",
+            "outstanding_invoices.txt",
+            "collections_playbook.txt",
+            "accounts_receivable_report.txt",
+            "expense_claim_guide.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 4.05
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,1543 @@
+{
+  "dataset": {
+    "name": "pinpoint-search-relevance-v4-mixed-domain",
+    "path": "benchmarks/search_relevance_v4_mixed.json",
+    "version": 1
+  },
+  "corpus": "benchmarks/corpus_v4_mixed",
+  "limit": 5,
+  "indexing": {
+    "indexed_files": [
+      "client_database.csv",
+      "customer_success_playbook.txt",
+      "employee_handbook.md",
+      "expense_claim_guide.txt",
+      "incident_postmortem.txt",
+      "meeting_minutes_q1_review.txt",
+      "outstanding_invoices.txt",
+      "quarterly_product_review.txt",
+      "security_response_guide.txt",
+      "support_runbook.md",
+      "travel_reimbursement_policy.txt",
+      "vendor_contracts.csv"
+    ],
+    "skipped_files": [],
+    "embedded_chunks": 0
+  },
+  "environment": {
+    "gemini_api_key_configured": true,
+    "semantic_search_effective": false
+  },
+  "results": [
+    {
+      "variant": "fts_only",
+      "kind": "search",
+      "evaluated_queries": 18,
+      "skipped_queries": 0,
+      "success_at_1": 0.7778,
+      "mrr": 0.9583,
+      "recall_at_k": 1.0,
+      "ndcg_at_k": 0.9639,
+      "avg_latency_ms": 4.29,
+      "avg_stage_timing_ms": {
+        "ambiguity_ms": 0.002,
+        "finalize_ms": 0.003,
+        "fusion_ms": 0.001,
+        "lexical_ms": 2.956,
+        "probe_ms": 0.59,
+        "rerank_ms": 0.0,
+        "retrieval_ms": 0.001,
+        "total_ms": 3.577
+      },
+      "cases": [
+        {
+          "id": "renewal-risk-signals",
+          "query": "customer renewal risk signals",
+          "relevant": [
+            "customer_success_playbook.txt"
+          ],
+          "preferred_top": "customer_success_playbook.txt",
+          "returned": [
+            "customer_success_playbook.txt",
+            "vendor_contracts.csv",
+            "outstanding_invoices.txt",
+            "support_runbook.md",
+            "quarterly_product_review.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 6.12,
+          "timing": {
+            "lexical_ms": 1.905,
+            "probe_ms": 0.79,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.002,
+            "ambiguity_ms": 0.003,
+            "total_ms": 2.816
+          }
+        },
+        {
+          "id": "executive-qbr-template",
+          "query": "template for quarterly business review",
+          "relevant": [
+            "customer_success_playbook.txt",
+            "quarterly_product_review.txt"
+          ],
+          "preferred_top": "customer_success_playbook.txt",
+          "returned": [
+            "quarterly_product_review.txt",
+            "meeting_minutes_q1_review.txt",
+            "customer_success_playbook.txt",
+            "security_response_guide.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 0.9197,
+          "latency_ms": 3.67,
+          "timing": {
+            "lexical_ms": 2.494,
+            "probe_ms": 0.474,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.002,
+            "ambiguity_ms": 0.004,
+            "total_ms": 2.996
+          }
+        },
+        {
+          "id": "work-from-home-days",
+          "query": "how many days can employees work from home",
+          "relevant": [
+            "employee_handbook.md"
+          ],
+          "preferred_top": "employee_handbook.md",
+          "returned": [
+            "employee_handbook.md",
+            "incident_postmortem.txt",
+            "travel_reimbursement_policy.txt",
+            "expense_claim_guide.txt",
+            "customer_success_playbook.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 4.92,
+          "timing": {
+            "lexical_ms": 3.43,
+            "probe_ms": 0.917,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.003,
+            "ambiguity_ms": 0.003,
+            "total_ms": 4.376
+          }
+        },
+        {
+          "id": "report-suspicious-login",
+          "query": "where do I report a suspicious login",
+          "relevant": [
+            "employee_handbook.md",
+            "security_response_guide.txt"
+          ],
+          "preferred_top": "security_response_guide.txt",
+          "returned": [
+            "employee_handbook.md",
+            "security_response_guide.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 3.35,
+          "timing": {
+            "lexical_ms": 2.606,
+            "probe_ms": 0.203,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.001,
+            "ambiguity_ms": 0.001,
+            "total_ms": 2.828
+          }
+        },
+        {
+          "id": "queue-too-deep",
+          "query": "what to do when queue depth exceeds 50000",
+          "relevant": [
+            "incident_postmortem.txt",
+            "support_runbook.md"
+          ],
+          "preferred_top": "support_runbook.md",
+          "returned": [
+            "incident_postmortem.txt",
+            "support_runbook.md"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 4.03,
+          "timing": {
+            "lexical_ms": 3.202,
+            "probe_ms": 0.251,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.001,
+            "ambiguity_ms": 0.0,
+            "total_ms": 3.474
+          }
+        },
+        {
+          "id": "handover-checklist",
+          "query": "handover checklist for the on-call shift",
+          "relevant": [
+            "incident_postmortem.txt"
+          ],
+          "preferred_top": "incident_postmortem.txt",
+          "returned": [
+            "incident_postmortem.txt",
+            "employee_handbook.md",
+            "support_runbook.md"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 3.03,
+          "timing": {
+            "lexical_ms": 2.063,
+            "probe_ms": 0.385,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.001,
+            "ambiguity_ms": 0.002,
+            "total_ms": 2.473
+          }
+        },
+        {
+          "id": "search-timing-plan",
+          "query": "add per-stage timing for lexical retrieval",
+          "relevant": [
+            "quarterly_product_review.txt"
+          ],
+          "preferred_top": "quarterly_product_review.txt",
+          "returned": [
+            "quarterly_product_review.txt",
+            "incident_postmortem.txt",
+            "employee_handbook.md",
+            "customer_success_playbook.txt",
+            "travel_reimbursement_policy.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 4.74,
+          "timing": {
+            "lexical_ms": 3.09,
+            "probe_ms": 1.071,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.002,
+            "ambiguity_ms": 0.002,
+            "total_ms": 4.186
+          }
+        },
+        {
+          "id": "failed-jobs-older-than-day",
+          "query": "review failed jobs older than 24 hours",
+          "relevant": [
+            "support_runbook.md"
+          ],
+          "preferred_top": "support_runbook.md",
+          "returned": [
+            "customer_success_playbook.txt",
+            "employee_handbook.md",
+            "outstanding_invoices.txt",
+            "support_runbook.md",
+            "incident_postmortem.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.25,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 0.4307,
+          "latency_ms": 5.65,
+          "timing": {
+            "lexical_ms": 3.965,
+            "probe_ms": 1.097,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.002,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.002,
+            "ambiguity_ms": 0.002,
+            "total_ms": 5.087
+          }
+        },
+        {
+          "id": "invoice-reminder-day",
+          "query": "when are unpaid bill reminders sent",
+          "relevant": [
+            "outstanding_invoices.txt"
+          ],
+          "preferred_top": "outstanding_invoices.txt",
+          "returned": [
+            "outstanding_invoices.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 3.44,
+          "timing": {
+            "lexical_ms": 2.669,
+            "probe_ms": 0.12,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.001,
+            "ambiguity_ms": 0.0,
+            "total_ms": 2.818
+          }
+        },
+        {
+          "id": "daily-meal-allowance",
+          "query": "daily meal allowance during business travel",
+          "relevant": [
+            "expense_claim_guide.txt",
+            "travel_reimbursement_policy.txt"
+          ],
+          "preferred_top": "travel_reimbursement_policy.txt",
+          "returned": [
+            "travel_reimbursement_policy.txt",
+            "expense_claim_guide.txt",
+            "employee_handbook.md",
+            "incident_postmortem.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 4.38,
+          "timing": {
+            "lexical_ms": 3.313,
+            "probe_ms": 0.465,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.0,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.001,
+            "ambiguity_ms": 0.002,
+            "total_ms": 3.798
+          }
+        },
+        {
+          "id": "submit-expense-after-trip",
+          "query": "how to submit receipts after returning from travel",
+          "relevant": [
+            "expense_claim_guide.txt"
+          ],
+          "preferred_top": "expense_claim_guide.txt",
+          "returned": [
+            "expense_claim_guide.txt",
+            "travel_reimbursement_policy.txt",
+            "quarterly_product_review.txt",
+            "support_runbook.md",
+            "incident_postmortem.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 3.49,
+          "timing": {
+            "lexical_ms": 2.276,
+            "probe_ms": 0.634,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.0,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.001,
+            "ambiguity_ms": 0.002,
+            "total_ms": 2.935
+          }
+        },
+        {
+          "id": "account-breach",
+          "query": "someone got into my account what should I do",
+          "relevant": [
+            "security_response_guide.txt"
+          ],
+          "preferred_top": "security_response_guide.txt",
+          "returned": [
+            "security_response_guide.txt",
+            "customer_success_playbook.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 4.4,
+          "timing": {
+            "lexical_ms": 3.557,
+            "probe_ms": 0.26,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.0,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.001,
+            "ambiguity_ms": 0.0,
+            "total_ms": 3.84
+          }
+        },
+        {
+          "id": "phoenix-whatsapp-pilot",
+          "query": "how many users were onboarded in the whatsapp pilot",
+          "relevant": [
+            "meeting_minutes_q1_review.txt"
+          ],
+          "preferred_top": "meeting_minutes_q1_review.txt",
+          "returned": [
+            "meeting_minutes_q1_review.txt",
+            "quarterly_product_review.txt",
+            "incident_postmortem.txt",
+            "employee_handbook.md",
+            "client_database.csv"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 5.07,
+          "timing": {
+            "lexical_ms": 3.756,
+            "probe_ms": 0.752,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.001,
+            "ambiguity_ms": 0.002,
+            "total_ms": 4.529
+          }
+        },
+        {
+          "id": "who-fixes-hindi-model",
+          "query": "who owns the Hindi model accuracy action item",
+          "relevant": [
+            "meeting_minutes_q1_review.txt"
+          ],
+          "preferred_top": "meeting_minutes_q1_review.txt",
+          "returned": [
+            "meeting_minutes_q1_review.txt",
+            "customer_success_playbook.txt",
+            "vendor_contracts.csv",
+            "incident_postmortem.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 4.8,
+          "timing": {
+            "lexical_ms": 3.599,
+            "probe_ms": 0.598,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.0,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.001,
+            "ambiguity_ms": 0.003,
+            "total_ms": 4.241
+          }
+        },
+        {
+          "id": "wipro-renewal-pending",
+          "query": "which client has renewal pending with wipro",
+          "relevant": [
+            "client_database.csv"
+          ],
+          "preferred_top": "client_database.csv",
+          "returned": [
+            "client_database.csv",
+            "vendor_contracts.csv",
+            "employee_handbook.md",
+            "customer_success_playbook.txt",
+            "incident_postmortem.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 4.7,
+          "timing": {
+            "lexical_ms": 3.288,
+            "probe_ms": 0.821,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.0,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.022,
+            "ambiguity_ms": 0.002,
+            "total_ms": 4.153
+          }
+        },
+        {
+          "id": "mahindra-onboarding",
+          "query": "which company is currently onboarding with mahindra",
+          "relevant": [
+            "client_database.csv"
+          ],
+          "preferred_top": "client_database.csv",
+          "returned": [
+            "client_database.csv",
+            "support_runbook.md",
+            "employee_handbook.md",
+            "meeting_minutes_q1_review.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 3.99,
+          "timing": {
+            "lexical_ms": 2.886,
+            "probe_ms": 0.53,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.0,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.001,
+            "ambiguity_ms": 0.002,
+            "total_ms": 3.44
+          }
+        },
+        {
+          "id": "vendor-managed-database-support",
+          "query": "managed database support vendor renewal pending",
+          "relevant": [
+            "vendor_contracts.csv"
+          ],
+          "preferred_top": "vendor_contracts.csv",
+          "returned": [
+            "vendor_contracts.csv",
+            "client_database.csv",
+            "customer_success_playbook.txt",
+            "support_runbook.md",
+            "employee_handbook.md"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 3.57,
+          "timing": {
+            "lexical_ms": 2.326,
+            "probe_ms": 0.663,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.0,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.001,
+            "ambiguity_ms": 0.002,
+            "total_ms": 3.011
+          }
+        },
+        {
+          "id": "telephony-api-vendor",
+          "query": "which vendor owns the telephony api contract",
+          "relevant": [
+            "vendor_contracts.csv"
+          ],
+          "preferred_top": "vendor_contracts.csv",
+          "returned": [
+            "vendor_contracts.csv",
+            "customer_success_playbook.txt",
+            "meeting_minutes_q1_review.txt",
+            "client_database.csv"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 3.92,
+          "timing": {
+            "lexical_ms": 2.79,
+            "probe_ms": 0.582,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.0,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.001,
+            "ambiguity_ms": 0.002,
+            "total_ms": 3.394
+          }
+        }
+      ]
+    },
+    {
+      "variant": "bm25l_only",
+      "kind": "bm25l",
+      "evaluated_queries": 18,
+      "skipped_queries": 0,
+      "success_at_1": 0.8333,
+      "mrr": 0.9306,
+      "recall_at_k": 1.0,
+      "ndcg_at_k": 0.9434,
+      "avg_latency_ms": 0.25,
+      "avg_stage_timing_ms": {},
+      "cases": [
+        {
+          "id": "renewal-risk-signals",
+          "query": "customer renewal risk signals",
+          "relevant": [
+            "customer_success_playbook.txt"
+          ],
+          "preferred_top": "customer_success_playbook.txt",
+          "returned": [
+            "customer_success_playbook.txt",
+            "vendor_contracts.csv",
+            "support_runbook.md",
+            "client_database.csv",
+            "security_response_guide.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 0.48,
+          "timing": {}
+        },
+        {
+          "id": "executive-qbr-template",
+          "query": "template for quarterly business review",
+          "relevant": [
+            "customer_success_playbook.txt",
+            "quarterly_product_review.txt"
+          ],
+          "preferred_top": "customer_success_playbook.txt",
+          "returned": [
+            "customer_success_playbook.txt",
+            "meeting_minutes_q1_review.txt",
+            "quarterly_product_review.txt",
+            "travel_reimbursement_policy.txt",
+            "security_response_guide.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 0.9197,
+          "latency_ms": 0.26,
+          "timing": {}
+        },
+        {
+          "id": "work-from-home-days",
+          "query": "how many days can employees work from home",
+          "relevant": [
+            "employee_handbook.md"
+          ],
+          "preferred_top": "employee_handbook.md",
+          "returned": [
+            "expense_claim_guide.txt",
+            "employee_handbook.md",
+            "quarterly_product_review.txt",
+            "travel_reimbursement_policy.txt",
+            "outstanding_invoices.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.5,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 0.6309,
+          "latency_ms": 0.26,
+          "timing": {}
+        },
+        {
+          "id": "report-suspicious-login",
+          "query": "where do I report a suspicious login",
+          "relevant": [
+            "employee_handbook.md",
+            "security_response_guide.txt"
+          ],
+          "preferred_top": "security_response_guide.txt",
+          "returned": [
+            "security_response_guide.txt",
+            "employee_handbook.md",
+            "quarterly_product_review.txt",
+            "vendor_contracts.csv",
+            "support_runbook.md"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 0.22,
+          "timing": {}
+        },
+        {
+          "id": "queue-too-deep",
+          "query": "what to do when queue depth exceeds 50000",
+          "relevant": [
+            "incident_postmortem.txt",
+            "support_runbook.md"
+          ],
+          "preferred_top": "support_runbook.md",
+          "returned": [
+            "incident_postmortem.txt",
+            "support_runbook.md",
+            "travel_reimbursement_policy.txt",
+            "vendor_contracts.csv",
+            "security_response_guide.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 0.21,
+          "timing": {}
+        },
+        {
+          "id": "handover-checklist",
+          "query": "handover checklist for the on-call shift",
+          "relevant": [
+            "incident_postmortem.txt"
+          ],
+          "preferred_top": "incident_postmortem.txt",
+          "returned": [
+            "incident_postmortem.txt",
+            "employee_handbook.md",
+            "support_runbook.md",
+            "vendor_contracts.csv",
+            "security_response_guide.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 0.2,
+          "timing": {}
+        },
+        {
+          "id": "search-timing-plan",
+          "query": "add per-stage timing for lexical retrieval",
+          "relevant": [
+            "quarterly_product_review.txt"
+          ],
+          "preferred_top": "quarterly_product_review.txt",
+          "returned": [
+            "quarterly_product_review.txt",
+            "incident_postmortem.txt",
+            "travel_reimbursement_policy.txt",
+            "expense_claim_guide.txt",
+            "employee_handbook.md"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 0.2,
+          "timing": {}
+        },
+        {
+          "id": "failed-jobs-older-than-day",
+          "query": "review failed jobs older than 24 hours",
+          "relevant": [
+            "support_runbook.md"
+          ],
+          "preferred_top": "support_runbook.md",
+          "returned": [
+            "customer_success_playbook.txt",
+            "employee_handbook.md",
+            "outstanding_invoices.txt",
+            "support_runbook.md",
+            "incident_postmortem.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.25,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 0.4307,
+          "latency_ms": 0.3,
+          "timing": {}
+        },
+        {
+          "id": "invoice-reminder-day",
+          "query": "when are unpaid bill reminders sent",
+          "relevant": [
+            "outstanding_invoices.txt"
+          ],
+          "preferred_top": "outstanding_invoices.txt",
+          "returned": [
+            "outstanding_invoices.txt",
+            "incident_postmortem.txt",
+            "vendor_contracts.csv",
+            "travel_reimbursement_policy.txt",
+            "security_response_guide.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 0.25,
+          "timing": {}
+        },
+        {
+          "id": "daily-meal-allowance",
+          "query": "daily meal allowance during business travel",
+          "relevant": [
+            "expense_claim_guide.txt",
+            "travel_reimbursement_policy.txt"
+          ],
+          "preferred_top": "travel_reimbursement_policy.txt",
+          "returned": [
+            "travel_reimbursement_policy.txt",
+            "expense_claim_guide.txt",
+            "incident_postmortem.txt",
+            "customer_success_playbook.txt",
+            "meeting_minutes_q1_review.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 0.36,
+          "timing": {}
+        },
+        {
+          "id": "submit-expense-after-trip",
+          "query": "how to submit receipts after returning from travel",
+          "relevant": [
+            "expense_claim_guide.txt"
+          ],
+          "preferred_top": "expense_claim_guide.txt",
+          "returned": [
+            "expense_claim_guide.txt",
+            "travel_reimbursement_policy.txt",
+            "quarterly_product_review.txt",
+            "outstanding_invoices.txt",
+            "support_runbook.md"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 0.31,
+          "timing": {}
+        },
+        {
+          "id": "account-breach",
+          "query": "someone got into my account what should I do",
+          "relevant": [
+            "security_response_guide.txt"
+          ],
+          "preferred_top": "security_response_guide.txt",
+          "returned": [
+            "security_response_guide.txt",
+            "outstanding_invoices.txt",
+            "customer_success_playbook.txt",
+            "vendor_contracts.csv",
+            "support_runbook.md"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 0.23,
+          "timing": {}
+        },
+        {
+          "id": "phoenix-whatsapp-pilot",
+          "query": "how many users were onboarded in the whatsapp pilot",
+          "relevant": [
+            "meeting_minutes_q1_review.txt"
+          ],
+          "preferred_top": "meeting_minutes_q1_review.txt",
+          "returned": [
+            "meeting_minutes_q1_review.txt",
+            "quarterly_product_review.txt",
+            "incident_postmortem.txt",
+            "expense_claim_guide.txt",
+            "security_response_guide.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 0.21,
+          "timing": {}
+        },
+        {
+          "id": "who-fixes-hindi-model",
+          "query": "who owns the Hindi model accuracy action item",
+          "relevant": [
+            "meeting_minutes_q1_review.txt"
+          ],
+          "preferred_top": "meeting_minutes_q1_review.txt",
+          "returned": [
+            "meeting_minutes_q1_review.txt",
+            "customer_success_playbook.txt",
+            "vendor_contracts.csv",
+            "travel_reimbursement_policy.txt",
+            "security_response_guide.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 0.2,
+          "timing": {}
+        },
+        {
+          "id": "wipro-renewal-pending",
+          "query": "which client has renewal pending with wipro",
+          "relevant": [
+            "client_database.csv"
+          ],
+          "preferred_top": "client_database.csv",
+          "returned": [
+            "client_database.csv",
+            "vendor_contracts.csv",
+            "customer_success_playbook.txt",
+            "meeting_minutes_q1_review.txt",
+            "security_response_guide.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 0.19,
+          "timing": {}
+        },
+        {
+          "id": "mahindra-onboarding",
+          "query": "which company is currently onboarding with mahindra",
+          "relevant": [
+            "client_database.csv"
+          ],
+          "preferred_top": "client_database.csv",
+          "returned": [
+            "client_database.csv",
+            "employee_handbook.md",
+            "vendor_contracts.csv",
+            "travel_reimbursement_policy.txt",
+            "security_response_guide.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 0.21,
+          "timing": {}
+        },
+        {
+          "id": "vendor-managed-database-support",
+          "query": "managed database support vendor renewal pending",
+          "relevant": [
+            "vendor_contracts.csv"
+          ],
+          "preferred_top": "vendor_contracts.csv",
+          "returned": [
+            "vendor_contracts.csv",
+            "support_runbook.md",
+            "customer_success_playbook.txt",
+            "client_database.csv",
+            "security_response_guide.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 0.2,
+          "timing": {}
+        },
+        {
+          "id": "telephony-api-vendor",
+          "query": "which vendor owns the telephony api contract",
+          "relevant": [
+            "vendor_contracts.csv"
+          ],
+          "preferred_top": "vendor_contracts.csv",
+          "returned": [
+            "vendor_contracts.csv",
+            "customer_success_playbook.txt",
+            "meeting_minutes_q1_review.txt",
+            "travel_reimbursement_policy.txt",
+            "security_response_guide.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 0.2,
+          "timing": {}
+        }
+      ]
+    },
+    {
+      "variant": "fts_bm25l_rrf",
+      "kind": "fts_bm25l_rrf",
+      "evaluated_queries": 18,
+      "skipped_queries": 0,
+      "success_at_1": 0.7778,
+      "mrr": 0.9583,
+      "recall_at_k": 1.0,
+      "ndcg_at_k": 0.9684,
+      "avg_latency_ms": 4.64,
+      "avg_stage_timing_ms": {
+        "ambiguity_ms": 0.002,
+        "finalize_ms": 0.002,
+        "fusion_ms": 0.001,
+        "lexical_ms": 2.952,
+        "probe_ms": 0.61,
+        "rerank_ms": 0.0,
+        "retrieval_ms": 0.001,
+        "total_ms": 3.591
+      },
+      "cases": [
+        {
+          "id": "renewal-risk-signals",
+          "query": "customer renewal risk signals",
+          "relevant": [
+            "customer_success_playbook.txt"
+          ],
+          "preferred_top": "customer_success_playbook.txt",
+          "returned": [
+            "customer_success_playbook.txt",
+            "vendor_contracts.csv",
+            "support_runbook.md",
+            "client_database.csv",
+            "outstanding_invoices.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 3.31,
+          "timing": {
+            "lexical_ms": 1.647,
+            "probe_ms": 0.707,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.001,
+            "ambiguity_ms": 0.002,
+            "total_ms": 2.378
+          }
+        },
+        {
+          "id": "executive-qbr-template",
+          "query": "template for quarterly business review",
+          "relevant": [
+            "customer_success_playbook.txt",
+            "quarterly_product_review.txt"
+          ],
+          "preferred_top": "customer_success_playbook.txt",
+          "returned": [
+            "quarterly_product_review.txt",
+            "customer_success_playbook.txt",
+            "meeting_minutes_q1_review.txt",
+            "security_response_guide.txt",
+            "travel_reimbursement_policy.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 3.97,
+          "timing": {
+            "lexical_ms": 2.566,
+            "probe_ms": 0.469,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.0,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.001,
+            "ambiguity_ms": 0.002,
+            "total_ms": 3.057
+          }
+        },
+        {
+          "id": "work-from-home-days",
+          "query": "how many days can employees work from home",
+          "relevant": [
+            "employee_handbook.md"
+          ],
+          "preferred_top": "employee_handbook.md",
+          "returned": [
+            "employee_handbook.md",
+            "expense_claim_guide.txt",
+            "travel_reimbursement_policy.txt",
+            "quarterly_product_review.txt",
+            "customer_success_playbook.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 5.16,
+          "timing": {
+            "lexical_ms": 3.387,
+            "probe_ms": 0.834,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.0,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.002,
+            "ambiguity_ms": 0.002,
+            "total_ms": 4.248
+          }
+        },
+        {
+          "id": "report-suspicious-login",
+          "query": "where do I report a suspicious login",
+          "relevant": [
+            "employee_handbook.md",
+            "security_response_guide.txt"
+          ],
+          "preferred_top": "security_response_guide.txt",
+          "returned": [
+            "employee_handbook.md",
+            "security_response_guide.txt",
+            "quarterly_product_review.txt",
+            "vendor_contracts.csv",
+            "support_runbook.md"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 3.63,
+          "timing": {
+            "lexical_ms": 2.56,
+            "probe_ms": 0.199,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.001,
+            "ambiguity_ms": 0.0,
+            "total_ms": 2.777
+          }
+        },
+        {
+          "id": "queue-too-deep",
+          "query": "what to do when queue depth exceeds 50000",
+          "relevant": [
+            "incident_postmortem.txt",
+            "support_runbook.md"
+          ],
+          "preferred_top": "support_runbook.md",
+          "returned": [
+            "incident_postmortem.txt",
+            "support_runbook.md",
+            "travel_reimbursement_policy.txt",
+            "vendor_contracts.csv",
+            "security_response_guide.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 4.09,
+          "timing": {
+            "lexical_ms": 2.949,
+            "probe_ms": 0.245,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.0,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.001,
+            "ambiguity_ms": 0.0,
+            "total_ms": 3.212
+          }
+        },
+        {
+          "id": "handover-checklist",
+          "query": "handover checklist for the on-call shift",
+          "relevant": [
+            "incident_postmortem.txt"
+          ],
+          "preferred_top": "incident_postmortem.txt",
+          "returned": [
+            "incident_postmortem.txt",
+            "employee_handbook.md",
+            "support_runbook.md",
+            "vendor_contracts.csv",
+            "security_response_guide.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 3.36,
+          "timing": {
+            "lexical_ms": 2.075,
+            "probe_ms": 0.367,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.0,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.001,
+            "ambiguity_ms": 0.002,
+            "total_ms": 2.469
+          }
+        },
+        {
+          "id": "search-timing-plan",
+          "query": "add per-stage timing for lexical retrieval",
+          "relevant": [
+            "quarterly_product_review.txt"
+          ],
+          "preferred_top": "quarterly_product_review.txt",
+          "returned": [
+            "quarterly_product_review.txt",
+            "incident_postmortem.txt",
+            "employee_handbook.md",
+            "travel_reimbursement_policy.txt",
+            "expense_claim_guide.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 5.35,
+          "timing": {
+            "lexical_ms": 3.1,
+            "probe_ms": 1.263,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.002,
+            "ambiguity_ms": 0.002,
+            "total_ms": 4.391
+          }
+        },
+        {
+          "id": "failed-jobs-older-than-day",
+          "query": "review failed jobs older than 24 hours",
+          "relevant": [
+            "support_runbook.md"
+          ],
+          "preferred_top": "support_runbook.md",
+          "returned": [
+            "customer_success_playbook.txt",
+            "employee_handbook.md",
+            "outstanding_invoices.txt",
+            "support_runbook.md",
+            "incident_postmortem.txt"
+          ],
+          "success_at_1": 0.0,
+          "reciprocal_rank": 0.25,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 0.4307,
+          "latency_ms": 6.32,
+          "timing": {
+            "lexical_ms": 4.023,
+            "probe_ms": 1.17,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.002,
+            "ambiguity_ms": 0.003,
+            "total_ms": 5.219
+          }
+        },
+        {
+          "id": "invoice-reminder-day",
+          "query": "when are unpaid bill reminders sent",
+          "relevant": [
+            "outstanding_invoices.txt"
+          ],
+          "preferred_top": "outstanding_invoices.txt",
+          "returned": [
+            "outstanding_invoices.txt",
+            "incident_postmortem.txt",
+            "vendor_contracts.csv",
+            "travel_reimbursement_policy.txt",
+            "security_response_guide.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 3.89,
+          "timing": {
+            "lexical_ms": 2.619,
+            "probe_ms": 0.113,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.001,
+            "ambiguity_ms": 0.0,
+            "total_ms": 2.765
+          }
+        },
+        {
+          "id": "daily-meal-allowance",
+          "query": "daily meal allowance during business travel",
+          "relevant": [
+            "expense_claim_guide.txt",
+            "travel_reimbursement_policy.txt"
+          ],
+          "preferred_top": "travel_reimbursement_policy.txt",
+          "returned": [
+            "travel_reimbursement_policy.txt",
+            "expense_claim_guide.txt",
+            "incident_postmortem.txt",
+            "employee_handbook.md",
+            "customer_success_playbook.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 4.87,
+          "timing": {
+            "lexical_ms": 3.236,
+            "probe_ms": 0.495,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.002,
+            "ambiguity_ms": 0.002,
+            "total_ms": 3.759
+          }
+        },
+        {
+          "id": "submit-expense-after-trip",
+          "query": "how to submit receipts after returning from travel",
+          "relevant": [
+            "expense_claim_guide.txt"
+          ],
+          "preferred_top": "expense_claim_guide.txt",
+          "returned": [
+            "expense_claim_guide.txt",
+            "travel_reimbursement_policy.txt",
+            "quarterly_product_review.txt",
+            "support_runbook.md",
+            "incident_postmortem.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 4.04,
+          "timing": {
+            "lexical_ms": 2.339,
+            "probe_ms": 0.618,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.002,
+            "ambiguity_ms": 0.002,
+            "total_ms": 2.99
+          }
+        },
+        {
+          "id": "account-breach",
+          "query": "someone got into my account what should I do",
+          "relevant": [
+            "security_response_guide.txt"
+          ],
+          "preferred_top": "security_response_guide.txt",
+          "returned": [
+            "security_response_guide.txt",
+            "customer_success_playbook.txt",
+            "outstanding_invoices.txt",
+            "vendor_contracts.csv",
+            "support_runbook.md"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 5.0,
+          "timing": {
+            "lexical_ms": 3.563,
+            "probe_ms": 0.278,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.001,
+            "ambiguity_ms": 0.0,
+            "total_ms": 3.873
+          }
+        },
+        {
+          "id": "phoenix-whatsapp-pilot",
+          "query": "how many users were onboarded in the whatsapp pilot",
+          "relevant": [
+            "meeting_minutes_q1_review.txt"
+          ],
+          "preferred_top": "meeting_minutes_q1_review.txt",
+          "returned": [
+            "meeting_minutes_q1_review.txt",
+            "quarterly_product_review.txt",
+            "incident_postmortem.txt",
+            "employee_handbook.md",
+            "client_database.csv"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 5.95,
+          "timing": {
+            "lexical_ms": 3.878,
+            "probe_ms": 0.839,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.002,
+            "ambiguity_ms": 0.002,
+            "total_ms": 4.75
+          }
+        },
+        {
+          "id": "who-fixes-hindi-model",
+          "query": "who owns the Hindi model accuracy action item",
+          "relevant": [
+            "meeting_minutes_q1_review.txt"
+          ],
+          "preferred_top": "meeting_minutes_q1_review.txt",
+          "returned": [
+            "meeting_minutes_q1_review.txt",
+            "customer_success_playbook.txt",
+            "vendor_contracts.csv",
+            "incident_postmortem.txt",
+            "travel_reimbursement_policy.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 5.57,
+          "timing": {
+            "lexical_ms": 3.728,
+            "probe_ms": 0.612,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.002,
+            "ambiguity_ms": 0.003,
+            "total_ms": 4.375
+          }
+        },
+        {
+          "id": "wipro-renewal-pending",
+          "query": "which client has renewal pending with wipro",
+          "relevant": [
+            "client_database.csv"
+          ],
+          "preferred_top": "client_database.csv",
+          "returned": [
+            "client_database.csv",
+            "vendor_contracts.csv",
+            "customer_success_playbook.txt",
+            "meeting_minutes_q1_review.txt",
+            "employee_handbook.md"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 5.45,
+          "timing": {
+            "lexical_ms": 3.373,
+            "probe_ms": 0.893,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.002,
+            "ambiguity_ms": 0.002,
+            "total_ms": 4.301
+          }
+        },
+        {
+          "id": "mahindra-onboarding",
+          "query": "which company is currently onboarding with mahindra",
+          "relevant": [
+            "client_database.csv"
+          ],
+          "preferred_top": "client_database.csv",
+          "returned": [
+            "client_database.csv",
+            "employee_handbook.md",
+            "support_runbook.md",
+            "meeting_minutes_q1_review.txt",
+            "vendor_contracts.csv"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 4.79,
+          "timing": {
+            "lexical_ms": 2.96,
+            "probe_ms": 0.58,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.0,
+            "finalize_ms": 0.002,
+            "ambiguity_ms": 0.003,
+            "total_ms": 3.578
+          }
+        },
+        {
+          "id": "vendor-managed-database-support",
+          "query": "managed database support vendor renewal pending",
+          "relevant": [
+            "vendor_contracts.csv"
+          ],
+          "preferred_top": "vendor_contracts.csv",
+          "returned": [
+            "vendor_contracts.csv",
+            "client_database.csv",
+            "support_runbook.md",
+            "customer_success_playbook.txt",
+            "employee_handbook.md"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 4.21,
+          "timing": {
+            "lexical_ms": 2.341,
+            "probe_ms": 0.687,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.001,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.002,
+            "ambiguity_ms": 0.003,
+            "total_ms": 3.062
+          }
+        },
+        {
+          "id": "telephony-api-vendor",
+          "query": "which vendor owns the telephony api contract",
+          "relevant": [
+            "vendor_contracts.csv"
+          ],
+          "preferred_top": "vendor_contracts.csv",
+          "returned": [
+            "vendor_contracts.csv",
+            "customer_success_playbook.txt",
+            "meeting_minutes_q1_review.txt",
+            "client_database.csv",
+            "travel_reimbursement_policy.txt"
+          ],
+          "success_at_1": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_k": 1.0,
+          "ndcg_at_k": 1.0,
+          "latency_ms": 4.55,
+          "timing": {
+            "lexical_ms": 2.788,
+            "probe_ms": 0.609,
+            "retrieval_ms": 0.001,
+            "fusion_ms": 0.0,
+            "rerank_ms": 0.001,
+            "finalize_ms": 0.002,
+            "ambiguity_ms": 0.002,
+            "total_ms": 3.43
+          }
+        }
+      ]
+    }
+  ]
+}

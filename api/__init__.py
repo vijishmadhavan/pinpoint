@@ -2,7 +2,7 @@
 Pinpoint — FastAPI server (bridge between Node.js and Python)
 
 Router modules:
-  core.py       — /ping, /status, /index, /indexing/status, /index-file, /watch, /unwatch
+  core.py       — /ping, /status, /index, /indexing/status, /index-file
   search.py     — /search, /search-facts, /document/{id}, /web-read
   files.py      — /list_files, /file_info, /read_file, /move_file, /batch_move, etc.
   faces.py      — /detect-faces, /crop-face, /find-person, /count-faces, etc.
@@ -65,13 +65,8 @@ app.include_router(photos_router)
 app.include_router(google_router)
 
 
-# --- Startup events ---
-from api.core import restore_watchers_on_startup
-
-
 @app.on_event("startup")
 def _on_startup():
-    restore_watchers_on_startup()
     # Auto-scan common folders for path registry (background, non-blocking)
     from api.files import scan_paths_background
     scan_paths_background()

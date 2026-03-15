@@ -1,0 +1,8 @@
+Security Response Guide
+
+If you think someone got into your account:
+- Reset your password immediately.
+- Report the incident to the security desk.
+- Review recent sign-in activity.
+
+Suspicious emails should be reported through the phishing mailbox within thirty minutes.

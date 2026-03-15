@@ -124,6 +124,58 @@ class TestIndex:
         r = client.post("/index", json={"folder": "/nonexistent_folder_xyz"})
         assert r.status_code == 400
 
+    def test_index_large_folder_returns_job_id(self, client, tmp_path):
+        folder = tmp_path / "bulk"
+        folder.mkdir()
+        for i in range(55):
+            (folder / f"doc_{i}.txt").write_text("hello", encoding="utf-8")
+
+        with (
+            patch("api.core.get_or_create_job", return_value=(123, True)),
+            patch("api.core.threading.Thread") as thread_cls,
+        ):
+            r = client.post("/index", json={"folder": str(folder)})
+
+        assert r.status_code == 200
+        data = r.json()
+        assert data["background"] is True
+        assert data["job_id"] == 123
+        thread_cls.assert_called_once()
+
+    def test_index_large_folder_marks_cancelled_job(self, client, tmp_path):
+        class ImmediateThread:
+            def __init__(self, target=None, daemon=None):
+                self._target = target
+
+            def start(self):
+                if self._target:
+                    self._target()
+
+        folder = tmp_path / "bulk_cancel"
+        folder.mkdir()
+        for i in range(55):
+            (folder / f"doc_{i}.txt").write_text("hello", encoding="utf-8")
+
+        def fake_index_folder(_folder, _db_path, progress_callback):
+            progress_callback(str(folder), 55, 1, str(folder / "doc_0.txt"))
+            return {"indexed": 1}
+
+        with (
+            patch("api.core.get_or_create_job", return_value=(123, True)),
+            patch("api.core.threading.Thread", ImmediateThread),
+            patch("api.core.is_job_cancelling", side_effect=[False, True]),
+            patch("api.core.update_job_progress"),
+            patch("api.core.mark_job_running"),
+            patch("api.core.mark_job_cancelled") as cancelled,
+            patch("api.core.mark_job_completed"),
+            patch("api.core.index_folder", side_effect=fake_index_folder),
+        ):
+            r = client.post("/index", json={"folder": str(folder)})
+
+        assert r.status_code == 200
+        assert r.json()["job_id"] == 123
+        cancelled.assert_called_once()
+
 
 try:
     import watchdog  # noqa: F401
@@ -136,7 +188,7 @@ except ImportError:
 @pytest.mark.skipif(not _has_watchdog, reason="watchdog not installed")
 class TestWatchers:
     def test_watched_empty(self, client):
-        r = client.get("/watched")
+        r = client.get("/watched-folders")
         assert r.status_code == 200
         assert r.json()["count"] == 0
 
@@ -145,46 +197,48 @@ class TestWatchers:
         folder = str(sample_folder)
 
         # Watch
-        r = client.post("/watch", params={"folder": folder})
+        r = client.post("/watch-folder", json={"path": folder})
         assert r.status_code == 200
-        assert r.json()["success"] is True
+        assert r.json()["status"] in ("watching", "already_watching")
 
         # Verify listed
-        r = client.get("/watched")
+        r = client.get("/watched-folders")
         assert r.json()["count"] >= 1
-        assert folder in r.json()["folders"]
+        paths = [f["path"] for f in r.json()["folders"]]
+        assert folder in paths
 
         # Unwatch
-        r = client.post("/unwatch", params={"folder": folder})
+        r = client.post("/unwatch-folder", json={"path": folder})
         assert r.status_code == 200
-        assert r.json()["success"] is True
+        assert r.json()["status"] == "unwatched"
 
         # Verify removed
-        r = client.get("/watched")
-        assert folder not in r.json().get("folders", [])
+        r = client.get("/watched-folders")
+        paths = [f["path"] for f in r.json().get("folders", [])]
+        assert folder not in paths
         assert r.json()["count"] == 0
 
     def test_watch_invalid_folder(self, client):
-        r = client.post("/watch", params={"folder": "/nonexistent_folder_xyz"})
-        assert r.status_code == 400
+        r = client.post("/watch-folder", json={"path": "/nonexistent_folder_xyz"})
+        assert r.status_code == 404
 
     def test_unwatch_not_watched(self, client, sample_folder):
-        r = client.post("/unwatch", params={"folder": str(sample_folder)})
+        r = client.post("/unwatch-folder", json={"path": str(sample_folder)})
         assert r.status_code == 200
-        assert r.json()["success"] is False
+        assert r.json()["status"] == "not_found"
 
     def test_watch_already_watched(self, client, sample_folder):
         """Watching the same folder twice should succeed with a note."""
         folder = str(sample_folder)
-        r1 = client.post("/watch", params={"folder": folder})
+        r1 = client.post("/watch-folder", json={"path": folder})
         assert r1.status_code == 200
 
-        r2 = client.post("/watch", params={"folder": folder})
+        r2 = client.post("/watch-folder", json={"path": folder})
         assert r2.status_code == 200
-        assert "Already watching" in r2.json().get("note", "")
+        assert r2.json()["status"] == "already_watching"
 
         # Cleanup: unwatch
-        client.post("/unwatch", params={"folder": folder})
+        client.post("/unwatch-folder", json={"path": folder})
 
 
 class TestIndexFileExtra:

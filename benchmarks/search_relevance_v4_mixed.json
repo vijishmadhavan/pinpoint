@@ -1,0 +1,119 @@
+{
+  "name": "pinpoint-search-relevance-v4-mixed-domain",
+  "version": 1,
+  "corpus": "benchmarks/corpus_v4_mixed",
+  "notes": [
+    "Mixed-domain benchmark closer to Pinpoint's expected usage: notes, policies, operations docs, invoices, and CSV metadata.",
+    "Designed to test lexical-first search on filename-style, metadata-heavy, and content-heavy queries."
+  ],
+  "queries": [
+    {
+      "id": "renewal-risk-signals",
+      "query": "customer renewal risk signals",
+      "relevant": ["customer_success_playbook.txt"],
+      "preferred_top": "customer_success_playbook.txt"
+    },
+    {
+      "id": "executive-qbr-template",
+      "query": "template for quarterly business review",
+      "relevant": ["customer_success_playbook.txt", "quarterly_product_review.txt"],
+      "preferred_top": "customer_success_playbook.txt"
+    },
+    {
+      "id": "work-from-home-days",
+      "query": "how many days can employees work from home",
+      "relevant": ["employee_handbook.md"],
+      "preferred_top": "employee_handbook.md"
+    },
+    {
+      "id": "report-suspicious-login",
+      "query": "where do I report a suspicious login",
+      "relevant": ["employee_handbook.md", "security_response_guide.txt"],
+      "preferred_top": "employee_handbook.md"
+    },
+    {
+      "id": "queue-too-deep",
+      "query": "what to do when queue depth exceeds 50000",
+      "relevant": ["incident_postmortem.txt", "support_runbook.md"],
+      "preferred_top": "support_runbook.md"
+    },
+    {
+      "id": "handover-checklist",
+      "query": "handover checklist for the on-call shift",
+      "relevant": ["incident_postmortem.txt"],
+      "preferred_top": "incident_postmortem.txt"
+    },
+    {
+      "id": "search-timing-plan",
+      "query": "add per-stage timing for lexical retrieval",
+      "relevant": ["quarterly_product_review.txt"],
+      "preferred_top": "quarterly_product_review.txt"
+    },
+    {
+      "id": "failed-jobs-older-than-day",
+      "query": "review failed jobs older than 24 hours",
+      "relevant": ["support_runbook.md"],
+      "preferred_top": "support_runbook.md"
+    },
+    {
+      "id": "invoice-reminder-day",
+      "query": "when are unpaid bill reminders sent",
+      "relevant": ["outstanding_invoices.txt"],
+      "preferred_top": "outstanding_invoices.txt"
+    },
+    {
+      "id": "daily-meal-allowance",
+      "query": "daily meal allowance during business travel",
+      "relevant": ["travel_reimbursement_policy.txt", "expense_claim_guide.txt"],
+      "preferred_top": "travel_reimbursement_policy.txt"
+    },
+    {
+      "id": "submit-expense-after-trip",
+      "query": "how to submit receipts after returning from travel",
+      "relevant": ["expense_claim_guide.txt"],
+      "preferred_top": "expense_claim_guide.txt"
+    },
+    {
+      "id": "account-breach",
+      "query": "someone got into my account what should I do",
+      "relevant": ["security_response_guide.txt"],
+      "preferred_top": "security_response_guide.txt"
+    },
+    {
+      "id": "phoenix-whatsapp-pilot",
+      "query": "how many users were onboarded in the whatsapp pilot",
+      "relevant": ["meeting_minutes_q1_review.txt"],
+      "preferred_top": "meeting_minutes_q1_review.txt"
+    },
+    {
+      "id": "who-fixes-hindi-model",
+      "query": "who owns the Hindi model accuracy action item",
+      "relevant": ["meeting_minutes_q1_review.txt"],
+      "preferred_top": "meeting_minutes_q1_review.txt"
+    },
+    {
+      "id": "wipro-renewal-pending",
+      "query": "which client has renewal pending with wipro",
+      "relevant": ["client_database.csv"],
+      "preferred_top": "client_database.csv"
+    },
+    {
+      "id": "mahindra-onboarding",
+      "query": "which company is currently onboarding with mahindra",
+      "relevant": ["client_database.csv"],
+      "preferred_top": "client_database.csv"
+    },
+    {
+      "id": "vendor-managed-database-support",
+      "query": "managed database support vendor renewal pending",
+      "relevant": ["vendor_contracts.csv"],
+      "preferred_top": "vendor_contracts.csv"
+    },
+    {
+      "id": "telephony-api-vendor",
+      "query": "which vendor owns the telephony api contract",
+      "relevant": ["vendor_contracts.csv"],
+      "preferred_top": "vendor_contracts.csv"
+    }
+  ]
+}

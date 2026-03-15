@@ -1,0 +1,76 @@
+{
+  "name": "pinpoint-search-relevance-expanded-v1",
+  "version": 1,
+  "corpus": "benchmarks/corpus",
+  "notes": [
+    "Expanded offline benchmark using plain text and CSV fixtures only.",
+    "Includes lexical, policy, operations, and paraphrase-style queries."
+  ],
+  "queries": [
+    {
+      "id": "leave-policy",
+      "query": "how many annual leave days do employees get",
+      "relevant": ["employee_handbook.md"]
+    },
+    {
+      "id": "caregiver-leave",
+      "query": "secondary caregiver leave duration",
+      "relevant": ["employee_handbook.md"]
+    },
+    {
+      "id": "suspicious-login",
+      "query": "report suspicious login quickly",
+      "relevant": ["employee_handbook.md"]
+    },
+    {
+      "id": "queue-depth-page",
+      "query": "when should platform team be paged for queue depth",
+      "relevant": ["incident_postmortem.txt", "support_runbook.md"]
+    },
+    {
+      "id": "handover-checklist",
+      "query": "on-call handoff checklist",
+      "relevant": ["incident_postmortem.txt"]
+    },
+    {
+      "id": "renewal-risk-signals",
+      "query": "signs that a customer renewal is at risk",
+      "relevant": ["customer_success_playbook.txt"]
+    },
+    {
+      "id": "discount-approval",
+      "query": "who approves discount requests over 12 percent",
+      "relevant": ["customer_success_playbook.txt"]
+    },
+    {
+      "id": "vendor-renewal-pending",
+      "query": "which vendor contract is renewal pending",
+      "relevant": ["vendor_contracts.csv"]
+    },
+    {
+      "id": "telephony-cost",
+      "query": "annual cost of telephony api vendor",
+      "relevant": ["vendor_contracts.csv"]
+    },
+    {
+      "id": "reranker-cost",
+      "query": "larger chunks increased reranker token cost",
+      "relevant": ["quarterly_product_review.txt"]
+    },
+    {
+      "id": "timing-stages",
+      "query": "add per-stage timing for lexical semantic fusion reranking",
+      "relevant": ["quarterly_product_review.txt"]
+    },
+    {
+      "id": "severity-one-updates",
+      "query": "how often should severity one incidents get status updates",
+      "relevant": ["support_runbook.md"]
+    },
+    {
+      "id": "stalled-consumers",
+      "query": "what to do when consumers are stalled",
+      "relevant": ["support_runbook.md"]
+    }
+  ]
+}

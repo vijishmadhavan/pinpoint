@@ -11,7 +11,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
-from api.helpers import _check_safe, record_generated_file
+from api.helpers import _background_index, _check_safe, record_generated_file
 
 router = APIRouter()
 
@@ -291,6 +291,10 @@ def analyze_data_endpoint(req: AnalyzeDataRequest) -> dict:
         raise HTTPException(status_code=404, detail=f"File not found: {path}")
 
     ext = os.path.splitext(path)[1].lower()
+
+    # Fire-and-forget: auto-index for future semantic search
+    _background_index(path)
+
     try:
         df, sheet_name, all_sheets = _load_df(path, ext, req.sheet)
     except Exception as e:

@@ -738,7 +738,7 @@ async function apiPing() {
 // Legacy enc used in executeTool switch cases
 const enc = encodeURIComponent;
 
-async function executeTool(functionCall, sock, chatJid) {
+async function executeTool(functionCall, sock, chatJid, sentFiles) {
   const { name } = functionCall;
   const args = resolveRefsInArgs(functionCall.args);
   console.log(`[${LLM_TAG}] Tool call: ${name}(${JSON.stringify(args).slice(0, 200)})`);
@@ -1399,7 +1399,7 @@ async function runGemini(userMessage, sock, chatJid, opts = {}) {
           result = toolCache.get(folderKey);
           console.log(`[${LLM_TAG}] Dedup skip: ${fc.name} (same folder already listed)`);
         } else {
-          result = await executeTool(fc, sock, chatJid);
+          result = await executeTool(fc, sock, chatJid, sentFiles);
           toolCache.set(callHash, result);
           if (folderKey) toolCache.set(folderKey, result); // Smart dedup for same-folder
         }

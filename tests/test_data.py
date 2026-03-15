@@ -1,5 +1,7 @@
 """Tests for api/data.py — calculate, analyze-data."""
 
+from unittest.mock import patch
+
 
 class TestCalculate:
     def test_basic_math(self, client):
@@ -33,6 +35,13 @@ class TestCalculate:
 
 
 class TestAnalyzeData:
+    def test_analyze_data_triggers_background_index(self, client, sample_folder):
+        path = str(sample_folder / "data.csv")
+        with patch("api.data._background_index") as background_index:
+            r = client.post("/analyze-data", json={"path": path, "operation": "describe"})
+        assert r.status_code == 200
+        background_index.assert_called_once_with(path)
+
     def test_describe_csv(self, client, sample_folder):
         path = str(sample_folder / "data.csv")
         r = client.post("/analyze-data", json={"path": path, "operation": "describe"})

@@ -198,6 +198,14 @@ def init_db(db_path: str = DB_PATH) -> sqlite3.Connection:
         );
         CREATE INDEX IF NOT EXISTS idx_chunks_document ON chunks(document_id);
 
+        -- Chunk embeddings (Segment 23C: semantic search via Gemini Embedding 2)
+        CREATE TABLE IF NOT EXISTS chunk_embeddings (
+            chunk_id INTEGER PRIMARY KEY,
+            embedding BLOB NOT NULL,
+            embedded_at TEXT NOT NULL,
+            FOREIGN KEY (chunk_id) REFERENCES chunks(id) ON DELETE CASCADE
+        );
+
         -- Known faces (Segment 18V: persistent face recognition)
         CREATE TABLE IF NOT EXISTS known_faces (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -207,6 +215,12 @@ def init_db(db_path: str = DB_PATH) -> sqlite3.Connection:
             created_at TEXT NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_known_faces_name ON known_faces(name);
+
+        -- Watched folders (user-chosen folders to auto-index + embed)
+        CREATE TABLE IF NOT EXISTS watched_folders (
+            path TEXT PRIMARY KEY,
+            added_at TEXT NOT NULL
+        );
 
         -- File path registry (lightweight index of filenames in common folders)
         CREATE TABLE IF NOT EXISTS file_paths (
@@ -230,6 +244,27 @@ def init_db(db_path: str = DB_PATH) -> sqlite3.Connection:
         );
         CREATE INDEX IF NOT EXISTS idx_generated_files_path ON generated_files(path);
 
+        -- Background jobs (Phase 4: persistent status for indexing/scanning work)
+        CREATE TABLE IF NOT EXISTS background_jobs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            job_type TEXT NOT NULL,
+            target_path TEXT DEFAULT '',
+            target_hash TEXT DEFAULT '',
+            status TEXT NOT NULL,
+            current_stage TEXT DEFAULT '',
+            total_items INTEGER DEFAULT 0,
+            completed_items INTEGER DEFAULT 0,
+            details_json TEXT DEFAULT '',
+            started_at TEXT DEFAULT NULL,
+            finished_at TEXT DEFAULT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            failure_reason TEXT DEFAULT '',
+            retry_count INTEGER DEFAULT 0
+        );
+        CREATE INDEX IF NOT EXISTS idx_background_jobs_status ON background_jobs(status, updated_at);
+        CREATE INDEX IF NOT EXISTS idx_background_jobs_type_target ON background_jobs(job_type, target_path, status);
+
         -- Settings (key-value store for toggles like memory on/off)
         CREATE TABLE IF NOT EXISTS settings (
             key TEXT PRIMARY KEY,
@@ -252,6 +287,14 @@ def init_db(db_path: str = DB_PATH) -> sqlite3.Connection:
     for col, ctype in [("age", "INTEGER"), ("gender", "TEXT"), ("pose", "TEXT")]:
         if col not in face_cols:
             conn.execute(f"ALTER TABLE face_cache ADD COLUMN {col} {ctype}")
+    job_cols = {r[1] for r in conn.execute("PRAGMA table_info(background_jobs)").fetchall()}
+    for col, ctype, default in [
+        ("total_items", "INTEGER", "0"),
+        ("completed_items", "INTEGER", "0"),
+        ("details_json", "TEXT", "''"),
+    ]:
+        if col not in job_cols:
+            conn.execute(f"ALTER TABLE background_jobs ADD COLUMN {col} {ctype} DEFAULT {default}")
     conn.commit()
 
     # FTS5 virtual table — CREATE VIRTUAL TABLE doesn't support IF NOT EXISTS
@@ -498,10 +541,36 @@ def _get_chunker() -> Any:
     """Load Chonkie RecursiveChunker once."""
     global _chunker
     if _chunker is None:
-        from chonkie import RecursiveChunker
+        try:
+            from chonkie import RecursiveChunker
 
-        # ~500 words ≈ ~2500 chars. Use character tokenizer (zero deps, fastest).
-        _chunker = RecursiveChunker(tokenizer="character", chunk_size=2500)
+            # ~500 words ≈ ~2500 chars. Use character tokenizer (zero deps, fastest).
+            _chunker = RecursiveChunker(tokenizer="character", chunk_size=2500)
+        except ImportError:
+            class _FallbackChunk:
+                def __init__(self, text: str, start_index: int, end_index: int) -> None:
+                    self.text = text
+                    self.start_index = start_index
+                    self.end_index = end_index
+
+            class _FallbackChunker:
+                def __init__(self, chunk_size: int = 2500, overlap: int = 250) -> None:
+                    self.chunk_size = chunk_size
+                    self.overlap = overlap
+
+                def chunk(self, text: str) -> list[_FallbackChunk]:
+                    chunks = []
+                    start = 0
+                    text_len = len(text)
+                    while start < text_len:
+                        end = min(start + self.chunk_size, text_len)
+                        chunks.append(_FallbackChunk(text[start:end], start, end))
+                        if end >= text_len:
+                            break
+                        start = max(end - self.overlap, start + 1)
+                    return chunks
+
+            _chunker = _FallbackChunker()
     return _chunker
 
 

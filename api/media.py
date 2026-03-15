@@ -3,16 +3,30 @@
 from __future__ import annotations
 
 import os
+import threading
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
-from api.helpers import _check_safe
+from api.helpers import _check_safe, _get_conn
+from job_service import (
+    get_or_create_job,
+    is_job_cancelling,
+    mark_job_cancelled,
+    mark_job_completed,
+    mark_job_failed,
+    mark_job_running,
+    update_job_progress,
+)
 
 router = APIRouter()
 
 # Background embedding/scoring jobs: folder -> {status, total, done, error?}
 _embedding_jobs = {}
+
+
+class _JobCancelled(Exception):
+    pass
 
 
 # --- Pydantic models ---
@@ -124,27 +138,76 @@ def search_images_visual_endpoint(req: VisualSearchRequest) -> dict:
             if job["status"] == "error":
                 del _embedding_jobs[folder]  # Clear failed job, will retry below
 
-        import threading
+        conn = _get_conn()
+        job_id, created = get_or_create_job(conn, "image_embed_folder", target_path=folder, current_stage="queued")
+        if not created:
+            job = _embedding_jobs.get(folder, {"status": "running", "total": len(files), "done": len(cached), "job_id": job_id})
+            return {
+                "status": "embedding",
+                "job_id": job_id,
+                "total": job["total"],
+                "done": job["done"],
+                "_hint": f"Still embedding ({job['done']}/{job['total']}). Tell the user to wait and try again in a bit.",
+            }
 
-        _embedding_jobs[folder] = {"status": "running", "total": len(files), "done": len(cached)}
+        _embedding_jobs[folder] = {"status": "running", "total": len(files), "done": len(cached), "job_id": job_id}
+        update_job_progress(
+            conn,
+            job_id,
+            total_items=len(files),
+            completed_items=len(cached),
+            details={"folder": folder, "cached": len(cached), "to_embed": to_embed},
+            current_stage="queued",
+        )
 
         def _bg_embed() -> None:
+            job_conn = _get_conn()
             try:
+                if is_job_cancelling(job_conn, job_id):
+                    _embedding_jobs[folder]["status"] = "cancelled"
+                    mark_job_cancelled(job_conn, job_id)
+                    return
+                mark_job_running(job_conn, job_id, current_stage="embedding")
                 from image_search import embed_images
 
                 def _progress(done: int, total: int) -> None:
-                    _embedding_jobs[folder]["done"] = done + len(cached)
+                    if is_job_cancelling(job_conn, job_id):
+                        raise _JobCancelled()
+                    completed = done + len(cached)
+                    _embedding_jobs[folder]["done"] = completed
+                    update_job_progress(
+                        job_conn,
+                        job_id,
+                        total_items=total + len(cached),
+                        completed_items=completed,
+                        details={"folder": folder, "cached": len(cached), "to_embed": to_embed},
+                        current_stage="embedding",
+                    )
 
                 embed_images(folder, progress_callback=_progress)
                 _embedding_jobs[folder]["status"] = "done"
                 _embedding_jobs[folder]["done"] = len(files)
+                update_job_progress(
+                    job_conn,
+                    job_id,
+                    total_items=len(files),
+                    completed_items=len(files),
+                    details={"folder": folder, "cached": len(cached), "to_embed": to_embed},
+                    current_stage="completed",
+                )
+                mark_job_completed(job_conn, job_id, current_stage="completed")
+            except _JobCancelled:
+                _embedding_jobs[folder]["status"] = "cancelled"
+                mark_job_cancelled(job_conn, job_id)
             except Exception as e:
                 _embedding_jobs[folder]["status"] = "error"
                 _embedding_jobs[folder]["error"] = str(e)
+                mark_job_failed(job_conn, job_id, str(e), current_stage="failed")
 
         threading.Thread(target=_bg_embed, daemon=True).start()
         return {
             "status": "embedding",
+            "job_id": job_id,
             "total": len(files),
             "to_embed": to_embed,
             "cached": len(cached),

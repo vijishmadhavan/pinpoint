@@ -1,0 +1,20 @@
+Customer Success Playbook
+
+Renewal risk signals:
+- Usage drops for three consecutive weeks.
+- Executive sponsor leaves the customer account.
+- Support escalations remain unresolved for more than seven days.
+
+Quarterly business review template:
+- Start with outcomes delivered.
+- Review adoption metrics.
+- Confirm renewal timeline and procurement owners.
+
+Escalation path:
+- Customer success manager owns the first response.
+- Solutions architect joins for integration blockers.
+- Finance approves discount requests over 12 percent.
+
+Expansion strategy:
+- Offer analytics add-on after adoption exceeds 70 percent.
+- Propose multilingual support for accounts serving India and the Middle East.

@@ -1,0 +1,61 @@
+{
+  "name": "pinpoint-search-relevance-v1",
+  "version": 1,
+  "corpus": "test_data",
+  "notes": [
+    "Initial runnable benchmark built from the local extractable sample corpus.",
+    "Queries target files that can be indexed without Gemini OCR or MarkItDown."
+  ],
+  "queries": [
+    {
+      "id": "clients-tata-contact",
+      "query": "Tata Motors contact person",
+      "relevant": ["client_database.csv"]
+    },
+    {
+      "id": "clients-jio-contract",
+      "query": "Reliance Jio contract value",
+      "relevant": ["client_database.csv"]
+    },
+    {
+      "id": "clients-renewal-pending",
+      "query": "which client is renewal pending",
+      "relevant": ["client_database.csv"]
+    },
+    {
+      "id": "expenses-january-groceries",
+      "query": "January BigBasket monthly order",
+      "relevant": ["expenses_2024.xlsx"]
+    },
+    {
+      "id": "expenses-wifi",
+      "query": "Jio Fiber 100Mbps bill",
+      "relevant": ["expenses_2024.xlsx"]
+    },
+    {
+      "id": "expenses-health-checkup",
+      "query": "annual health checkup Narayana",
+      "relevant": ["expenses_2024.xlsx"]
+    },
+    {
+      "id": "minutes-attendees",
+      "query": "who attended quarterly business review",
+      "relevant": ["meeting_minutes_q1_review.txt"]
+    },
+    {
+      "id": "minutes-project-phoenix",
+      "query": "Project Phoenix April 15 launch",
+      "relevant": ["meeting_minutes_q1_review.txt"]
+    },
+    {
+      "id": "minutes-hiring",
+      "query": "open positions ML engineers backend frontend devops",
+      "relevant": ["meeting_minutes_q1_review.txt"]
+    },
+    {
+      "id": "minutes-soc2",
+      "query": "SOC 2 Type II audit by June 30",
+      "relevant": ["meeting_minutes_q1_review.txt"]
+    }
+  ]
+}
