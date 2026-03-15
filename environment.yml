@@ -6,9 +6,9 @@ dependencies:
   - nodejs=20
   - pip
   - ffmpeg
-  - tesseract
   - ripgrep
   - pip:
+      # Core API
       - fastapi
       - uvicorn
       - python-dotenv
@@ -16,26 +16,43 @@ dependencies:
       - requests
       - httpx
       - pydantic
+
+      # Data/ML
       - numpy
       - pandas
+      - matplotlib
       - pillow
       - pillow-heif
-      - matplotlib
+
+      # AI/LLM
       - google-genai
+
+      # Document extraction
       - openpyxl
+      - pymupdf
       - pymupdf4llm
       - pdfplumber
       - markitdown
       - python-docx
+      - python-pptx
       - readability-lxml
       - html2text
-      - pyyaml
+
+      # Search/indexing
       - chonkie
+      - pyyaml
       - watchdog
+
+      # Dev/test
       - pytest
       - ruff
 
 # Notes:
 # - This is a practical baseline environment for local development.
-# - Some optional features may need extra system or Python dependencies depending on your platform.
 # - The WhatsApp bot still needs `npm install` inside `bot/`.
+# - Tesseract binary must be installed separately (conda install tesseract or apt install tesseract-ocr).
+#
+# Optional (not included — install manually if needed):
+# - pytesseract + tesseract binary: OCR (Gemini handles OCR if not installed)
+# - insightface + onnxruntime-gpu: face recognition (GPU-dependent, platform-specific)
+# - PyStemmer: if using the bm25s benchmark evaluator
