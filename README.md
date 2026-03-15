@@ -66,15 +66,15 @@ If you cancel a long job halfway (like embedding 1000 photos), the work already 
 
 ## Memory System
 
-Pinpoint has a 4-layer memory system that learns from every interaction:
+Pinpoint has a 4-layer memory system that learns from everyday use:
 
-**Conversation memory** — Keeps the last 50 messages per chat. When conversations get long, older messages are LLM-summarized instead of dropped — so context is never lost, just compressed. Auto-resets after 60 minutes of idle.
+**Conversation memory** — Keeps the last 50 messages per session. In the bot flow, long conversations are compacted instead of simply truncated, so important outcomes can survive even when older turns are compressed. Idle chats reset after 60 minutes.
 
-**Persistent personal memory** — "Remember that my passport number is X12345." Stored permanently in SQLite, searchable, survives restarts. When you save a new fact that contradicts an old one, Gemini detects the conflict and supersedes the old memory (with an audit trail). You can forget by description — "forget my old address" — no IDs needed.
+**Persistent personal memory** — "Remember that my passport number is X12345." Stored permanently in SQLite, searchable with FTS5, and survives restarts. When you save a new fact, Gemini can decide to add it, update an existing memory, merge complementary details, ignore duplicates, or supersede a contradiction with an audit trail. You can also forget by description — "forget my old address" — without needing an internal ID.
 
-**Document fact extraction** — When a file is indexed, Gemini extracts 3-10 key facts (names, dates, amounts, topics) and stores them separately. You can search facts directly without reading the full document.
+**Document fact extraction** — When a file is indexed, Gemini extracts key facts such as names, dates, amounts, and topics, then stores them separately from the raw document text. You can search facts directly without reopening the full file.
 
-**Face memory** — "Remember this is John." Saves face embeddings persistently. Next time face detection runs on any photo, John is automatically recognized.
+**Face memory** — "Remember this is John." Saves face embeddings persistently so future face detection runs can recognize the same person across photos.
 
 ## Quick Start
 
