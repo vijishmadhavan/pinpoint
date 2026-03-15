@@ -188,7 +188,7 @@ python evaluate_search.py --dataset benchmarks/search_relevance_v4_mixed.json --
 python load_test_search.py --corpus benchmarks/corpus_v4_mixed --rounds 10 --concurrency 8
 ```
 
-Current results on mixed-domain benchmark: **94% success@1, perfect recall, 4ms latency, 216 QPS**.
+Current results on the mixed-domain offline benchmark: **94.4% success@1, perfect recall, ~4.3ms average query latency**. In a concurrent load test (concurrency=2, rounds=1): **~216 QPS, ~9.2ms average wall latency**.
 
 See [benchmarks/README.md](benchmarks/README.md) for details.
 
