@@ -13,7 +13,8 @@ Pinpoint indexes your documents, PDFs, spreadsheets, images, and media into a lo
 - **"Find the Sharma invoice from last month"** — searches across all your indexed documents instantly
 - **"What's in that Excel in Downloads?"** — reads and analyzes spreadsheets, CSVs, PDFs on the fly
 - **"Move all receipts to the Tax folder"** — batch file operations through conversation
-- **"Group my wedding photos by category"** — AI-powered photo organization and culling
+- **"Group my wedding photos by category"** — AI classifies photos into groups and sorts them into folders
+- **"Cull my camera roll — keep the best 80%"** — AI scores every photo for quality and separates rejects
 - **"Who is this person?"** — remembers faces, recognizes them across photos later
 - **"OCR this scanned document"** — extracts text from images and scanned PDFs
 - **"Send me that PDF"** — sends files directly to your WhatsApp
@@ -36,6 +37,13 @@ Your Files ──> Indexer ──> SQLite/FTS5 ──> Search API ──> WhatsA
 3. **Act** — The WhatsApp bot turns your questions into tool calls: search, read, move, analyze, transform
 
 Everything runs locally. The only external calls are to Gemini (for the AI layer) and optionally to web search providers.
+
+**Important:** Search only finds files that have been indexed. Files get indexed when you:
+- Explicitly index a file or folder (`/index-file`, `/index`)
+- Watch a folder — new files are picked up every 60 minutes
+- Read or analyze a file — auto-indexes in the background for future searches
+
+Pinpoint does not scan your entire computer automatically. You control what gets indexed.
 
 ## Quick Start
 
@@ -81,6 +89,7 @@ Scan the QR code with WhatsApp to pair. Then just message your files.
 | "Find photos of the beach" | Visual image search across your photos |
 | "OCR this scanned receipt" | Extracts text from images/scanned PDFs |
 | "Group wedding photos by category" | AI classifies and sorts photos into folders |
+| "Cull my camera roll, keep best 80%" | AI scores photos, separates rejects into a folder |
 | "Who is this person?" | Face detection + recognition across photos |
 | "Send me that report" | Sends the file to your WhatsApp chat |
 | (send a photo/file to bot) | Saves to PC, renames, puts in your chosen folder |
