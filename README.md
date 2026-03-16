@@ -248,6 +248,7 @@ See [benchmarks/README.md](benchmarks/README.md) for details.
 
 - [Architecture](docs/architecture.md) — how the system is built
 - [Benchmark Summary](docs/benchmark-summary.md) — what Pinpoint has measured so far
+- [Stability Policy](docs/stability-policy.md) — what Pinpoint treats as stable, optional, or experimental
 - [Troubleshooting](docs/troubleshooting.md) — common issues and fixes
 - [Release Checklist](docs/release-checklist.md) — what to check before pushing
 - [Contributing](CONTRIBUTING.md) — how to contribute

@@ -369,13 +369,23 @@ class TestBackgroundIndexing:
 
         path = str(sample_folder / "hello.txt")
         submitted = []
+        call_count = [0]
 
         def fake_submit(fn):
             submitted.append(fn)
             return SimpleNamespace()
 
+        def fake_get_or_create(conn, job_type, target_path, current_stage="queued"):
+            call_count[0] += 1
+            # First call: created=True, second call: created=False (dedupe)
+            return (f"job-{call_count[0]}", call_count[0] == 1)
+
         _AUTO_INDEX_IN_FLIGHT.clear()
-        with patch("api.helpers._AUTO_INDEX_EXECUTOR.submit", side_effect=fake_submit):
+        with (
+            patch("api.helpers._AUTO_INDEX_EXECUTOR.submit", side_effect=fake_submit),
+            patch("api.helpers.get_or_create_job", side_effect=fake_get_or_create),
+            patch("api.helpers.init_db"),
+        ):
             _background_index(path)
             _background_index(path)
 
