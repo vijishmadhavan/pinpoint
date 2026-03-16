@@ -19,11 +19,13 @@ import os
 
 from dotenv import load_dotenv
 
+from pinpoint import __version__
+
 load_dotenv()
 
 from fastapi import FastAPI
 
-app = FastAPI(title="Pinpoint", version="0.2.0")
+app = FastAPI(title="Pinpoint", version=__version__)
 
 # --- API auth middleware ---
 API_SECRET = os.environ.get("API_SECRET", "")

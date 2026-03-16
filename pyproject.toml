@@ -6,7 +6,20 @@ build-backend = "setuptools.build_meta"
 name = "pinpoint"
 version = "1.0.0"
 description = "Local document/photo search with WhatsApp bot"
+readme = "README.md"
 requires-python = ">=3.11"
+license = {file = "LICENSE"}
+authors = [
+    {name = "Pinpoint contributors"},
+]
+keywords = ["whatsapp", "search", "local-first", "sqlite", "fastapi", "documents", "photos"]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Framework :: FastAPI",
+    "Operating System :: OS Independent",
+]
 dependencies = [
     "fastapi",
     "uvicorn",
@@ -34,6 +47,11 @@ dependencies = [
     "pyyaml",
     "watchdog",
 ]
+
+[project.urls]
+Homepage = "https://github.com/vijishmadhavan/pinpoint"
+Repository = "https://github.com/vijishmadhavan/pinpoint"
+Issues = "https://github.com/vijishmadhavan/pinpoint/issues"
 
 [project.scripts]
 pinpoint = "pinpoint.cli:main"

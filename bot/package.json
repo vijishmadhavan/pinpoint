@@ -17,9 +17,18 @@
     "lint:fix": "eslint --fix . && prettier --write .",
     "test": "node --test"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": ["whatsapp", "bot", "baileys", "pinpoint", "local-search", "assistant"],
+  "author": "Pinpoint contributors",
+  "license": "MIT",
+  "homepage": "https://github.com/vijishmadhavan/pinpoint",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vijishmadhavan/pinpoint.git",
+    "directory": "bot"
+  },
+  "bugs": {
+    "url": "https://github.com/vijishmadhavan/pinpoint/issues"
+  },
   "dependencies": {
     "@google/genai": "^1.43.0",
     "@whiskeysockets/baileys": "^7.0.0-rc.9",

@@ -22,6 +22,7 @@ from job_service import (
     mark_job_running,
     update_job_progress,
 )
+from pinpoint import __version__
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -235,6 +236,7 @@ def status_endpoint() -> dict:
     """Return indexing statistics."""
     conn = _get_conn()
     stats = get_stats(conn)
+    stats["api_version"] = __version__
     stats["db_path"] = DB_PATH
     stats["db_size_mb"] = round(os.path.getsize(DB_PATH) / 1024 / 1024, 2) if os.path.exists(DB_PATH) else 0
     return stats
