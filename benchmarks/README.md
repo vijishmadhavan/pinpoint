@@ -13,6 +13,14 @@ python evaluate_search.py --dataset benchmarks/search_relevance_v2.json --corpus
 python evaluate_search.py --dataset benchmarks/search_relevance_v4_mixed.json --corpus benchmarks/corpus_v4_mixed --output benchmarks/v4_mixed_report.json
 ```
 
+Benchmark preparation helpers live under `benchmarks/scripts/`.
+
+Example:
+
+```bash
+python benchmarks/scripts/build_legal_benchmark_v3.py --help
+```
+
 ## What it measures
 
 - `fts_only`

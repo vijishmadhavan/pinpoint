@@ -194,6 +194,20 @@ pinpoint/
 
 For deeper details: [docs/architecture.md](docs/architecture.md)
 
+## Repo Layout
+
+The main product surface is intentionally small:
+
+- `api/` — FastAPI routers and API-facing behavior
+- `pinpoint/` — Python package and CLI entry points
+- `bot/` — WhatsApp bot package
+- `skills/` — skill markdowns shipped with the product
+- `benchmarks/` — search evaluation datasets, reports, and benchmark scripts
+- `tests/` — regression and packaging coverage
+- `docs/` — product docs, troubleshooting, and release notes
+
+Internal planning notes and downloaded comparison repos are kept out of the GitHub-facing product surface.
+
 ## Environment Variables
 
 Copy `.env.example` to `.env`. Key variables:
@@ -212,7 +226,7 @@ Copy `.env.example` to `.env`. Key variables:
 conda run -n pinpoint python -m pytest tests/ -q
 ```
 
-277+ tests covering search, indexing, file operations, jobs, security, and API contracts.
+The suite covers search, indexing, file operations, jobs, packaging, security, and API contracts.
 
 ## Benchmarks
 
