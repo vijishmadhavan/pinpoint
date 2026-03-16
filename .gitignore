@@ -80,3 +80,5 @@ gws-cli/
 
 # Old monolith backup
 api_old.py
+.pkg-venv/
+.pkg-build-tmp/

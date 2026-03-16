@@ -1,13 +1,69 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "pinpoint"
 version = "1.0.0"
 description = "Local document/photo search with WhatsApp bot"
 requires-python = ">=3.11"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "python-dotenv",
+    "python-multipart",
+    "requests",
+    "httpx",
+    "pydantic",
+    "numpy",
+    "pandas",
+    "matplotlib",
+    "pillow",
+    "pillow-heif",
+    "google-genai",
+    "openpyxl",
+    "pymupdf",
+    "pymupdf4llm",
+    "pdfplumber",
+    "markitdown",
+    "python-docx",
+    "python-pptx",
+    "readability-lxml",
+    "html2text",
+    "chonkie",
+    "pyyaml",
+    "watchdog",
+]
+
+[project.scripts]
+pinpoint = "pinpoint.cli:main"
+
+[tool.setuptools]
+py-modules = [
+    "audio_search",
+    "database",
+    "evaluate_search",
+    "extractors",
+    "face_search",
+    "image_search",
+    "indexer",
+    "indexing_service",
+    "job_service",
+    "load_test_search",
+    "photo_cull",
+    "run_api",
+    "search",
+    "search_pipeline",
+    "video_search",
+]
+
+[tool.setuptools.packages.find]
+include = ["api*", "pinpoint*"]
 
 [tool.ruff]
 line-length = 120
 target-version = "py311"
-exclude = ["nanobot-main"]
+exclude = ["nanobot-main", ".pkg-venv", ".pkg-build-tmp"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]

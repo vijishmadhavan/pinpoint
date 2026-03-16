@@ -1,0 +1,41 @@
+name: Package Validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  package-validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install packaging and test dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install \
+            fastapi uvicorn httpx pytest \
+            python-multipart openpyxl pillow watchdog pydantic python-dotenv \
+            pdfplumber numpy pandas requests python-docx PyMuPDF matplotlib \
+            chonkie markitdown pymupdf4llm pillow-heif google-genai \
+            python-pptx readability-lxml html2text pyyaml
+
+      - name: Install Pinpoint from source
+        run: pip install --no-deps --no-build-isolation .
+
+      - name: Run packaging safety tests
+        run: pytest tests/test_packaging.py -q
+
+      - name: Smoke test CLI entry point
+        run: |
+          pinpoint --help
+          pinpoint status
