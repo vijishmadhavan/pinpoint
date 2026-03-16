@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import importlib
 import runpy
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 
 class TestImportSmoke:
@@ -71,6 +71,71 @@ class TestCliSmoke:
         captured = capsys.readouterr()
         assert "Pinpoint CLI" in captured.out
         assert "search" in captured.out
+
+    def test_cli_help_lists_start(self, capsys):
+        from pinpoint.cli import main
+
+        try:
+            main(["--help"])
+        except SystemExit as exc:
+            assert exc.code == 0
+        captured = capsys.readouterr()
+        assert "start" in captured.out
+
+    def test_start_api_only_when_bot_missing(self, capsys, tmp_path):
+        from pinpoint.cli import main
+
+        api_proc = MagicMock()
+        api_proc.poll.return_value = None
+
+        with (
+            patch("pinpoint.cli.user_data_dir", return_value=tmp_path),
+            patch("pinpoint.cli._wait_for_api", return_value=True),
+            patch("pinpoint.cli.shutil.which", return_value=None),
+            patch("pinpoint.cli.subprocess.Popen", return_value=api_proc) as popen,
+            patch("pinpoint.cli.time.sleep", side_effect=KeyboardInterrupt),
+        ):
+            assert main(["start"]) == 0
+
+        captured = capsys.readouterr()
+        assert "pinpoint-bot not found" in captured.out
+        assert popen.call_count == 1
+        api_proc.terminate.assert_called_once()
+
+    def test_start_bot_only_requires_running_api(self, capsys, tmp_path):
+        from pinpoint.cli import main
+
+        with (
+            patch("pinpoint.cli.user_data_dir", return_value=tmp_path),
+            patch("pinpoint.cli._api_ping", return_value=False),
+        ):
+            assert main(["start", "--bot"]) == 1
+
+        captured = capsys.readouterr()
+        assert "API is not reachable" in captured.out
+
+    def test_start_launches_api_and_bot_when_available(self, capsys, tmp_path):
+        from pinpoint.cli import main
+
+        api_proc = MagicMock()
+        bot_proc = MagicMock()
+        api_proc.poll.return_value = None
+        bot_proc.poll.return_value = None
+
+        with (
+            patch("pinpoint.cli.user_data_dir", return_value=tmp_path),
+            patch("pinpoint.cli._wait_for_api", return_value=True),
+            patch("pinpoint.cli.shutil.which", return_value="/usr/bin/pinpoint-bot"),
+            patch("pinpoint.cli.subprocess.Popen", side_effect=[api_proc, bot_proc]) as popen,
+            patch("pinpoint.cli.time.sleep", side_effect=KeyboardInterrupt),
+        ):
+            assert main(["start"]) == 0
+
+        captured = capsys.readouterr()
+        assert "Starting bot via /usr/bin/pinpoint-bot" in captured.out
+        assert popen.call_count == 2
+        bot_proc.terminate.assert_called_once()
+        api_proc.terminate.assert_called_once()
 
 
 class TestRunApiEntrypoint:

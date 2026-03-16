@@ -1,8 +1,17 @@
 {
-  "name": "bot",
+  "name": "pinpoint-bot",
   "version": "1.0.0",
-  "description": "",
+  "description": "WhatsApp bot for Pinpoint local file assistant",
   "main": "index.js",
+  "bin": {
+    "pinpoint-bot": "./bin/pinpoint-bot.js"
+  },
+  "files": [
+    "bin/",
+    "index.js",
+    "src/",
+    "test/"
+  ],
   "scripts": {
     "lint": "eslint . && prettier --check .",
     "lint:fix": "eslint --fix . && prettier --write .",

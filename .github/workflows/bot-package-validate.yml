@@ -1,0 +1,41 @@
+name: Bot Package Validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  bot-package-validate:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: bot
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: bot/package-lock.json
+
+      - name: Install bot dependencies
+        run: npm ci
+
+      - name: Syntax check bot entrypoints
+        run: |
+          node --check index.js
+          node --check bin/pinpoint-bot.js
+          node --check src/skills.js
+
+      - name: Run bot tests
+        run: npm test -- --test-reporter=tap
+
+      - name: Validate npm package contents
+        run: npm pack --dry-run

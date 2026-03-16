@@ -2580,9 +2580,13 @@ stop — Cancel current request`;
   }
 }
 
+module.exports = { startBot };
+
 // --- Start ---
-console.log("=== Pinpoint WhatsApp Bot ===\n");
-startBot().catch((err) => {
-  console.error("[Pinpoint] Fatal error:", err);
-  process.exit(1);
-});
+if (require.main === module) {
+  console.log("=== Pinpoint WhatsApp Bot ===\n");
+  startBot().catch((err) => {
+    console.error("[Pinpoint] Fatal error:", err);
+    process.exit(1);
+  });
+}

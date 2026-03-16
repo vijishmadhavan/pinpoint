@@ -2,6 +2,10 @@ from __future__ import annotations
 
 import argparse
 import os
+import shutil
+import subprocess
+import sys
+import time
 from pathlib import Path
 from urllib.error import URLError
 from urllib.request import urlopen
@@ -31,6 +35,14 @@ def _env_path() -> Path:
 
 def _logs_dir() -> Path:
     return user_data_dir() / "logs"
+
+
+def _bot_auth_dir() -> Path:
+    return user_data_dir() / "bot-auth"
+
+
+def _qr_dir() -> Path:
+    return user_data_dir() / "qr"
 
 
 def _load_env() -> dict[str, str]:
@@ -94,6 +106,28 @@ def _api_ping() -> bool:
             return resp.status == 200
     except (URLError, OSError):
         return False
+
+
+def _child_env(host: str, port: int) -> dict[str, str]:
+    env = os.environ.copy()
+    env.update(_load_env())
+    env["PINPOINT_ENV_PATH"] = str(_env_path())
+    env["PINPOINT_USER_DIR"] = str(user_data_dir())
+    env["PINPOINT_LOG_DIR"] = str(_logs_dir())
+    env["PINPOINT_AUTH_DIR"] = str(_bot_auth_dir())
+    env["PINPOINT_QR_DIR"] = str(_qr_dir())
+    env["PINPOINT_API_URL"] = f"http://127.0.0.1:{port}"
+    env.setdefault("TZ", env.get("TZ", "UTC"))
+    return env
+
+
+def _wait_for_api(timeout_seconds: float = 15.0) -> bool:
+    deadline = time.time() + timeout_seconds
+    while time.time() < deadline:
+        if _api_ping():
+            return True
+        time.sleep(0.5)
+    return False
 
 
 def cmd_status(_args: argparse.Namespace) -> int:
@@ -162,6 +196,77 @@ def cmd_api(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_start(args: argparse.Namespace) -> int:
+    logs_dir = _logs_dir()
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    _bot_auth_dir().mkdir(parents=True, exist_ok=True)
+    _qr_dir().mkdir(parents=True, exist_ok=True)
+
+    env = _child_env(args.host, args.port)
+    api_log_path = logs_dir / "api.log"
+    bot_log_path = logs_dir / "bot.log"
+    api_log = api_log_path.open("a", encoding="utf-8")
+    bot_log = bot_log_path.open("a", encoding="utf-8")
+
+    children: list[subprocess.Popen] = []
+
+    try:
+        if args.bot_only:
+            if not _api_ping():
+                print(f"API is not reachable at {env['PINPOINT_API_URL']}. Start it first with `pinpoint api` or `pinpoint start --api`.")
+                return 1
+        else:
+            print("Starting Pinpoint API...")
+            api_proc = subprocess.Popen(
+                [sys.executable, "-m", "pinpoint.cli", "api", "--host", args.host, "--port", str(args.port)],
+                stdout=api_log,
+                stderr=subprocess.STDOUT,
+                env=env,
+            )
+            children.append(api_proc)
+            if not _wait_for_api():
+                print(f"API failed to become healthy within 15s. Check {api_log_path}")
+                return 1
+            print(f"API ready at {env['PINPOINT_API_URL']}")
+
+        if args.api_only:
+            print("API-only mode enabled. Press Ctrl+C to stop.")
+            while True:
+                time.sleep(1)
+
+        bot_bin = shutil.which("pinpoint-bot")
+        if not bot_bin:
+            print("pinpoint-bot not found. Run: npm install -g pinpoint-bot")
+            print("Continuing in API-only mode. Press Ctrl+C to stop.")
+            while True:
+                time.sleep(1)
+
+        print(f"Starting bot via {bot_bin}...")
+        bot_proc = subprocess.Popen(
+            [bot_bin],
+            stdout=bot_log,
+            stderr=subprocess.STDOUT,
+            env=env,
+        )
+        children.append(bot_proc)
+        print("Pinpoint is running. Press Ctrl+C to stop.")
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print("Stopping Pinpoint...")
+        return 0
+    finally:
+        for proc in reversed(children):
+            if proc.poll() is None:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+        api_log.close()
+        bot_log.close()
+
+
 def cmd_logs(args: argparse.Namespace) -> int:
     logs_dir = _logs_dir()
     logs_dir.mkdir(parents=True, exist_ok=True)
@@ -201,6 +306,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_api.add_argument("--host", default="0.0.0.0")
     p_api.add_argument("--port", type=int, default=5123)
     p_api.set_defaults(func=cmd_api)
+
+    p_start = sub.add_parser("start", help="Start the API and, if installed, the WhatsApp bot")
+    p_start.add_argument("--host", default="0.0.0.0")
+    p_start.add_argument("--port", type=int, default=5123)
+    mode = p_start.add_mutually_exclusive_group()
+    mode.add_argument("--api", dest="api_only", action="store_true", help="Start only the API")
+    mode.add_argument("--bot", dest="bot_only", action="store_true", help="Start only the bot (API must already be running)")
+    p_start.set_defaults(func=cmd_start, api_only=False, bot_only=False)
 
     p_logs = sub.add_parser("logs", help="Show recent log lines")
     p_logs.add_argument("--lines", type=int, default=40)
