@@ -42,16 +42,20 @@ dependencies = [
     "python-docx>=1.0",
     "python-pptx>=0.6.21",
     "readability-lxml>=0.8",
-    "html2text>=2024.2",
+    "html2text>=2020.1",
     "chonkie>=0.1",
     "pyyaml>=6.0",
     "watchdog>=3.0",
 ]
 
+# Tested with: fastapi 0.131, uvicorn 0.41, google-genai 1.64, numpy 2.3,
+# pandas 3.0, pillow 10.4, pymupdf 1.27, insightface 0.7.3, onnxruntime 1.24
+
 [project.optional-dependencies]
 ocr = ["pytesseract>=0.3.10"]
-faces = ["insightface>=0.7", "onnxruntime-gpu>=1.16"]
-all = ["pytesseract>=0.3.10", "insightface>=0.7", "onnxruntime-gpu>=1.16"]
+faces = ["insightface>=0.7.3", "onnxruntime>=1.16"]
+faces-gpu = ["insightface>=0.7.3", "onnxruntime-gpu>=1.16"]
+all = ["pytesseract>=0.3.10", "insightface>=0.7.3", "onnxruntime>=1.16"]
 dev = ["pytest>=7.0", "ruff>=0.1"]
 
 [project.urls]
