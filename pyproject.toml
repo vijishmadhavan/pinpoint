@@ -21,32 +21,38 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    "fastapi",
-    "uvicorn",
-    "python-dotenv",
-    "python-multipart",
-    "requests",
-    "httpx",
-    "pydantic",
-    "numpy",
-    "pandas",
-    "matplotlib",
-    "pillow",
-    "pillow-heif",
-    "google-genai",
-    "openpyxl",
-    "pymupdf",
-    "pymupdf4llm",
-    "pdfplumber",
-    "markitdown",
-    "python-docx",
-    "python-pptx",
-    "readability-lxml",
-    "html2text",
-    "chonkie",
-    "pyyaml",
-    "watchdog",
+    "fastapi>=0.100",
+    "uvicorn>=0.20",
+    "python-dotenv>=1.0",
+    "python-multipart>=0.0.6",
+    "requests>=2.28",
+    "httpx>=0.24",
+    "pydantic>=2.0",
+    "numpy>=1.24",
+    "pandas>=2.0",
+    "matplotlib>=3.7",
+    "pillow>=10.0",
+    "pillow-heif>=0.13",
+    "google-genai>=1.0",
+    "openpyxl>=3.1",
+    "pymupdf>=1.23",
+    "pymupdf4llm>=0.0.10",
+    "pdfplumber>=0.9",
+    "markitdown>=0.1",
+    "python-docx>=1.0",
+    "python-pptx>=0.6.21",
+    "readability-lxml>=0.8",
+    "html2text>=2024.2",
+    "chonkie>=0.1",
+    "pyyaml>=6.0",
+    "watchdog>=3.0",
 ]
+
+[project.optional-dependencies]
+ocr = ["pytesseract>=0.3.10"]
+faces = ["insightface>=0.7", "onnxruntime-gpu>=1.16"]
+all = ["pytesseract>=0.3.10", "insightface>=0.7", "onnxruntime-gpu>=1.16"]
+dev = ["pytest>=7.0", "ruff>=0.1"]
 
 [project.urls]
 Homepage = "https://github.com/vijishmadhavan/pinpoint"
