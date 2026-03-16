@@ -3,6 +3,8 @@ const pathModule = require("path");
 const os = require("os");
 const { INTENT_KEYWORDS, SKILL_CATEGORIES } = require("./tools");
 
+const USER_DATA_DIR = process.env.PINPOINT_USER_DIR || pathModule.join(os.homedir(), ".pinpoint");
+
 // --- System paths (WSL-aware) ---
 const HOME_DIR = os.homedir();
 let WIN_HOME = null;
@@ -17,7 +19,7 @@ const DESKTOP = pathModule.join(USER_HOME, "Desktop");
 const PICTURES = pathModule.join(USER_HOME, "Pictures");
 
 // --- Load skills from skills/*.md at startup (hierarchical: general + task-specific) ---
-const SKILLS_DIR = pathModule.join(__dirname, "..", "..", "skills");
+const SKILLS_DIR = process.env.PINPOINT_SKILLS_DIR || pathModule.join(__dirname, "..", "..", "skills");
 
 // General skills: always injected (core rules, batch awareness, common mistakes)
 const GENERAL_SKILL_FILES = ["batch-awareness.md", "common-mistakes.md", "core-rules.md"];
@@ -147,6 +149,7 @@ function getSystemPrompt(userMessage = "", chatJid = "", { memoryEnabled, memory
 
 module.exports = {
   SKILLS_DIR,
+  USER_DATA_DIR,
   GENERAL_SKILL_FILES,
   detectIntentCategories,
   getTaskSkills,

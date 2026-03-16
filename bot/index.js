@@ -25,10 +25,17 @@ const pino = require("pino");
 const qrcode = require("qrcode-terminal");
 const { createHash } = require("crypto");
 const { readFileSync, writeFileSync, statSync, existsSync, mkdirSync, readdirSync, unlinkSync } = require("fs");
+const os = require("os");
 const pathModule = require("path");
 
-// Load .env from project root
-require("dotenv").config({ path: pathModule.join(__dirname, "..", ".env") });
+const DEFAULT_USER_DIR = pathModule.join(os.homedir(), ".pinpoint");
+const USER_DATA_DIR = process.env.PINPOINT_USER_DIR || DEFAULT_USER_DIR;
+const DEFAULT_ENV_PATH = pathModule.join(USER_DATA_DIR, ".env");
+const REPO_ENV_PATH = pathModule.join(__dirname, "..", ".env");
+const ENV_PATH = process.env.PINPOINT_ENV_PATH || (existsSync(DEFAULT_ENV_PATH) ? DEFAULT_ENV_PATH : REPO_ENV_PATH);
+
+// Load config from explicit/user-data path first, then fall back to repo root for dev workflow.
+require("dotenv").config({ path: ENV_PATH });
 
 // --- Extracted modules ---
 const {
@@ -40,16 +47,18 @@ const {
   preValidate,
   summarizeToolResult,
 } = require("./src/tools");
-const { getSystemPrompt, USER_HOME, DOWNLOADS, DOCUMENTS, DESKTOP, PICTURES } = require("./src/skills");
+const { getSystemPrompt, USER_HOME, DOWNLOADS, DOCUMENTS, DESKTOP, PICTURES, SKILLS_DIR } = require("./src/skills");
 const llm = require("./src/llm");
 
 // Silent logger for Baileys
 const logger = pino({ level: "silent" });
 
 // --- Config ---
-const API_URL = "http://localhost:5123";
+const API_URL = process.env.PINPOINT_API_URL || "http://localhost:5123";
 const PREFIX = "[pinpoint]";
-const AUTH_DIR = "./auth";
+const AUTH_DIR = process.env.PINPOINT_AUTH_DIR || pathModule.join(USER_DATA_DIR, "bot-auth");
+const LOG_DIR = process.env.PINPOINT_LOG_DIR || pathModule.join(USER_DATA_DIR, "logs");
+const QR_DIR = process.env.PINPOINT_QR_DIR || pathModule.join(USER_DATA_DIR, "qr");
 const MAX_RESULTS = 5;
 const MAX_FILES_TO_SEND = 3;
 const MAX_IMAGE_SIZE = 16 * 1024 * 1024;
@@ -64,7 +73,10 @@ const MAX_INLINE_IMAGES = 5; // Max images sent as visual data per turn
 const DEBOUNCE_MS = 1500; // Combine rapid messages within 1.5s
 
 // Log to file so we can check what happened (tee stdout → file)
-const logFile = pathModule.join(__dirname, "..", "pinpoint.log");
+mkdirSync(LOG_DIR, { recursive: true });
+mkdirSync(AUTH_DIR, { recursive: true });
+mkdirSync(QR_DIR, { recursive: true });
+const logFile = pathModule.join(LOG_DIR, "bot.log");
 const logStream = require("fs").createWriteStream(logFile, { flags: "a" });
 const origLog = console.log,
   origWarn = console.warn,
@@ -72,6 +84,28 @@ const origLog = console.log,
 function _ts() {
   return new Date().toISOString().slice(11, 19);
 }
+
+function qrFilePath() {
+  return pathModule.join(QR_DIR, "whatsapp-qr.txt");
+}
+
+function writeQrPayload(qr) {
+  try {
+    mkdirSync(QR_DIR, { recursive: true });
+    writeFileSync(qrFilePath(), qr, "utf-8");
+    console.log(`[Pinpoint] QR payload saved to ${qrFilePath()}`);
+  } catch (err) {
+    console.warn("[Pinpoint] Failed to write QR payload:", err.message);
+  }
+}
+
+function clearQrPayload() {
+  try {
+    const qrPath = qrFilePath();
+    if (existsSync(qrPath)) unlinkSync(qrPath);
+  } catch (_) {}
+}
+
 console.log = (...a) => {
   const s = a.map(String).join(" ");
   origLog(s);
@@ -266,7 +300,6 @@ const MIME_TO_EXT = {
 };
 
 // --- System paths (from skills module) ---
-const os = require("os");
 const DEFAULT_SAVE_FOLDER = pathModule.join(DOWNLOADS, "Pinpoint");
 
 console.log(`[Pinpoint] User home: ${USER_HOME}`);
@@ -1757,6 +1790,10 @@ async function startBot() {
     const toolCount = TOOL_DECLARATIONS.length;
     console.log(`[Pinpoint] Gemini AI enabled (${GEMINI_MODEL}) — ${toolCount} tools + skills system`);
   }
+  console.log(`[Pinpoint] Env file: ${ENV_PATH}`);
+  console.log(`[Pinpoint] API URL: ${API_URL}`);
+  console.log(`[Pinpoint] Auth dir: ${AUTH_DIR}`);
+  console.log(`[Pinpoint] Skills dir: ${SKILLS_DIR}`);
 
   const apiOk = await apiPing();
   if (!apiOk) {
@@ -1858,9 +1895,11 @@ async function startBot() {
     if (qr) {
       console.log("\n[Pinpoint] Scan this QR code with WhatsApp:\n");
       qrcode.generate(qr, { small: true });
+      writeQrPayload(qr);
     }
     if (connection === "open") {
       reconnectAttempt = 0;
+      clearQrPayload();
       console.log(`[Pinpoint] Connected! JID: ${sock.user?.id}`);
       console.log("[Pinpoint] Send yourself a message to search.\n");
 
@@ -1925,6 +1964,7 @@ async function startBot() {
       // 515 means stream error, just reconnect with existing creds
       if (code === DisconnectReason.loggedOut) {
         console.log("[Pinpoint] Logged out — clearing auth for fresh login...");
+        clearQrPayload();
         try {
           const files = readdirSync(AUTH_DIR);
           for (const f of files) unlinkSync(pathModule.join(AUTH_DIR, f));
