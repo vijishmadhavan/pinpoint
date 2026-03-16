@@ -89,12 +89,14 @@ Pinpoint has a 4-layer memory system that learns from everyday use:
 conda env create -f environment.yml
 conda activate pinpoint
 
-# 2. Configure
-cp .env.example .env
-# Edit .env — add GEMINI_API_KEY for AI features (optional for basic search)
+# 2. Configure shared user settings
+pinpoint setup
 
-# 3. Start
-python run_api.py
+# 3. Validate local setup
+pinpoint doctor
+
+# 4. Start
+pinpoint api
 ```
 
 The API runs at `http://localhost:5123`. Try `http://localhost:5123/docs` for interactive API docs.
@@ -106,7 +108,7 @@ The API runs at `http://localhost:5123`. Try `http://localhost:5123/docs` for in
 cd bot && npm install && cd ..
 
 # Start everything
-./start.sh
+pinpoint start
 ```
 
 Scan the QR code with WhatsApp to pair. Then just message your files.
@@ -210,7 +212,9 @@ Internal planning notes and downloaded comparison repos are kept out of the GitH
 
 ## Environment Variables
 
-Copy `.env.example` to `.env`. Key variables:
+Pinpoint stores shared CLI/bot config in `~/.pinpoint/.env`. `pinpoint setup` writes that file for you.
+
+Key variables:
 
 | Variable | Required? | What it does |
 |---|---|---|
@@ -227,6 +231,21 @@ conda run -n pinpoint python -m pytest tests/ -q
 ```
 
 The suite covers search, indexing, file operations, jobs, packaging, security, and API contracts.
+
+## CLI
+
+Useful commands:
+
+```bash
+pinpoint setup
+pinpoint doctor
+pinpoint api
+pinpoint start
+pinpoint search "invoice 4821"
+pinpoint index /path/to/folder
+pinpoint status
+pinpoint logs
+```
 
 ## Benchmarks
 

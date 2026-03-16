@@ -81,6 +81,7 @@ class TestCliSmoke:
             assert exc.code == 0
         captured = capsys.readouterr()
         assert "start" in captured.out
+        assert "doctor" in captured.out
 
     def test_start_api_only_when_bot_missing(self, capsys, tmp_path):
         from pinpoint.cli import main
@@ -146,6 +147,96 @@ class TestCliSmoke:
         assert env["PINPOINT_SKILLS_DIR"]
         assert env["PINPOINT_AUTH_DIR"].endswith("bot-auth")
         assert env["PINPOINT_QR_DIR"].endswith("qr")
+
+    def test_status_reports_cli_paths(self, capsys, tmp_path):
+        from pinpoint.cli import main
+
+        db_path = tmp_path / "pinpoint.sqlite3"
+        auth_dir = tmp_path / "bot-auth"
+        qr_dir = tmp_path / "qr"
+        logs_dir = tmp_path / "logs"
+        env_path = tmp_path / ".env"
+        auth_dir.mkdir(parents=True)
+        qr_dir.mkdir(parents=True)
+        logs_dir.mkdir(parents=True)
+        env_path.write_text("TZ=UTC\n", encoding="utf-8")
+
+        class FakeConn:
+            def execute(self, sql):
+                class _Cursor:
+                    def __init__(self, value):
+                        self._value = value
+
+                    def fetchone(self):
+                        return [self._value]
+
+                if "FROM documents" in sql:
+                    return _Cursor(12)
+                if "FROM background_jobs" in sql:
+                    return _Cursor(2)
+                if "FROM watched_folders" in sql:
+                    return _Cursor(1)
+                raise AssertionError(sql)
+
+            def close(self):
+                return None
+
+        with (
+            patch("pinpoint.cli.user_data_dir", return_value=tmp_path),
+            patch("pinpoint.cli._api_ping", return_value=False),
+            patch("pinpoint.cli._db_path", return_value=str(db_path)),
+            patch("pinpoint.cli._bot_installed", return_value=(True, "/usr/bin/pinpoint-bot")),
+            patch("database.init_db", return_value=FakeConn()),
+        ):
+            assert main(["status"]) == 0
+
+        captured = capsys.readouterr()
+        assert "Config:" in captured.out
+        assert "Bot: installed (/usr/bin/pinpoint-bot)" in captured.out
+        assert "Bot auth dir:" in captured.out
+        assert "QR dir:" in captured.out
+        assert "Logs dir:" in captured.out
+
+    def test_doctor_reports_missing_setup(self, capsys, tmp_path):
+        from pinpoint.cli import main
+
+        with (
+            patch("pinpoint.cli.user_data_dir", return_value=tmp_path),
+            patch("pinpoint.cli._db_path", return_value=str(tmp_path / "pinpoint.sqlite3")),
+            patch("pinpoint.cli._api_ping", return_value=False),
+            patch("pinpoint.cli._bot_installed", return_value=(False, "")),
+        ):
+            assert main(["doctor"]) == 1
+
+        captured = capsys.readouterr()
+        assert "Pinpoint doctor" in captured.out
+        assert "[NO ] config file:" in captured.out
+        assert "run `pinpoint setup`" in captured.out
+
+    def test_doctor_reports_usable_setup(self, capsys, tmp_path):
+        from pinpoint.cli import DEFAULT_ENV, main
+
+        (tmp_path / "logs").mkdir(parents=True)
+        (tmp_path / "bot-auth").mkdir(parents=True)
+        (tmp_path / "qr").mkdir(parents=True)
+        (tmp_path / ".env").write_text(
+            "\n".join(f"{k}={v}" for k, v in {**DEFAULT_ENV, "GEMINI_API_KEY": "test-key"}.items()) + "\n",
+            encoding="utf-8",
+        )
+
+        with (
+            patch("pinpoint.cli.user_data_dir", return_value=tmp_path),
+            patch("pinpoint.cli._db_path", return_value=str(tmp_path / "pinpoint.sqlite3")),
+            patch("pinpoint.cli._api_ping", return_value=True),
+            patch("pinpoint.cli._bot_installed", return_value=(True, "/usr/bin/pinpoint-bot")),
+        ):
+            assert main(["doctor"]) == 0
+
+        captured = capsys.readouterr()
+        assert "[OK ] config file:" in captured.out
+        assert "[OK ] API ping:" in captured.out
+        assert "[OK ] bot command:" in captured.out
+        assert "Core setup looks usable." in captured.out
 
 
 class TestSkillsPackaging:

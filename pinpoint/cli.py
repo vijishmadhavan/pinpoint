@@ -68,6 +68,17 @@ def _load_env() -> dict[str, str]:
     return env
 
 
+def _bot_installed() -> tuple[bool, str]:
+    bot_bin = shutil.which("pinpoint-bot")
+    return (bot_bin is not None, bot_bin or "")
+
+
+def _db_path() -> str:
+    from database import DB_PATH
+
+    return DB_PATH
+
+
 def _write_env(values: dict[str, str]) -> Path:
     path = _env_path()
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -108,9 +119,15 @@ def cmd_setup(_args: argparse.Namespace) -> int:
     current["OCR_DPI"] = _prompt(current.get("OCR_DPI", ""), "OCR DPI")
 
     path = _write_env(current)
+    bot_installed, bot_bin = _bot_installed()
     print("")
     print(f"Saved config to {path}")
-    print("Run `pinpoint api` to start the backend or `pinpoint search \"query\"` to search locally.")
+    print(f"User data dir: {user_data_dir()}")
+    if bot_installed:
+        print(f"Bot command detected: {bot_bin}")
+    else:
+        print("Bot command not detected. Install it with: npm install -g pinpoint-bot")
+    print("Run `pinpoint api` to start the backend, `pinpoint search \"query\"` to search locally, or `pinpoint doctor` to validate setup.")
     return 0
 
 
@@ -146,10 +163,16 @@ def _wait_for_api(timeout_seconds: float = 15.0) -> bool:
 
 
 def cmd_status(_args: argparse.Namespace) -> int:
-    from database import DB_PATH, init_db
+    from database import init_db
 
     api_running = _api_ping()
-    conn = init_db(DB_PATH)
+    db_path = _db_path()
+    bot_installed, bot_bin = _bot_installed()
+    env_path = _env_path()
+    auth_dir = _bot_auth_dir()
+    qr_dir = _qr_dir()
+    logs_dir = _logs_dir()
+    conn = init_db(db_path)
     try:
         doc_count = conn.execute("SELECT COUNT(*) FROM documents").fetchone()[0]
         job_count = conn.execute(
@@ -161,11 +184,64 @@ def cmd_status(_args: argparse.Namespace) -> int:
 
     print(f"Pinpoint {__version__}")
     print(f"API: {'running' if api_running else 'stopped'}")
-    print(f"DB: {DB_PATH}")
+    print(f"DB: {db_path}")
     print(f"Documents: {doc_count}")
     print(f"Watched folders: {watch_count}")
     print(f"Active jobs: {job_count}")
+    print(f"Config: {env_path} ({'present' if env_path.exists() else 'missing'})")
+    print(f"Bot: {'installed' if bot_installed else 'missing'}" + (f" ({bot_bin})" if bot_installed else ""))
+    print(f"Bot auth dir: {auth_dir} ({'present' if auth_dir.exists() else 'missing'})")
+    print(f"QR dir: {qr_dir} ({'present' if qr_dir.exists() else 'missing'})")
+    print(f"Logs dir: {logs_dir} ({'present' if logs_dir.exists() else 'missing'})")
     return 0
+
+
+def cmd_doctor(_args: argparse.Namespace) -> int:
+    env = _load_env()
+    env_path = _env_path()
+    logs_dir = _logs_dir()
+    auth_dir = _bot_auth_dir()
+    qr_dir = _qr_dir()
+    skills_dir = _skills_dir()
+    bot_installed, bot_bin = _bot_installed()
+
+    checks: list[tuple[str, bool, str, bool]] = []
+    checks.append(("config file", env_path.exists(), str(env_path)))
+    checks.append(("user data dir", user_data_dir().exists(), str(user_data_dir()), True))
+    checks.append(("logs dir", logs_dir.exists(), str(logs_dir), True))
+    checks.append(("bot auth dir", auth_dir.exists(), str(auth_dir), True))
+    checks.append(("qr dir", qr_dir.exists(), str(qr_dir), True))
+    checks.append(("skills dir", skills_dir.exists(), str(skills_dir), True))
+    checks.append(("database path parent", Path(_db_path()).parent.exists(), str(Path(_db_path()).parent), True))
+    checks.append(("API ping", _api_ping(), "http://127.0.0.1:5123/ping", False))
+    checks.append(("bot command", bot_installed, bot_bin or "pinpoint-bot not on PATH", False))
+    checks.append(("Gemini configured", bool(env.get("GEMINI_API_KEY", "").strip()), "required for AI-heavy features", False))
+    checks.append(("Ollama configured", bool(env.get("OLLAMA_MODEL", "").strip()), "optional bot fallback", False))
+
+    missing = 0
+    print(f"Pinpoint doctor ({__version__})")
+    print(f"User data dir: {user_data_dir()}")
+    config_ok, config_detail = checks[0][1], checks[0][2]
+    print(f"[{'OK ' if config_ok else 'NO '}] {checks[0][0]}: {config_detail}")
+    if not config_ok:
+        missing += 1
+    for label, ok, detail, required in checks[1:]:
+        prefix = "OK " if ok else "NO "
+        print(f"[{prefix}] {label}: {detail}")
+        if required and not ok:
+            missing += 1
+
+    print("")
+    if not env_path.exists():
+        print("Next: run `pinpoint setup` to create the shared config.")
+    elif not _api_ping():
+        print("Next: run `pinpoint api` or `pinpoint start --api` to start the backend.")
+    elif not bot_installed:
+        print("Next: install the bot with `npm install -g pinpoint-bot` if you want WhatsApp support.")
+    else:
+        print("Core setup looks usable.")
+
+    return 0 if missing == 0 else 1
 
 
 def cmd_search(args: argparse.Namespace) -> int:
@@ -307,6 +383,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_status = sub.add_parser("status", help="Show API/db/job status")
     p_status.set_defaults(func=cmd_status)
+
+    p_doctor = sub.add_parser("doctor", help="Validate the local Pinpoint setup")
+    p_doctor.set_defaults(func=cmd_doctor)
 
     p_search = sub.add_parser("search", help="Run local search against the Pinpoint database")
     p_search.add_argument("query")
