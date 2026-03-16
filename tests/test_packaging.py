@@ -137,6 +137,29 @@ class TestCliSmoke:
         bot_proc.terminate.assert_called_once()
         api_proc.terminate.assert_called_once()
 
+    def test_child_env_includes_skills_dir(self, tmp_path):
+        from pinpoint.cli import _child_env
+
+        with patch("pinpoint.cli.user_data_dir", return_value=tmp_path):
+            env = _child_env("0.0.0.0", 5123)
+
+        assert env["PINPOINT_SKILLS_DIR"]
+        assert env["PINPOINT_AUTH_DIR"].endswith("bot-auth")
+        assert env["PINPOINT_QR_DIR"].endswith("qr")
+
+
+class TestSkillsPackaging:
+    def test_skills_package_exists(self):
+        import skills
+
+        assert skills is not None
+
+    def test_packaged_skills_dir_contains_core_rules(self):
+        from pinpoint.cli import _skills_dir
+
+        skills_dir = _skills_dir()
+        assert (skills_dir / "core-rules.md").exists()
+
 
 class TestRunApiEntrypoint:
     def test_run_api_main_imports_app_and_calls_uvicorn(self):

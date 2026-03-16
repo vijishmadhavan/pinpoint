@@ -56,9 +56,13 @@ py-modules = [
     "search_pipeline",
     "video_search",
 ]
+include-package-data = true
 
 [tool.setuptools.packages.find]
-include = ["api*", "pinpoint*"]
+include = ["api*", "pinpoint*", "skills*"]
+
+[tool.setuptools.package-data]
+skills = ["*.md"]
 
 [tool.ruff]
 line-length = 120

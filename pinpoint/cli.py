@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.resources
 import os
 import shutil
 import subprocess
@@ -43,6 +44,19 @@ def _bot_auth_dir() -> Path:
 
 def _qr_dir() -> Path:
     return user_data_dir() / "qr"
+
+
+def _skills_dir() -> Path:
+    explicit = os.environ.get("PINPOINT_SKILLS_DIR")
+    if explicit:
+        return Path(explicit)
+
+    try:
+        package_root = importlib.resources.files("skills")
+        return Path(str(package_root))
+    except Exception:
+        repo_root = Path(__file__).resolve().parents[1]
+        return repo_root / "skills"
 
 
 def _load_env() -> dict[str, str]:
@@ -116,6 +130,7 @@ def _child_env(host: str, port: int) -> dict[str, str]:
     env["PINPOINT_LOG_DIR"] = str(_logs_dir())
     env["PINPOINT_AUTH_DIR"] = str(_bot_auth_dir())
     env["PINPOINT_QR_DIR"] = str(_qr_dir())
+    env["PINPOINT_SKILLS_DIR"] = str(_skills_dir())
     env["PINPOINT_API_URL"] = f"http://127.0.0.1:{port}"
     env.setdefault("TZ", env.get("TZ", "UTC"))
     return env
