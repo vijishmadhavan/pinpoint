@@ -4,7 +4,7 @@
 [![Lint](https://github.com/vijishmadhavan/pinpoint/actions/workflows/lint.yml/badge.svg)](https://github.com/vijishmadhavan/pinpoint/actions/workflows/lint.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Search all your local files from WhatsApp. No cloud uploads. No tracking. Everything stays on your machine.
+Search all your local files from WhatsApp. Your files stay on your machine — only AI features send data to external services (Gemini, WhatsApp).
 
 Pinpoint indexes your documents, PDFs, spreadsheets, images, and media into a local SQLite database, then lets you search and work with them through natural language — either via WhatsApp or direct API calls.
 
@@ -66,12 +66,12 @@ Your Files ──> Indexer ──> SQLite/FTS5 ──> Search API ──> WhatsA
 - Face recognition: InsightFace detection with persistent face memory (`known_faces` table)
 
 **Bot intelligence**
-- 82 Gemini tool declarations, intent-grouped per message (typically 40-50 active, not all 82)
+- 82 Gemini tool declarations, intent-grouped per message (subset loaded based on detected intent)
 - 23 skill files loaded by detected intent, not all at once
 - Action ledger: tracks what the bot actually did vs claimed (prevents hallucination)
 - Cost circuit breaker: $0.10 per-message budget, hard stop
 
-Everything runs locally. External calls go to Gemini (for AI features) and optionally web search providers.
+Core indexing and search run locally on your machine. Optional features (WhatsApp bot, Gemini AI, Google Workspace, web search) send data to external services when used.
 
 **Important:** Search only finds files that have been indexed. Files get indexed when you:
 - Explicitly index a file or folder (`/index-file`, `/index`)
@@ -208,12 +208,12 @@ pip install pinpoint-search[all]        # Everything
 - Data analysis (Excel, CSV)
 
 **Optional** — needs Gemini API key or extra setup:
-- WhatsApp bot (needs Gemini + WhatsApp pairing)
+- WhatsApp bot (needs WhatsApp pairing + either Gemini or Ollama)
 - OCR, captioning, fact extraction (Gemini-powered)
 - Photo culling/scoring (Gemini Flash — vision judges quality, needs to "see" each photo)
 - Photo grouping by category (Gemini Embedding 2 — cheap, classifies by similarity not vision)
 - Visual image/video search (Gemini Embedding 2 — text-to-image similarity)
-- Face recognition (needs insightface + GPU)
+- Face recognition (needs insightface — GPU optional, CPU works)
 - Google Workspace — Gmail, Calendar, Drive (needs [gws CLI](https://github.com/googleworkspace/cli): `npm install -g @googleworkspace/cli && gws auth login`)
 - Web search (needs Jina or LangSearch API key)
 
