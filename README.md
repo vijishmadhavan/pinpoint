@@ -331,7 +331,7 @@ See [benchmarks/README.md](benchmarks/README.md) for details.
 
 ## A Note
 
-I built Pinpoint for my own daily use. It works well for my workflow but may have rough edges, unexpected behavior, or assumptions that don't fit every setup. Issues and contributions are welcome.
+Pinpoint is a work in progress. I built it for my own daily use and it works well for my workflow, but it is not yet polished for general audiences. Expect rough edges, occasional slow responses on large files, and setup that still requires some technical comfort. Issues, feedback, and contributions are welcome.
 
 ## License
 
