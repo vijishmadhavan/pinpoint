@@ -33,7 +33,8 @@ class TestStatus:
         assert data["by_type"]["md"] == 1
         assert "db_path" in data
         assert "db_size_mb" in data
-        assert data["api_version"] == "1.0.0"
+        from pinpoint import __version__
+        assert data["api_version"] == __version__
         assert data["db_size_mb"] >= 0
 
 

@@ -335,8 +335,6 @@ def cmd_start(args: argparse.Namespace) -> int:
         print(f"Starting bot via {bot_bin}...")
         bot_proc = subprocess.Popen(
             [bot_bin],
-            stdout=bot_log,
-            stderr=subprocess.STDOUT,
             env=env,
         )
         children.append(bot_proc)
