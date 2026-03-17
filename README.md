@@ -327,6 +327,10 @@ See [benchmarks/README.md](benchmarks/README.md) for details.
 - [Release Checklist](docs/release-checklist.md) — what to check before pushing
 - [Contributing](CONTRIBUTING.md) — how to contribute
 
+## A Note
+
+I built Pinpoint for my own daily use. It works well for my workflow but may have rough edges, unexpected behavior, or assumptions that don't fit every setup. Issues and contributions are welcome.
+
 ## License
 
 [MIT](LICENSE)
