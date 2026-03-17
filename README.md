@@ -6,6 +6,8 @@
 
 Search all your local files from WhatsApp. Your files stay on your machine — only AI features send data to external services (Gemini, WhatsApp).
 
+[![Demo](https://img.youtube.com/vi/e4NTUIyfszc/maxresdefault.jpg)](https://youtu.be/e4NTUIyfszc)
+
 Pinpoint indexes your documents, PDFs, spreadsheets, images, and media into a local SQLite database, then lets you search and work with them through natural language — either via WhatsApp or direct API calls.
 
 ---
