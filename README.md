@@ -43,12 +43,35 @@ Your Files ──> Indexer ──> SQLite/FTS5 ──> Search API ──> WhatsA
    (local)     (extract)    (local DB)     (FastAPI)      (Gemini AI)
 ```
 
-1. **Index** — Pinpoint extracts text from PDFs, Office docs, images (OCR), spreadsheets, and plain text files
-2. **Search** — FTS5 full-text search with metadata-aware ranking and smart fallbacks
-3. **Clarify** — When results are ambiguous (multiple similar matches), Pinpoint asks "which one do you mean?" instead of guessing wrong
-4. **Act** — The WhatsApp bot turns your questions into tool calls: search, read, move, analyze, transform
+**Indexing pipeline**
+- Text extraction: PDF, DOCX, PPTX, XLSX, CSV, EPUB, images (OCR), plain text
+- Chunking: Chonkie RecursiveChunker (2500-char chunks for section-level search)
+- Fact extraction: Gemini extracts key facts (names, dates, amounts) at index time, stored separately
+- Embeddings: Gemini Embedding 2 (768-dim) for chunk-level semantic search
 
-Everything runs locally. The only external calls are to Gemini (for the AI layer) and optionally to web search providers.
+**Document search pipeline**
+- FTS5 full-text search with BM25 scoring (porter stemming, unicode61 tokenizer)
+- Three-tier lexical fallback: strict → relaxed (synonym-aware) → broad (OR)
+- Metadata-aware ranking: boosts matches in filename, title, path, and identifier-like terms
+- Coverage scoring: penalizes results that match only one of several query concepts
+- Ambiguity detection: clustered near-tie results trigger clarification instead of a wrong guess
+- Strong signal shortcut: skips expensive stages when the top result is clearly dominant
+- Available but not default: Gemini query expansion, embedding cosine similarity, LLM reranker
+
+**Visual search**
+- Image search: Gemini Embedding 2 text-to-image similarity across photo folders
+- Video search: embed sampled frames, find matching moments by description
+- Photo grouping: embed images + category names, classify by cosine similarity (Gemini Embedding 2)
+- Photo culling: Gemini Flash vision scores each photo for technical + aesthetic quality
+- Face recognition: InsightFace detection with persistent face memory (`known_faces` table)
+
+**Bot intelligence**
+- 82 Gemini tool declarations, intent-grouped per message (typically 40-50 active, not all 82)
+- 23 skill files loaded by detected intent, not all at once
+- Action ledger: tracks what the bot actually did vs claimed (prevents hallucination)
+- Cost circuit breaker: $0.10 per-message budget, hard stop
+
+Everything runs locally. External calls go to Gemini (for AI features) and optionally web search providers.
 
 **Important:** Search only finds files that have been indexed. Files get indexed when you:
 - Explicitly index a file or folder (`/index-file`, `/index`)
