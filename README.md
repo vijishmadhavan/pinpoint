@@ -8,6 +8,8 @@ Search all your local files from WhatsApp. No cloud uploads. No tracking. Everyt
 
 Pinpoint indexes your documents, PDFs, spreadsheets, images, and media into a local SQLite database, then lets you search and work with them through natural language — either via WhatsApp or direct API calls.
 
+---
+
 ## What You Can Do
 
 - **"Find the Sharma invoice from last month"** — searches across all your indexed documents instantly
@@ -32,6 +34,8 @@ Pinpoint indexes your documents, PDFs, spreadsheets, images, and media into a lo
 - **"Watch my Documents folder"** — auto-indexes new files as they appear
 - **Voice messages** — transcribes and responds to audio messages
 
+---
+
 ## How It Works
 
 ```
@@ -53,6 +57,8 @@ Everything runs locally. The only external calls are to Gemini (for the AI layer
 
 Pinpoint does not scan your entire computer automatically. You control what gets indexed.
 
+---
+
 ## Gets Smarter Over Time
 
 Every interaction builds a local cache that makes future operations faster and cheaper:
@@ -68,6 +74,8 @@ Every interaction builds a local cache that makes future operations faster and c
 
 If you cancel a long job halfway (like embedding 1000 photos), the work already done is saved. Next run picks up where it left off.
 
+---
+
 ## Memory System
 
 Pinpoint has a 4-layer memory system that learns from everyday use:
@@ -79,6 +87,8 @@ Pinpoint has a 4-layer memory system that learns from everyday use:
 **Document fact extraction** — When a file is indexed, Gemini extracts key facts such as names, dates, amounts, and topics, then stores them separately from the raw document text. You can search facts directly without reopening the full file.
 
 **Face memory** — "Remember this is John." Saves face embeddings persistently so future face detection runs can recognize the same person across photos.
+
+---
 
 ## Install
 
@@ -129,6 +139,8 @@ pip install pinpoint-search[faces-gpu]  # Face recognition (GPU)
 pip install pinpoint-search[all]        # Everything
 ```
 
+---
+
 ## Common Things You Can Do
 
 | Ask this | Pinpoint does this |
@@ -160,6 +172,8 @@ pip install pinpoint-search[all]        # Everything
 | "Remember my passport number is X" | Stores in persistent memory |
 | (voice message) | Transcribes audio and responds |
 
+---
+
 ## What's Stable vs Optional
 
 **Stable core** — works without any API keys:
@@ -181,6 +195,8 @@ pip install pinpoint-search[all]        # Everything
 - Web search (needs Jina or LangSearch API key)
 
 Note: Gemini Embedding 2 is used for image/video/photo features. Document text search uses FTS5 by default — embedding-based document search exists but is not the default path.
+
+---
 
 ## Architecture
 
