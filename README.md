@@ -80,38 +80,54 @@ Pinpoint has a 4-layer memory system that learns from everyday use:
 
 **Face memory** — "Remember this is John." Saves face embeddings persistently so future face detection runs can recognize the same person across photos.
 
-## Quick Start
-
-### Backend only (search + file APIs)
+## Install
 
 ```bash
-# 1. Create the environment
-conda env create -f environment.yml
-conda activate pinpoint
-
-# 2. Configure shared user settings
+pip install pinpoint-search
+npm install -g pinpoint-bot
 pinpoint setup
-
-# 3. Validate local setup
-pinpoint doctor
-
-# 4. Start
-pinpoint api
-```
-
-The API runs at `http://localhost:5123`. Try `http://localhost:5123/docs` for interactive API docs.
-
-### With WhatsApp bot
-
-```bash
-# Install bot deps
-cd bot && npm install && cd ..
-
-# Start everything
 pinpoint start
 ```
 
-Scan the QR code with WhatsApp to pair. Then just message your files.
+That's it. `pinpoint setup` asks for your Gemini API key and writes config to `~/.pinpoint/.env`. `pinpoint start` launches the API and WhatsApp bot — scan the QR code to pair.
+
+**Requirements:** Python 3.11+, Node.js 20+
+
+### Verify your setup
+
+```bash
+pinpoint doctor
+```
+
+### Backend only (no WhatsApp bot)
+
+```bash
+pip install pinpoint-search
+pinpoint setup
+pinpoint api
+```
+
+The API runs at `http://localhost:5123`. Interactive docs at `http://localhost:5123/docs`.
+
+### Developer setup (from repo)
+
+```bash
+git clone https://github.com/vijishmadhavan/pinpoint
+cd pinpoint
+conda env create -f environment.yml
+conda activate pinpoint
+cd bot && npm install && cd ..
+./start.sh
+```
+
+### Optional extras
+
+```bash
+pip install pinpoint-search[ocr]        # Tesseract OCR (Gemini handles OCR without it)
+pip install pinpoint-search[faces]      # Face recognition (CPU)
+pip install pinpoint-search[faces-gpu]  # Face recognition (GPU)
+pip install pinpoint-search[all]        # Everything
+```
 
 ## Common Things You Can Do
 
