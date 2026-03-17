@@ -83,3 +83,12 @@ gws-cli/
 api_old.py
 .pkg-venv/
 .pkg-build-tmp/
+
+# Build artifacts
+dist/
+*.egg-info/
+build/
+
+# Demo files
+demo-photos/
+download_demo_photos.py
