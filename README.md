@@ -4,7 +4,7 @@
 [![Lint](https://github.com/vijishmadhavan/pinpoint/actions/workflows/lint.yml/badge.svg)](https://github.com/vijishmadhavan/pinpoint/actions/workflows/lint.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Search all your local files from WhatsApp. Your files stay on your machine — only AI features send data to external services (Gemini, WhatsApp).
+Search, organize, and manage your local files through WhatsApp.
 
 [![Demo](https://img.youtube.com/vi/e4NTUIyfszc/maxresdefault.jpg)](https://youtu.be/e4NTUIyfszc)
 
