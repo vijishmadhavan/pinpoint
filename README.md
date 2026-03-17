@@ -333,6 +333,19 @@ See [benchmarks/README.md](benchmarks/README.md) for details.
 
 Pinpoint is a work in progress. I built it for my own daily use and it works well for my workflow, but it is not yet polished for general audiences. Expect rough edges, occasional slow responses on large files, and setup that still requires some technical comfort. Issues, feedback, and contributions are welcome.
 
+## Acknowledgements
+
+Pinpoint learned heavily from these open-source projects:
+
+- [OpenClaw](https://github.com/nichochar/openclaw) — WhatsApp bot patterns, tool calling, skill system
+- [QMD](https://github.com/nichochar/qmd) — search pipeline, RRF fusion, BM25 scoring
+- [Mem0](https://github.com/mem0ai/mem0) — memory dedup, conflict detection, LLM-powered merge
+- [Supermemory](https://github.com/Dhravya/supermemory) — memory priority, fact extraction patterns
+- [Khoj](https://github.com/khoj-ai/khoj) — RAG patterns, search architecture
+- [Gemini CLI](https://github.com/google-gemini/gemini-cli) — tool calling efficiency, loop detection, compaction
+- [Chonkie](https://github.com/chonkie-inc/chonkie) — document chunking
+- [Claude Code](https://github.com/anthropics/claude-code) — context management, compaction prompts
+
 ## License
 
 [MIT](LICENSE)
