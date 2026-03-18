@@ -88,10 +88,8 @@ def _write_env(values: dict[str, str]) -> Path:
 
 
 def _mask(value: str) -> str:
-    """Mask a secret value for display: show first 4 and last 4 chars."""
-    if not value or len(value) <= 8:
-        return "configured" if value else ""
-    return f"{value[:4]}...{value[-4:]}"
+    """Mask a secret value for display."""
+    return "configured" if value else ""
 
 
 _SECRET_LABELS = {"Gemini API key", "API secret (optional)", "Jina API key (optional)", "LangSearch API key (optional)"}
