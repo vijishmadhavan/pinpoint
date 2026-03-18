@@ -10,6 +10,19 @@ Search, organize, and manage your local files through WhatsApp.
 
 Pinpoint indexes your documents, PDFs, spreadsheets, images, and media into a local SQLite database, then lets you search and work with them through natural language — either via WhatsApp or direct API calls.
 
+## Why I Built This
+
+I kept running into the same problems:
+
+- **Traveling and need my passport scan?** It's somewhere on my laptop. I shouldn't have to dig through folders from my phone — just ask "find my passport" on WhatsApp and get it sent instantly.
+- **Someone sends an important receipt on WhatsApp.** It disappears into the chat. With Pinpoint, I forward it to the bot and say "save this to Tax 2025" — it's renamed, filed, and searchable forever.
+- **Small business orders come via WhatsApp.** Screenshots of Excel sheets, invoices as photos. Instead of manually opening each one, I send them to Pinpoint: "turn this into Excel", "find all orders above 50K", "who hasn't paid yet."
+- **Marketing team shares campaign screenshots.** Need to find that specific performance report from last month? "Find the campaign screenshot with 4.2% CTR" — Pinpoint searches image content, not just filenames.
+- **I forget things.** "Remember that the electrician's number is 98208..." — stored permanently, survives restarts, searchable later.
+- **1000+ wedding photos** and no time to sort them. "Group these by category" — done in minutes, not hours.
+
+If your files are scattered across your computer and you live on WhatsApp, Pinpoint puts them together.
+
 ---
 
 ## What You Can Do
