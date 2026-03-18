@@ -14,15 +14,11 @@ Pinpoint indexes your documents, PDFs, spreadsheets, images, and media into a lo
 
 I kept running into the same problems:
 
-- **Traveling and need my passport scan?** It's somewhere on my laptop. I shouldn't have to dig through folders from my phone — just ask "find my passport" on WhatsApp and get it sent instantly.
-- **Someone sends an important receipt on WhatsApp.** It disappears into the chat. With Pinpoint, I forward it to the bot and say "save this to Tax 2025" — it's renamed, filed, and searchable forever.
-- **Small business orders come via WhatsApp.** Screenshots of Excel sheets, invoices as photos. Instead of manually opening each one, I send them to Pinpoint: "turn this into Excel", "find all orders above 50K", "who hasn't paid yet."
-- **Marketing team shares campaign screenshots.** Need to find that specific performance report from last month? "Find the campaign screenshot with 4.2% CTR" — Pinpoint searches image content, not just filenames.
-- **I forget things.** "Remember that the electrician's number is 98208..." — stored permanently, survives restarts, searchable later.
-- **1000+ wedding photos** and no time to sort them. "Group these by category" — done in minutes, not hours.
-
-- **Group trip photos lost in WhatsApp chaos.** Everyone shares photos from the Goa trip, but they get buried under memes, forwards, and random links. Forward them to Pinpoint: "make a folder called Goa 2026 and save these" — they're organized, named properly, and even categorized (beach, food, group shots) if you ask.
-- **Client sends a contract PDF at 11pm.** You're on your phone, laptop is at home. Next morning: "find the contract from last night" — there it is, already indexed, searchable by content.
+- Traveling and need my passport scan? It's somewhere on my laptop. I shouldn't have to dig through folders from my phone. I want to ask "find my passport" on WhatsApp and get it instantly.
+- Important receipts and documents get buried in chats. Someone sends a file on WhatsApp, and a week later it's gone in the scroll. I wanted to forward it once, say "save this to Tax 2025," and know it would stay organized and searchable.
+- Small business work often starts in WhatsApp. Orders, invoices, screenshots, spreadsheet photos. I wanted to turn those into something usable without manually opening every file and retyping data.
+- Photos are messy and time-consuming. Hundreds of wedding, trip, or family photos need sorting, grouping, and sometimes face recognition. I wanted that to be fast instead of a weekend chore.
+- I forget useful details. Phone numbers, due dates, client info, things buried in files or chat history. I wanted a system that could remember them and bring them back later.
 
 If your files are scattered across your computer and you live on WhatsApp, Pinpoint puts them together.
 
