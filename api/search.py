@@ -59,14 +59,14 @@ def search_facts_endpoint(
                FROM facts_fts fts
                JOIN facts f ON f.id = fts.rowid
                JOIN documents d ON f.document_id = d.id
-               WHERE facts_fts MATCH ? LIMIT ?""",
+               WHERE facts_fts MATCH ? AND d.active = 1 LIMIT ?""",
             (q, limit),
         ).fetchall()
     except Exception:
         rows = conn.execute(
             """SELECT f.id, f.fact_text, f.category, d.path, d.file_type
                FROM facts f JOIN documents d ON f.document_id = d.id
-               WHERE f.fact_text LIKE ? LIMIT ?""",
+               WHERE f.fact_text LIKE ? AND d.active = 1 LIMIT ?""",
             (f"%{q}%", limit),
         ).fetchall()
     resp = {"query": q, "count": len(rows), "results": [dict(r) for r in rows]}
@@ -89,7 +89,7 @@ def document_endpoint(doc_id: int) -> dict:
         SELECT d.id, d.path, d.title, d.file_type, d.page_count, d.active, c.text
         FROM documents d
         JOIN content c ON c.hash = d.hash
-        WHERE d.id = ?
+        WHERE d.id = ? AND d.active = 1
     """,
         (doc_id,),
     ).fetchone()

@@ -136,13 +136,12 @@ class TestDocumentExtra:
         assert data["path"]
         assert data["file_type"]
 
-    def test_document_inactive_still_returned(self, client, seeded_db):
+    def test_document_inactive_not_returned(self, client, seeded_db):
         from database import soft_delete_missing
 
         soft_delete_missing(seeded_db, set())
         r = client.get("/document/1")
-        assert r.status_code == 200
-        assert r.json()["active"] == 0
+        assert r.status_code == 404
 
 
 class TestWebRead:
