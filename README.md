@@ -8,14 +8,6 @@ Search, organize, and manage your local files through WhatsApp.
 
 [![Demo](https://img.youtube.com/vi/e4NTUIyfszc/maxresdefault.jpg)](https://youtu.be/e4NTUIyfszc)
 
-### Search a 100MB Excel from WhatsApp
-![Excel Search](assets/excel-search.png)
-
-### Turn a photo into an Excel spreadsheet
-![Image to Excel](assets/image-to-excel.png)
-
-### Group 100 photos into categories
-![Photo Grouping](assets/photo-grouping.png)
 
 Pinpoint indexes your documents, PDFs, spreadsheets, images, and media into a local SQLite database, then lets you search and work with them through natural language — either via WhatsApp or direct API calls.
 
