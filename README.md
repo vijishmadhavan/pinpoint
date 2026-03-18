@@ -21,6 +21,9 @@ I kept running into the same problems:
 - **I forget things.** "Remember that the electrician's number is 98208..." — stored permanently, survives restarts, searchable later.
 - **1000+ wedding photos** and no time to sort them. "Group these by category" — done in minutes, not hours.
 
+- **Group trip photos lost in WhatsApp chaos.** Everyone shares photos from the Goa trip, but they get buried under memes, forwards, and random links. Forward them to Pinpoint: "make a folder called Goa 2026 and save these" — they're organized, named properly, and even categorized (beach, food, group shots) if you ask.
+- **Client sends a contract PDF at 11pm.** You're on your phone, laptop is at home. Next morning: "find the contract from last night" — there it is, already indexed, searchable by content.
+
 If your files are scattered across your computer and you live on WhatsApp, Pinpoint puts them together.
 
 ---
