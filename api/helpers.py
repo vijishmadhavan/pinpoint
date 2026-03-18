@@ -118,6 +118,11 @@ BLOCKED_PREFIXES = (
     "C:\\Program Files",
     "C:\\Program Files (x86)",
     "C:\\ProgramData",
+    # WSL-mounted Windows system paths
+    "/mnt/c/Windows",
+    "/mnt/c/Program Files",
+    "/mnt/c/Program Files (x86)",
+    "/mnt/c/ProgramData",
 )
 
 
@@ -166,9 +171,14 @@ def _check_url_safe(url: str) -> None:
             ipaddress.ip_network("172.16.0.0/12"),
             ipaddress.ip_network("192.168.0.0/16"),
             ipaddress.ip_network("169.254.0.0/16"),
+            ipaddress.ip_network("0.0.0.0/8"),
             ipaddress.ip_network("::1/128"),
             ipaddress.ip_network("fc00::/7"),
             ipaddress.ip_network("fe80::/10"),
+            ipaddress.ip_network("::ffff:127.0.0.0/104"),  # IPv6-mapped loopback
+            ipaddress.ip_network("::ffff:10.0.0.0/104"),  # IPv6-mapped private
+            ipaddress.ip_network("::ffff:172.16.0.0/108"),  # IPv6-mapped private
+            ipaddress.ip_network("::ffff:192.168.0.0/112"),  # IPv6-mapped private
         ]
 
     parsed = urlparse(url)

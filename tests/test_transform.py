@@ -114,12 +114,14 @@ class TestRunPython:
         signal.SIGALRM only works in the main thread but TestClient
         dispatches requests in a worker thread, so we stub signal.signal
         and signal.alarm to prevent ValueError.
+        run-python requires API_SECRET to be set, so we patch it.
         """
         import signal
 
         with (
             patch.object(signal, "signal", return_value=None),
             patch.object(signal, "alarm", return_value=None),
+            patch.dict(os.environ, {"PINPOINT_ALLOW_RUN_PYTHON": "1"}),
         ):
             return client.post("/run-python", json=json_body)
 

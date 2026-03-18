@@ -926,9 +926,24 @@ class RunPythonRequest(BaseModel):
 
 @router.post("/run-python")
 def run_python_endpoint(req: RunPythonRequest) -> dict:
-    """Execute Python code and return stdout + created files."""
+    """Execute Python code and return stdout + created files.
+
+    Security: This endpoint executes arbitrary code. It requires API_SECRET
+    to be configured — refuses to run if the API has no auth protection.
+    """
     import contextlib
     import io
+
+    # Refuse to execute code if the API has no auth protection.
+    # When API_SECRET is set, the auth middleware already verified the caller.
+    # When API_SECRET is empty, this endpoint is dangerously open — block it.
+    from api import API_SECRET
+
+    if not API_SECRET and not os.environ.get("PINPOINT_ALLOW_RUN_PYTHON"):
+        raise HTTPException(
+            status_code=403,
+            detail="Code execution requires API_SECRET to be configured. Set it in .env or via pinpoint setup.",
+        )
 
     timeout = min(req.timeout, 120)
 
