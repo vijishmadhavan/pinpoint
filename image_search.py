@@ -23,6 +23,8 @@ from typing import Any
 import numpy as np
 from PIL import Image
 
+Image.MAX_IMAGE_PIXELS = 178_956_970  # ~256MP — prevent decompression bombs
+
 from database import DB_PATH, get_db
 
 # --- Config ---

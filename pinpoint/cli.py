@@ -84,6 +84,10 @@ def _write_env(values: dict[str, str]) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     lines = [f"{key}={values.get(key, '')}" for key in DEFAULT_ENV]
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    try:
+        path.chmod(0o600)  # Owner read/write only — protects API keys
+    except OSError:
+        pass  # Windows/WSL may not support chmod
     return path
 
 
@@ -406,12 +410,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_index.set_defaults(func=cmd_index)
 
     p_api = sub.add_parser("api", help="Start the FastAPI backend")
-    p_api.add_argument("--host", default="0.0.0.0")
+    p_api.add_argument("--host", default="127.0.0.1")
     p_api.add_argument("--port", type=int, default=5123)
     p_api.set_defaults(func=cmd_api)
 
     p_start = sub.add_parser("start", help="Start the API and, if installed, the WhatsApp bot")
-    p_start.add_argument("--host", default="0.0.0.0")
+    p_start.add_argument("--host", default="127.0.0.1")
     p_start.add_argument("--port", type=int, default=5123)
     mode = p_start.add_mutually_exclusive_group()
     mode.add_argument("--api", dest="api_only", action="store_true", help="Start only the API")

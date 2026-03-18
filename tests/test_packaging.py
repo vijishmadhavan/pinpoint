@@ -264,6 +264,6 @@ class TestRunApiEntrypoint:
         assert uvicorn_run.call_count == 1
         args, kwargs = uvicorn_run.call_args
         assert args[0] is importlib.import_module("api").app
-        assert kwargs["host"] == "0.0.0.0"
+        assert kwargs["host"] == "127.0.0.1"
         assert kwargs["port"] == 5123
         assert kwargs["log_level"] == "info"
