@@ -87,8 +87,21 @@ def _write_env(values: dict[str, str]) -> Path:
     return path
 
 
+def _mask(value: str) -> str:
+    """Mask a secret value for display: show first 4 and last 4 chars."""
+    if not value or len(value) <= 8:
+        return "configured" if value else ""
+    return f"{value[:4]}...{value[-4:]}"
+
+
+_SECRET_LABELS = {"Gemini API key", "API secret (optional)", "Jina API key (optional)", "LangSearch API key (optional)"}
+
+
 def _prompt(current: str, label: str, *, required: bool = False) -> str:
-    suffix = f" [{current}]" if current else ""
+    if current and label in _SECRET_LABELS:
+        suffix = f" [{_mask(current)}]"
+    else:
+        suffix = f" [{current}]" if current else ""
     while True:
         value = input(f"{label}{suffix}: ").strip()
         if value:
