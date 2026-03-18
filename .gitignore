@@ -1,5 +1,7 @@
 # Secrets
 .env
+.env.local
+.env.*.local
 
 # WhatsApp auth sessions
 .wwebjs_auth/
