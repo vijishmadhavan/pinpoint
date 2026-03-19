@@ -46,6 +46,7 @@ const SKILL_CATEGORIES = {
 const CORE_TOOLS = new Set([
   "search_documents",
   "search_facts",
+  "read_document_overview",
   "read_document",
   "read_file",
   "list_files",
@@ -200,13 +201,17 @@ const TOOL_DECLARATIONS = [
   {
     name: "read_document_overview",
     description:
-      "Read a compact overview of a document by its ID. Use this BEFORE read_document when search_documents found the right file but you need broader context than the snippet. Returns metadata, a short overview, top sections, and extracted facts when available.",
+      "Read a compact overview of a document by its ID. Use this BEFORE read_document when search_documents found the right file but you need broader context than the snippet. Pass the user's query when possible so the most relevant sections appear first. Returns metadata, a short overview, top sections, and extracted facts when available.",
     parameters: {
       type: "OBJECT",
       properties: {
         document_id: {
           type: "INTEGER",
           description: "The document ID from search results.",
+        },
+        query: {
+          type: "STRING",
+          description: "Optional original user query to rank the most relevant sections first.",
         },
       },
       required: ["document_id"],
@@ -1521,7 +1526,14 @@ function buildToolRoutes(maxResults) {
       },
     },
     read_document: { m: "GET", p: (a) => `/document/${a.document_id}` },
-    read_document_overview: { m: "GET", p: (a) => `/document/${a.document_id}/overview` },
+    read_document_overview: {
+      m: "GET",
+      p: (a) => {
+        let u = `/document/${a.document_id}/overview`;
+        if (a.query) u += `?q=${enc(a.query)}`;
+        return u;
+      },
+    },
     list_files: {
       m: "GET",
       p: (a) => {

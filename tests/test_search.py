@@ -174,6 +174,26 @@ class TestDocumentExtra:
         data = r.json()
         assert isinstance(data["facts"], list)
 
+    def test_document_overview_ranks_relevant_sections_by_query(self, client, seeded_db, tmp_path):
+        from database import chunk_document, upsert_document
+
+        path = tmp_path / "review.txt"
+        text = (
+            "Introduction and agenda. " * 120
+            + "Quarterly revenue increased sharply in the enterprise segment. " * 80
+            + "Closing notes and action items. " * 120
+        )
+        upsert_document(seeded_db, str(path), text, "txt")
+        doc_id = seeded_db.execute("SELECT id FROM documents WHERE path = ?", (str(path),)).fetchone()["id"]
+        chunk_document(seeded_db, doc_id, text)
+
+        r = client.get(f"/document/{doc_id}/overview", params={"q": "quarterly revenue"})
+        assert r.status_code == 200
+        data = r.json()
+        assert data["query"] == "quarterly revenue"
+        assert data["top_sections"]
+        assert "quarterly revenue" in data["top_sections"][0]["preview"].lower()
+
 
 class TestWebRead:
     def test_web_read_basic(self, client):

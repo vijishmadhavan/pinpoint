@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 from api.helpers import _check_url_safe, _get_conn
 from database import DB_PATH
 from search import search
+from search_pipeline import _coverage_score, _snippet
 
 router = APIRouter()
 
@@ -35,7 +36,7 @@ def _truncate_text(text: str, limit: int) -> str:
     return text[:limit].rstrip() + "…"
 
 
-def _document_overview(conn, doc_id: int) -> dict:
+def _document_overview(conn, doc_id: int, query: str | None = None) -> dict:
     row = conn.execute(
         """
         SELECT d.id, d.path, d.title, d.file_type, d.page_count, d.active, c.text
@@ -49,13 +50,12 @@ def _document_overview(conn, doc_id: int) -> dict:
         raise HTTPException(status_code=404, detail=f"Document {doc_id} not found")
 
     text = row["text"] or ""
-    chunks = conn.execute(
+    chunk_rows = conn.execute(
         """
         SELECT chunk_num, text, start_index, end_index
         FROM chunks
         WHERE document_id = ?
         ORDER BY chunk_num
-        LIMIT 3
     """,
         (doc_id,),
     ).fetchall()
@@ -71,17 +71,32 @@ def _document_overview(conn, doc_id: int) -> dict:
     ).fetchall()
 
     preview = _truncate_text(text, 700)
-    section_previews = [
-        {
-            "chunk_num": r["chunk_num"],
-            "start_index": r["start_index"],
-            "end_index": r["end_index"],
-            "preview": _truncate_text(r["text"], 240),
-        }
-        for r in chunks
-    ]
+    if query and query.strip() and chunk_rows:
+        query_terms = [t for t in re.sub(r"[^\w\s]", "", query).split() if len(t) > 1]
+        ranked_chunks = []
+        for r in chunk_rows:
+            coverage = _coverage_score(r["text"], row["title"], query)
+            ranked_chunks.append({
+                "chunk_num": r["chunk_num"],
+                "start_index": r["start_index"],
+                "end_index": r["end_index"],
+                "preview": _snippet(r["text"], query_terms, max_len=240),
+                "coverage_score": round(coverage, 4),
+            })
+        ranked_chunks.sort(key=lambda item: (item["coverage_score"], -item["chunk_num"]), reverse=True)
+        section_previews = ranked_chunks[:3]
+    else:
+        section_previews = [
+            {
+                "chunk_num": r["chunk_num"],
+                "start_index": r["start_index"],
+                "end_index": r["end_index"],
+                "preview": _truncate_text(r["text"], 240),
+            }
+            for r in chunk_rows[:3]
+        ]
     fact_list = [dict(r) for r in facts]
-    total_chunks = conn.execute("SELECT COUNT(*) AS n FROM chunks WHERE document_id = ?", (doc_id,)).fetchone()["n"]
+    total_chunks = len(chunk_rows)
 
     return {
         "id": row["id"],
@@ -90,6 +105,7 @@ def _document_overview(conn, doc_id: int) -> dict:
         "file_type": row["file_type"],
         "page_count": row["page_count"],
         "overview": preview,
+        "query": query or "",
         "full_text_chars": len(text),
         "chunk_count": total_chunks,
         "top_sections": section_previews,
@@ -181,10 +197,13 @@ def document_endpoint(doc_id: int) -> dict:
 
 
 @router.get("/document/{doc_id}/overview")
-def document_overview_endpoint(doc_id: int) -> dict:
+def document_overview_endpoint(
+    doc_id: int,
+    q: str | None = Query(None, description="Optional user query to rank the most relevant sections"),
+) -> dict:
     """Get a compact document overview before reading full text."""
     conn = _get_conn()
-    return _document_overview(conn, doc_id)
+    return _document_overview(conn, doc_id, q)
 
 
 # --- Web Search (LangSearch API, Jina fallback) ---
