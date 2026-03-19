@@ -36,6 +36,99 @@ def _search_explanation(result: dict) -> dict:
     }
 
 
+def _detect_retrieval_intent(query: str) -> str:
+    text = (query or "").strip().lower()
+    memory_patterns = [
+        r"\bmy\b",
+        r"\bi\b",
+        r"\bremember\b",
+        r"\bforget\b",
+        r"\bpreference\b",
+        r"\blike\b",
+        r"\blive\b",
+        r"\baddress\b",
+        r"\bphone\b",
+        r"\bemail\b",
+        r"\bbirthday\b",
+        r"\bcalled\b",
+    ]
+    if any(re.search(pattern, text) for pattern in memory_patterns):
+        return "memory"
+
+    fact_patterns = [
+        r"^(who|what|when|where|which|how much|how many)\b",
+        r"\bamount\b",
+        r"\btotal\b",
+        r"\binvoice\b",
+        r"\bdate\b",
+        r"\bcontact\b",
+        r"\bnumber\b",
+    ]
+    if any(re.search(pattern, text) for pattern in fact_patterns):
+        return "facts"
+
+    return "documents"
+
+
+_FACT_QUERY_STOPWORDS = {"what", "who", "when", "where", "which", "how", "is", "the", "a", "an", "does", "do", "did", "are", "was", "were", "much", "many", "of", "in", "for", "to", "from", "about", "my", "i"}
+
+
+def _fact_query_candidates(query: str) -> list[str]:
+    """Generate progressively simpler search candidates from a natural-language query."""
+    candidates = [query]
+    words = re.sub(r"[^\w\s]", "", query.lower()).split()
+    content_words = [w for w in words if w not in _FACT_QUERY_STOPWORDS and len(w) > 1]
+    if content_words and " ".join(content_words) != query.lower().strip():
+        candidates.append(" ".join(content_words))
+    return candidates
+
+
+def _search_facts_single(conn, q: str, limit: int) -> list[dict]:
+    """Search facts with a single query string."""
+    try:
+        rows = conn.execute(
+            """SELECT f.id, f.fact_text, f.category, d.path, d.file_type
+               FROM facts_fts fts
+               JOIN facts f ON f.id = fts.rowid
+               JOIN documents d ON f.document_id = d.id
+               WHERE facts_fts MATCH ? AND d.active = 1 LIMIT ?""",
+            (q, limit),
+        ).fetchall()
+    except Exception:
+        rows = conn.execute(
+            """SELECT f.id, f.fact_text, f.category, d.path, d.file_type
+               FROM facts f JOIN documents d ON f.document_id = d.id
+               WHERE f.fact_text LIKE ? AND d.active = 1 LIMIT ?""",
+            (f"%{q}%", limit),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def _search_facts(conn, query: str, limit: int) -> list[dict]:
+    """Search facts, trying progressively simpler query candidates."""
+    for candidate in _fact_query_candidates(query):
+        results = _search_facts_single(conn, candidate, limit)
+        if results:
+            return results
+    return []
+
+
+def _flatten_context_results(source: str, rows: list[dict]) -> list[dict]:
+    return [{**row, "source": source} for row in rows]
+
+
+def _context_hint(intent: str, searched_sources: list[str], result_count: int) -> str:
+    if result_count == 0:
+        return (
+            f"No context found via {', '.join(searched_sources)}. Try a more specific query or fall back to direct document search."
+        )
+    if intent == "memory":
+        return "Routed to memory first because this looks personal. Use these before searching broader documents."
+    if intent == "facts":
+        return "Routed to extracted facts first for a quick answer, with document fallback if needed."
+    return "Routed to document search first because this looks like a file/content lookup."
+
+
 def _truncate_text(text: str, limit: int) -> str:
     text = (text or "").strip()
     if len(text) <= limit:
@@ -157,29 +250,69 @@ def search_facts_endpoint(
 ) -> dict:
     """Search extracted facts from documents using FTS5."""
     conn = _get_conn()
-    # Use FTS5 for fast full-text search, fall back to LIKE if FTS table missing
-    try:
-        rows = conn.execute(
-            """SELECT f.id, f.fact_text, f.category, d.path, d.file_type
-               FROM facts_fts fts
-               JOIN facts f ON f.id = fts.rowid
-               JOIN documents d ON f.document_id = d.id
-               WHERE facts_fts MATCH ? AND d.active = 1 LIMIT ?""",
-            (q, limit),
-        ).fetchall()
-    except Exception:
-        rows = conn.execute(
-            """SELECT f.id, f.fact_text, f.category, d.path, d.file_type
-               FROM facts f JOIN documents d ON f.document_id = d.id
-               WHERE f.fact_text LIKE ? AND d.active = 1 LIMIT ?""",
-            (f"%{q}%", limit),
-        ).fetchall()
-    resp = {"query": q, "count": len(rows), "results": [dict(r) for r in rows]}
+    rows = _search_facts(conn, q, limit)
+    resp = {"query": q, "count": len(rows), "results": rows}
     if not rows:
         resp["_hint"] = "No facts match. Try search_documents for full-text search across document content."
     else:
         resp["_hint"] = f"{len(rows)} fact(s) found. Answer the user's question using these."
     return resp
+
+
+@router.get("/retrieve-context")
+def retrieve_context_endpoint(
+    q: str = Query(..., description="User query"),
+    limit: int = Query(10, ge=1, le=50),
+) -> dict:
+    """Intent-routed retrieval across memory, facts, and documents."""
+    conn = _get_conn()
+    intent = _detect_retrieval_intent(q)
+
+    memory_results: list[dict] = []
+    fact_results: list[dict] = []
+    document_results: list[dict] = []
+    searched_sources: list[str] = []
+
+    if intent == "memory":
+        from api.memory import _memory_fts_search
+
+        memory_results = _memory_fts_search(conn, q, limit=min(limit, 5))
+        searched_sources.append("memory")
+        if not memory_results:
+            document_results = search(q, DB_PATH, limit)["results"]
+            searched_sources.append("documents")
+    elif intent == "facts":
+        fact_results = _search_facts(conn, q, limit=min(limit, 5))
+        searched_sources.append("facts")
+        if not fact_results:
+            document_results = search(q, DB_PATH, limit)["results"]
+            searched_sources.append("documents")
+    else:
+        document_results = search(q, DB_PATH, limit)["results"]
+        searched_sources.append("documents")
+        if not document_results:
+            fact_results = _search_facts(conn, q, limit=min(limit, 5))
+            searched_sources.append("facts")
+
+    results = (
+        _flatten_context_results("memory", memory_results)
+        + _flatten_context_results("facts", fact_results)
+        + _flatten_context_results("documents", document_results)
+    )[:limit]
+
+    primary_source = searched_sources[0] if searched_sources else "documents"
+    return {
+        "query": q,
+        "intent": intent,
+        "primary_source": primary_source,
+        "searched_sources": searched_sources,
+        "count": len(results),
+        "memory_results": memory_results,
+        "fact_results": fact_results,
+        "document_results": document_results,
+        "results": results,
+        "_hint": _context_hint(intent, searched_sources, len(results)),
+    }
 
 
 # --- Get document by ID ---
