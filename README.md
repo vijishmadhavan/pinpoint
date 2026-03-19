@@ -6,7 +6,9 @@
 
 Search, organize, and manage your local files through WhatsApp.
 
-[![Demo](https://img.youtube.com/vi/e4NTUIyfszc/maxresdefault.jpg)](https://youtu.be/e4NTUIyfszc)
+![Demo](assets/pinpoint-demo.gif)
+
+[Full demo video on YouTube](https://youtu.be/e4NTUIyfszc)
 
 
 Pinpoint indexes your documents, PDFs, spreadsheets, images, and media into a local SQLite database, then lets you search and work with them through natural language — either via WhatsApp or direct API calls.
