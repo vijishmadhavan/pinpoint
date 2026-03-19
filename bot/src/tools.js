@@ -1866,7 +1866,16 @@ function summarizeToolResult(name, args, result) {
       if (result.ambiguous_search) {
         return `search_documents: ambiguous — ${result.clarification_hint || "ask the user to narrow the result with a title, file name, date, person, location, or year"}`;
       }
-      return `search_documents: ${n} result(s) found`;
+      const top = Array.isArray(result.results) && result.results.length > 0 ? result.results[0] : null;
+      const why = top?.why_matched ? String(top.why_matched).split(";")[0].trim() : "";
+      const matchType = top?.match_type ? ` via ${top.match_type}` : "";
+      const searchMode = result.search_explanation?.relaxed_lexical
+        ? "relaxed lexical"
+        : result.search_explanation?.enhanced_search_used
+          ? "enhanced"
+          : "lexical-first";
+      const reason = why ? ` — top match${matchType}: ${why}` : "";
+      return `search_documents: ${n} result(s) found (${searchMode})${reason}`;
     }
     case "search_facts": {
       const n = result.count || result.results?.length || 0;
