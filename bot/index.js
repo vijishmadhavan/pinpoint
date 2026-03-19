@@ -756,6 +756,23 @@ async function apiPut(path, body) {
   return resp.json();
 }
 
+async function logSearchFeedback(signal, args, result, chatJid) {
+  try {
+    const query = String(args?.query || "").trim();
+    if (!query) return;
+    await apiPost("/search-feedback", {
+      query,
+      signal,
+      document_id: result?.id || args?.document_id || null,
+      document_path: result?.path || "",
+      session_id: chatJid || "",
+      notes: "",
+    });
+  } catch (_) {
+    // Best-effort only — feedback logging must never block the main tool flow.
+  }
+}
+
 async function apiPing() {
   try {
     return (await fetch(`${API_URL}/ping`)).ok;
@@ -788,8 +805,15 @@ async function executeTool(functionCall, sock, chatJid, sentFiles) {
     const route = TOOL_ROUTES[name];
     if (route) {
       const path = typeof route.p === "function" ? route.p(args) : route.p;
-      if (route.m === "GET") return await apiGet(path);
-      return await apiPost(path, route.b ? route.b(args) : args);
+      const result = route.m === "GET" ? await apiGet(path) : await apiPost(path, route.b ? route.b(args) : args);
+      if (!result?.error) {
+        if (name === "read_document_overview") {
+          await logSearchFeedback("opened_overview", args, result, chatJid);
+        } else if (name === "read_document") {
+          await logSearchFeedback("opened_full_document", args, result, chatJid);
+        }
+      }
+      return result;
     }
 
     // --- Custom handlers (tools with side effects or complex logic) ---

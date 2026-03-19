@@ -220,13 +220,17 @@ const TOOL_DECLARATIONS = [
   {
     name: "read_document",
     description:
-      "Read the full text of a document by its ID. Use ONLY after search_documents and usually after read_document_overview if you still need broader context — like summarizing an entire document, comparing two full documents, or translating. For specific questions (what does clause 7 say, what's the depreciation amount), search_documents already returns the exact section.",
+      "Read the full text of a document by its ID. Use ONLY after search_documents and usually after read_document_overview if you still need broader context — like summarizing an entire document, comparing two full documents, or translating. Pass the original user query when possible for feedback logging. For specific questions (what does clause 7 say, what's the depreciation amount), search_documents already returns the exact section.",
     parameters: {
       type: "OBJECT",
       properties: {
         document_id: {
           type: "INTEGER",
           description: "The document ID from search results.",
+        },
+        query: {
+          type: "STRING",
+          description: "Optional original user query for feedback logging and traceability.",
         },
       },
       required: ["document_id"],
