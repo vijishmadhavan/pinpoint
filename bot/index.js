@@ -759,12 +759,14 @@ async function apiPut(path, body) {
 async function logSearchFeedback(signal, args, result, chatJid) {
   try {
     const query = String(args?.query || "").trim();
-    if (!query) return;
+    const docId = result?.id || args?.document_id || null;
+    const docPath = result?.path || "";
+    if (!query && !docId && !docPath) return; // nothing useful to log
     await apiPost("/search-feedback", {
       query,
       signal,
-      document_id: result?.id || args?.document_id || null,
-      document_path: result?.path || "",
+      document_id: docId,
+      document_path: docPath,
       session_id: chatJid || "",
       notes: "",
     });
