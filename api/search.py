@@ -28,6 +28,76 @@ def _search_explanation(result: dict) -> dict:
     }
 
 
+def _truncate_text(text: str, limit: int) -> str:
+    text = (text or "").strip()
+    if len(text) <= limit:
+        return text
+    return text[:limit].rstrip() + "…"
+
+
+def _document_overview(conn, doc_id: int) -> dict:
+    row = conn.execute(
+        """
+        SELECT d.id, d.path, d.title, d.file_type, d.page_count, d.active, c.text
+        FROM documents d
+        JOIN content c ON c.hash = d.hash
+        WHERE d.id = ? AND d.active = 1
+    """,
+        (doc_id,),
+    ).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Document {doc_id} not found")
+
+    text = row["text"] or ""
+    chunks = conn.execute(
+        """
+        SELECT chunk_num, text, start_index, end_index
+        FROM chunks
+        WHERE document_id = ?
+        ORDER BY chunk_num
+        LIMIT 3
+    """,
+        (doc_id,),
+    ).fetchall()
+    facts = conn.execute(
+        """
+        SELECT fact_text, category
+        FROM facts
+        WHERE document_id = ?
+        ORDER BY id
+        LIMIT 5
+    """,
+        (doc_id,),
+    ).fetchall()
+
+    preview = _truncate_text(text, 700)
+    section_previews = [
+        {
+            "chunk_num": r["chunk_num"],
+            "start_index": r["start_index"],
+            "end_index": r["end_index"],
+            "preview": _truncate_text(r["text"], 240),
+        }
+        for r in chunks
+    ]
+    fact_list = [dict(r) for r in facts]
+    total_chunks = conn.execute("SELECT COUNT(*) AS n FROM chunks WHERE document_id = ?", (doc_id,)).fetchone()["n"]
+
+    return {
+        "id": row["id"],
+        "path": row["path"],
+        "title": row["title"],
+        "file_type": row["file_type"],
+        "page_count": row["page_count"],
+        "overview": preview,
+        "full_text_chars": len(text),
+        "chunk_count": total_chunks,
+        "top_sections": section_previews,
+        "facts": fact_list,
+        "_hint": "Document overview loaded. Use this first; read_document only if you need the full text.",
+    }
+
+
 # --- Search (enhanced with filters) ---
 
 
@@ -108,6 +178,13 @@ def document_endpoint(doc_id: int) -> dict:
     if not row:
         raise HTTPException(status_code=404, detail=f"Document {doc_id} not found")
     return dict(row)
+
+
+@router.get("/document/{doc_id}/overview")
+def document_overview_endpoint(doc_id: int) -> dict:
+    """Get a compact document overview before reading full text."""
+    conn = _get_conn()
+    return _document_overview(conn, doc_id)
 
 
 # --- Web Search (LangSearch API, Jina fallback) ---

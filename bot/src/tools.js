@@ -198,9 +198,24 @@ const TOOL_DECLARATIONS = [
     },
   },
   {
+    name: "read_document_overview",
+    description:
+      "Read a compact overview of a document by its ID. Use this BEFORE read_document when search_documents found the right file but you need broader context than the snippet. Returns metadata, a short overview, top sections, and extracted facts when available.",
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        document_id: {
+          type: "INTEGER",
+          description: "The document ID from search results.",
+        },
+      },
+      required: ["document_id"],
+    },
+  },
+  {
     name: "read_document",
     description:
-      "Read the full text of a document by its ID. Use ONLY when search_documents snippet isn't detailed enough and you need broader context — like summarizing an entire document, comparing two full documents, or translating. For specific questions (what does clause 7 say, what's the depreciation amount), search_documents already returns the exact section.",
+      "Read the full text of a document by its ID. Use ONLY after search_documents and usually after read_document_overview if you still need broader context — like summarizing an entire document, comparing two full documents, or translating. For specific questions (what does clause 7 say, what's the depreciation amount), search_documents already returns the exact section.",
     parameters: {
       type: "OBJECT",
       properties: {
@@ -1506,6 +1521,7 @@ function buildToolRoutes(maxResults) {
       },
     },
     read_document: { m: "GET", p: (a) => `/document/${a.document_id}` },
+    read_document_overview: { m: "GET", p: (a) => `/document/${a.document_id}/overview` },
     list_files: {
       m: "GET",
       p: (a) => {
@@ -1876,6 +1892,12 @@ function summarizeToolResult(name, args, result) {
           : "lexical-first";
       const reason = why ? ` — top match${matchType}: ${why}` : "";
       return `search_documents: ${n} result(s) found (${searchMode})${reason}`;
+    }
+    case "read_document_overview": {
+      const title = result.title || `document ${args?.document_id ?? ""}`;
+      const sectionCount = result.top_sections?.length || 0;
+      const factCount = result.facts?.length || 0;
+      return `read_document_overview: ${title} — ${sectionCount} section preview(s), ${factCount} fact(s)`;
     }
     case "search_facts": {
       const n = result.count || result.results?.length || 0;

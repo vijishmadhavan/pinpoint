@@ -107,6 +107,16 @@ class TestDocument:
         r = client.get("/document/9999")
         assert r.status_code == 404
 
+    def test_get_document_overview_by_id(self, client, seeded_db):
+        r = client.get("/document/1/overview")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["title"]
+        assert "overview" in data
+        assert "top_sections" in data
+        assert "facts" in data
+        assert data["_hint"]
+
 
 class TestSearchFactsExtra:
     def test_search_facts_with_limit(self, client, seeded_db):
@@ -150,6 +160,19 @@ class TestDocumentExtra:
         soft_delete_missing(seeded_db, set())
         r = client.get("/document/1")
         assert r.status_code == 404
+
+    def test_document_overview_inactive_not_returned(self, client, seeded_db):
+        from database import soft_delete_missing
+
+        soft_delete_missing(seeded_db, set())
+        r = client.get("/document/1/overview")
+        assert r.status_code == 404
+
+    def test_document_overview_includes_fact_rows_when_available(self, client, seeded_db):
+        r = client.get("/document/1/overview")
+        assert r.status_code == 200
+        data = r.json()
+        assert isinstance(data["facts"], list)
 
 
 class TestWebRead:

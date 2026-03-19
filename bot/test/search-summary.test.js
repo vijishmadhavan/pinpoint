@@ -55,3 +55,13 @@ test("search_documents ambiguous summary still prefers clarification", () => {
     "search_documents: ambiguous — Multiple similar matches found. Can you specify the file name, title, date, person, location, or year?",
   );
 });
+
+test("read_document_overview summary reports section and fact counts", () => {
+  const summary = summarizeToolResult("read_document_overview", { document_id: 12 }, {
+    title: "Invoice March",
+    top_sections: [{}, {}],
+    facts: [{}, {}, {}],
+  });
+
+  assert.equal(summary, "read_document_overview: Invoice March — 2 section preview(s), 3 fact(s)");
+});
