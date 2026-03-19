@@ -195,11 +195,7 @@ def _coverage_score(text: str, title: str, query: str) -> float:
         return 0.0
 
     terms = _normalize_text_terms(f"{title} {text}")
-    matched = 0
-    for concept in concepts:
-        if any(any(term.startswith(variant) or variant.startswith(term) for term in terms) for variant in concept):
-            matched += 1
-    return matched / len(concepts)
+    return _match_ratio_for_terms(terms, concepts)
 
 
 def _metadata_score(path: str, title: str, query: str) -> float:
@@ -209,12 +205,7 @@ def _metadata_score(path: str, title: str, query: str) -> float:
 
     filename = os.path.splitext(os.path.basename(path))[0]
     metadata_terms = _normalize_text_terms(f"{filename} {title} {path.replace(os.sep, ' ')}")
-    matched = 0
-    for concept in concepts:
-        if any(any(term.startswith(variant) or variant.startswith(term) for term in metadata_terms) for variant in concept):
-            matched += 1
-
-    base = matched / len(concepts)
+    base = _match_ratio_for_terms(metadata_terms, concepts)
     lower_filename = filename.lower()
     lower_title = title.lower()
     query_terms = _extract_query_terms(query)
@@ -230,6 +221,82 @@ def _metadata_score(path: str, title: str, query: str) -> float:
 
 def _normalize_bm25(raw_score: float) -> float:
     return abs(raw_score) / (1 + abs(raw_score))
+
+
+def _concept_matches_terms(terms: set[str], concept: tuple[str, ...]) -> bool:
+    return any(any(term.startswith(variant) or variant.startswith(term) for term in terms) for variant in concept)
+
+
+def _match_ratio_for_terms(terms: set[str], concepts: list[tuple[str, ...]]) -> float:
+    matched = 0
+    for concept in concepts:
+        if _concept_matches_terms(terms, concept):
+            matched += 1
+    return matched / len(concepts) if concepts else 0.0
+
+
+def _build_match_explanation(path: str, title: str, text: str, query: str, chunk_num: int) -> dict[str, str]:
+    concepts = _query_concepts(query)
+    if not concepts:
+        return {"match_type": "unknown", "why_matched": "Matched the query lexically."}
+
+    filename = os.path.splitext(os.path.basename(path))[0]
+    title_terms = _normalize_text_terms(title)
+    path_terms = _normalize_text_terms(f"{filename} {path.replace(os.sep, ' ')}")
+    content_terms = _normalize_text_terms(text)
+    query_lower = query.lower()
+    title_lower = title.lower()
+    path_lower = path.lower()
+    query_terms = _extract_query_terms(query)
+
+    title_hits = 0
+    path_hits = 0
+    content_hits = 0
+    for concept in concepts:
+        if _concept_matches_terms(title_terms, concept):
+            title_hits += 1
+        if _concept_matches_terms(path_terms, concept):
+            path_hits += 1
+        if _concept_matches_terms(content_terms, concept):
+            content_hits += 1
+
+    exact_title_phrase = bool(query_lower and query_lower in title_lower)
+    exact_path_phrase = bool(query_lower and query_lower in path_lower)
+    identifier_terms = [term for term in query_terms if any(ch.isdigit() for ch in term)]
+    identifier_hits = [term for term in identifier_terms if term in title_lower or term in path_lower]
+
+    reasons: list[str] = []
+    if exact_title_phrase:
+        reasons.append("exact title phrase match")
+    elif exact_path_phrase:
+        reasons.append("exact file name/path phrase match")
+
+    if identifier_hits:
+        reasons.append(f"matched identifier{'s' if len(identifier_hits) > 1 else ''} {', '.join(identifier_hits[:3])}")
+
+    if title_hits:
+        reasons.append(f"title matched {title_hits}/{len(concepts)} query concepts")
+    if path_hits and path_hits >= title_hits:
+        reasons.append(f"file name/path matched {path_hits}/{len(concepts)} query concepts")
+    if content_hits:
+        scope = f"chunk {chunk_num}" if chunk_num >= 0 else "document text"
+        reasons.append(f"{scope} matched {content_hits}/{len(concepts)} query concepts")
+
+    if exact_title_phrase or title_hits == len(concepts):
+        match_type = "title"
+    elif exact_path_phrase or path_hits == len(concepts) or (identifier_hits and path_hits >= max(1, content_hits)):
+        match_type = "path"
+    elif chunk_num >= 0 and content_hits:
+        match_type = "chunk"
+    elif content_hits:
+        match_type = "content"
+    else:
+        match_type = "blended"
+
+    if not reasons:
+        reasons.append("matched the query lexically")
+
+    return {"match_type": match_type, "why_matched": "; ".join(reasons)}
 
 
 def _snippet(text: str, query_terms: list[str], max_len: int = 200) -> str:
@@ -640,6 +707,13 @@ def _build_probe_results(rows: list[dict[str, Any]], query_terms: list[str], que
         score = 0.65 * bm25_score + 0.2 * coverage + 0.15 * metadata
         chunk_num = row.get("chunk_num", -1)
         snippet_len = 500 if chunk_num >= 0 else 200
+        match_explanation = _build_match_explanation(
+            row.get("path", ""),
+            row.get("title", ""),
+            row.get("text", ""),
+            query,
+            chunk_num,
+        )
         probe_results.append(
             {
                 "id": row["id"],
@@ -654,6 +728,8 @@ def _build_probe_results(rows: list[dict[str, Any]], query_terms: list[str], que
                 "page_count": row["page_count"],
                 "chunk_num": chunk_num,
                 "modified_at": row.get("modified_at", ""),
+                "match_type": match_explanation["match_type"],
+                "why_matched": match_explanation["why_matched"],
             }
         )
     return probe_results
@@ -713,6 +789,13 @@ def _fuse_result_lists(
         coverage = _coverage_score(full_text, row.get("title", ""), query)
         metadata = _metadata_score(row.get("path", ""), row.get("title", ""), query)
         blended_score = 0.72 * item["rrf_score"] + 0.16 * coverage + 0.12 * metadata
+        match_explanation = _build_match_explanation(
+            row.get("path", ""),
+            row.get("title", ""),
+            full_text,
+            query,
+            chunk_num,
+        )
         results.append(
             {
                 "id": row["id"],
@@ -728,6 +811,8 @@ def _fuse_result_lists(
                 "page_count": row["page_count"],
                 "chunk_num": chunk_num,
                 "modified_at": row.get("modified_at", ""),
+                "match_type": match_explanation["match_type"],
+                "why_matched": match_explanation["why_matched"],
             }
         )
     return results

@@ -71,6 +71,14 @@ class TestSearch:
         assert "timing" in result
         assert result["timing"]["total_ms"] >= 0
 
+    def test_search_api_includes_search_explanation_block(self, client, seeded_db):
+        r = client.get("/search", params={"q": "hello world"})
+        assert r.status_code == 200
+        data = r.json()
+        assert data["search_explanation"]["search_mode"] == "lexical-first"
+        assert data["search_explanation"]["ambiguous_search"] is False
+        assert data["search_explanation"]["result_explanations_available"] is True
+
 
 class TestSearchFacts:
     def test_search_facts(self, client, seeded_db):
@@ -328,6 +336,19 @@ class TestLexicalFallbacks:
         assert result["results"]
         assert result["results"][0]["path"] == str(exact_path)
         assert result["results"][0]["metadata_score"] > 0
+        assert result["results"][0]["match_type"] in {"path", "title"}
+        assert "identifier" in result["results"][0]["why_matched"].lower() or "file name/path" in result["results"][0]["why_matched"].lower()
+
+    def test_search_explanation_fields_exist_on_results(self, seeded_db):
+        from search_pipeline import _search_inner
+
+        result = _search_inner(seeded_db, "hello world", 5, None, None)
+
+        assert result["results"]
+        top = result["results"][0]
+        assert top["match_type"]
+        assert top["why_matched"]
+        assert top["match_type"] in {"title", "path", "chunk", "content", "blended", "unknown"}
 
 
 class TestAmbiguousSearch:
@@ -357,6 +378,7 @@ class TestAmbiguousSearch:
         assert data["ambiguous_result_count"] == 3
         assert "specify" in data["clarification_hint"].lower()
         assert data["_hint"] == data["clarification_hint"]
+        assert data["search_explanation"]["ambiguous_search"] is True
 
     def test_search_hint_uses_clarification_for_ambiguous_results(self, client, seeded_db, tmp_path):
         from database import upsert_document

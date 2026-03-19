@@ -17,6 +17,17 @@ from search import search
 router = APIRouter()
 
 
+def _search_explanation(result: dict) -> dict:
+    """Compact top-level explanation of how the search behaved."""
+    return {
+        "search_mode": "lexical-first",
+        "relaxed_lexical": bool(result.get("relaxed_lexical")),
+        "enhanced_search_used": bool(result.get("enhanced_search_used")),
+        "ambiguous_search": bool(result.get("ambiguous_search")),
+        "result_explanations_available": bool(result.get("results")),
+    }
+
+
 # --- Search (enhanced with filters) ---
 
 
@@ -29,6 +40,7 @@ def search_endpoint(
 ) -> dict:
     """Search across all indexed documents. Supports file_type and folder filters."""
     result = search(q, DB_PATH, limit, file_type=file_type, folder=folder)
+    result["search_explanation"] = _search_explanation(result)
     if not result.get("results"):
         result["_hint"] = (
             "No results. File may not be indexed — use index_file first, then retry. Or try search_facts for quick factual lookups."
