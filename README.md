@@ -73,6 +73,9 @@ Your Files ──> Indexer ──> SQLite/FTS5 ──> Search API ──> WhatsA
 - Coverage scoring: penalizes results that match only one of several query concepts
 - Ambiguity detection: clustered near-tie results trigger clarification instead of a wrong guess
 - Strong signal shortcut: skips expensive stages when the top result is clearly dominant
+- Search transparency: each result explains why it matched (title, path, chunk, identifier)
+- Progressive disclosure: document overview before full text (saves tokens)
+- Feedback loop: tracks which searches helped for future ranking improvements
 - Available but not default: Gemini query expansion, embedding cosine similarity, LLM reranker
 
 **Visual search**
