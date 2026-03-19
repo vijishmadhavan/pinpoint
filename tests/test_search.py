@@ -94,6 +94,32 @@ class TestSearchFacts:
         assert r.json()["count"] == 0
 
 
+class TestSearchFeedback:
+    def test_search_feedback_can_be_recorded_and_listed(self, client, seeded_db):
+        r = client.post("/search-feedback", json={
+            "query": "invoice 4821",
+            "signal": "helpful",
+            "document_id": 1,
+            "document_path": "/tmp/invoice_4821.txt",
+            "session_id": "chat-123",
+            "notes": "top result was correct",
+        })
+        assert r.status_code == 200
+        data = r.json()
+        assert data["success"] is True
+        assert data["signal"] == "helpful"
+
+        listed = client.get("/search-feedback", params={"q": "invoice 4821"})
+        assert listed.status_code == 200
+        body = listed.json()
+        assert body["count"] >= 1
+        assert any(item["signal"] == "helpful" for item in body["results"])
+
+    def test_search_feedback_rejects_invalid_signal(self, client, seeded_db):
+        r = client.post("/search-feedback", json={"query": "invoice 4821", "signal": "magic"})
+        assert r.status_code == 400
+
+
 class TestDocument:
     def test_get_document_by_id(self, client, seeded_db):
         """Get a document by its ID."""

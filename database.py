@@ -280,6 +280,21 @@ def init_db(db_path: str = DB_PATH) -> sqlite3.Connection:
             repeat TEXT DEFAULT NULL,
             created_at TEXT NOT NULL
         );
+
+        -- Search feedback (Phase 3: lightweight feedback loop, logging only)
+        CREATE TABLE IF NOT EXISTS search_feedback (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            query TEXT NOT NULL,
+            document_id INTEGER DEFAULT NULL,
+            document_path TEXT DEFAULT '',
+            signal TEXT NOT NULL,
+            session_id TEXT DEFAULT '',
+            notes TEXT DEFAULT '',
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE SET NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_search_feedback_query ON search_feedback(query, created_at);
+        CREATE INDEX IF NOT EXISTS idx_search_feedback_document ON search_feedback(document_id, created_at);
     """)
 
     # Migrate face_cache: add columns if missing (for existing DBs)

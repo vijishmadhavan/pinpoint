@@ -215,6 +215,74 @@ class WebSearchRequest(BaseModel):
     freshness: str = Field("noLimit", description="Time filter: noLimit, day, week, month")
 
 
+class SearchFeedbackRequest(BaseModel):
+    query: str
+    signal: str = Field(..., description="helpful, not_helpful, wrong_result, opened_overview, opened_full_document")
+    document_id: int | None = None
+    document_path: str = ""
+    session_id: str = ""
+    notes: str = ""
+
+
+@router.post("/search-feedback")
+def search_feedback_endpoint(req: SearchFeedbackRequest) -> dict:
+    """Record lightweight search feedback. Logging only — does not alter ranking."""
+    signal = req.signal.strip().lower()
+    allowed = {"helpful", "not_helpful", "wrong_result", "opened_overview", "opened_full_document"}
+    if signal not in allowed:
+        raise HTTPException(status_code=400, detail=f"Invalid signal: {req.signal}")
+    if not req.query.strip():
+        raise HTTPException(status_code=400, detail="query cannot be empty")
+
+    conn = _get_conn()
+    cursor = conn.execute(
+        """
+        INSERT INTO search_feedback(query, document_id, document_path, signal, session_id, notes, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+    """,
+        (
+            req.query.strip(),
+            req.document_id,
+            req.document_path.strip(),
+            signal,
+            req.session_id.strip(),
+            req.notes.strip(),
+        ),
+    )
+    conn.commit()
+    return {"success": True, "id": cursor.lastrowid, "signal": signal}
+
+
+@router.get("/search-feedback")
+def search_feedback_list(
+    q: str | None = Query(None, description="Optional query filter"),
+    signal: str | None = Query(None, description="Optional signal filter"),
+    limit: int = Query(50, ge=1, le=200),
+) -> dict:
+    """List recent search feedback for review."""
+    conn = _get_conn()
+    params: list[object] = []
+    where: list[str] = []
+    if q:
+        where.append("query LIKE ?")
+        params.append(f"%{q}%")
+    if signal:
+        where.append("signal = ?")
+        params.append(signal.strip().lower())
+
+    sql = """
+        SELECT id, query, document_id, document_path, signal, session_id, notes, created_at
+        FROM search_feedback
+    """
+    if where:
+        sql += " WHERE " + " AND ".join(where)
+    sql += " ORDER BY created_at DESC LIMIT ?"
+    params.append(limit)
+
+    rows = conn.execute(sql, params).fetchall()
+    return {"count": len(rows), "results": [dict(r) for r in rows]}
+
+
 @router.post("/web-search")
 def web_search(req: WebSearchRequest) -> dict:
     """Search the web using LangSearch API. Falls back to Jina Reader + Brave scraping."""
