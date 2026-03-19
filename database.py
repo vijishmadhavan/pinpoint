@@ -284,7 +284,8 @@ def init_db(db_path: str = DB_PATH) -> sqlite3.Connection:
         -- Search feedback (Phase 3: lightweight feedback loop, logging only)
         CREATE TABLE IF NOT EXISTS search_feedback (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            query TEXT NOT NULL,
+            query TEXT NOT NULL DEFAULT '',
+            query_key TEXT NOT NULL DEFAULT '',
             document_id INTEGER DEFAULT NULL,
             document_path TEXT DEFAULT '',
             signal TEXT NOT NULL,
@@ -293,7 +294,7 @@ def init_db(db_path: str = DB_PATH) -> sqlite3.Connection:
             created_at TEXT NOT NULL,
             FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE SET NULL
         );
-        CREATE INDEX IF NOT EXISTS idx_search_feedback_query ON search_feedback(query, created_at);
+        CREATE INDEX IF NOT EXISTS idx_search_feedback_query ON search_feedback(query_key, created_at);
         CREATE INDEX IF NOT EXISTS idx_search_feedback_document ON search_feedback(document_id, created_at);
     """)
 
@@ -310,6 +311,14 @@ def init_db(db_path: str = DB_PATH) -> sqlite3.Connection:
     ]:
         if col not in job_cols:
             conn.execute(f"ALTER TABLE background_jobs ADD COLUMN {col} {ctype} DEFAULT {default}")
+    feedback_cols = {r[1] for r in conn.execute("PRAGMA table_info(search_feedback)").fetchall()}
+    if "query_key" not in feedback_cols:
+        conn.execute("ALTER TABLE search_feedback ADD COLUMN query_key TEXT NOT NULL DEFAULT ''")
+        conn.execute("""
+            UPDATE search_feedback
+            SET query_key = lower(trim(replace(replace(replace(replace(query, '?', ''), '.', ''), ',', ''), '  ', ' ')))
+            WHERE query_key = ''
+        """)
     conn.commit()
 
     # FTS5 virtual table — CREATE VIRTUAL TABLE doesn't support IF NOT EXISTS

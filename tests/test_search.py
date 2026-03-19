@@ -114,25 +114,43 @@ class TestSearchFeedback:
         body = listed.json()
         assert body["count"] >= 1
         assert any(item["signal"] == "helpful" for item in body["results"])
+        assert any(item["query_key"] == "invoice 4821" for item in body["results"])
 
     def test_search_feedback_rejects_invalid_signal(self, client, seeded_db):
         r = client.post("/search-feedback", json={"query": "invoice 4821", "signal": "magic"})
         assert r.status_code == 400
 
     def test_search_feedback_summary_aggregates_by_query(self, client, seeded_db):
-        for signal in ["helpful", "opened_overview", "opened_full_document", "wrong_result"]:
-            r = client.post("/search-feedback", json={"query": "invoice 4821", "signal": signal, "document_id": 1})
+        for payload in [
+            {"query": "Invoice 4821", "signal": "helpful", "document_id": 1},
+            {"query": "invoice 4821?", "signal": "opened_overview", "document_id": 1},
+            {"query": "invoice 4821", "signal": "opened_full_document", "document_id": 1},
+            {"query": "invoice 4821.", "signal": "wrong_result", "document_id": 1},
+        ]:
+            r = client.post("/search-feedback", json=payload)
             assert r.status_code == 200
 
         r = client.get("/search-feedback/summary")
         assert r.status_code == 200
         data = r.json()
         assert data["count"] >= 1
-        row = next(item for item in data["results"] if item["query"] == "invoice 4821")
+        row = next(item for item in data["results"] if item["query_key"] == "invoice 4821")
+        assert row["sample_query"]
         assert row["helpful_count"] >= 1
         assert row["opened_overview_count"] >= 1
         assert row["opened_full_document_count"] >= 1
         assert row["wrong_result_count"] >= 1
+
+    def test_search_feedback_allows_blank_query_with_document_reference(self, client, seeded_db):
+        r = client.post("/search-feedback", json={
+            "query": "",
+            "signal": "opened_full_document",
+            "document_id": 1,
+            "document_path": "/tmp/invoice_4821.txt",
+        })
+        assert r.status_code == 200
+        data = r.json()
+        assert data["success"] is True
 
 
 class TestDocument:

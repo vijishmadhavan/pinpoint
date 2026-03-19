@@ -18,6 +18,13 @@ from search_pipeline import _coverage_score, _snippet
 router = APIRouter()
 
 
+def _normalize_feedback_query(query: str) -> str:
+    text = (query or "").strip().lower()
+    text = re.sub(r"[?.,!;:]+", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+
+
 def _search_explanation(result: dict) -> dict:
     """Compact top-level explanation of how the search behaved."""
     return {
@@ -216,7 +223,7 @@ class WebSearchRequest(BaseModel):
 
 
 class SearchFeedbackRequest(BaseModel):
-    query: str
+    query: str = ""
     signal: str = Field(..., description="helpful, not_helpful, wrong_result, opened_overview, opened_full_document")
     document_id: int | None = None
     document_path: str = ""
@@ -231,17 +238,20 @@ def search_feedback_endpoint(req: SearchFeedbackRequest) -> dict:
     allowed = {"helpful", "not_helpful", "wrong_result", "opened_overview", "opened_full_document"}
     if signal not in allowed:
         raise HTTPException(status_code=400, detail=f"Invalid signal: {req.signal}")
-    if not req.query.strip():
-        raise HTTPException(status_code=400, detail="query cannot be empty")
+    query = req.query.strip()
+    query_key = _normalize_feedback_query(query)
+    if not query and not req.document_id and not req.document_path.strip():
+        raise HTTPException(status_code=400, detail="Provide query or document reference")
 
     conn = _get_conn()
     cursor = conn.execute(
         """
-        INSERT INTO search_feedback(query, document_id, document_path, signal, session_id, notes, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+        INSERT INTO search_feedback(query, query_key, document_id, document_path, signal, session_id, notes, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
     """,
         (
-            req.query.strip(),
+            query,
+            query_key,
             req.document_id,
             req.document_path.strip(),
             signal,
@@ -264,14 +274,15 @@ def search_feedback_list(
     params: list[object] = []
     where: list[str] = []
     if q:
-        where.append("query LIKE ?")
-        params.append(f"%{q}%")
+        q_norm = _normalize_feedback_query(q)
+        where.append("(query LIKE ? OR query_key = ?)")
+        params.extend([f"%{q}%", q_norm])
     if signal:
         where.append("signal = ?")
         params.append(signal.strip().lower())
 
     sql = """
-        SELECT id, query, document_id, document_path, signal, session_id, notes, created_at
+        SELECT id, query, query_key, document_id, document_path, signal, session_id, notes, created_at
         FROM search_feedback
     """
     if where:
@@ -290,7 +301,8 @@ def search_feedback_summary(limit: int = Query(20, ge=1, le=100)) -> dict:
     rows = conn.execute(
         """
         SELECT
-            query,
+            query_key,
+            MIN(CASE WHEN query != '' THEN query ELSE NULL END) AS sample_query,
             COUNT(*) AS total_events,
             SUM(CASE WHEN signal = 'helpful' THEN 1 ELSE 0 END) AS helpful_count,
             SUM(CASE WHEN signal = 'not_helpful' THEN 1 ELSE 0 END) AS not_helpful_count,
@@ -299,7 +311,8 @@ def search_feedback_summary(limit: int = Query(20, ge=1, le=100)) -> dict:
             SUM(CASE WHEN signal = 'opened_full_document' THEN 1 ELSE 0 END) AS opened_full_document_count,
             MAX(created_at) AS last_seen
         FROM search_feedback
-        GROUP BY query
+        WHERE query_key != ''
+        GROUP BY query_key
         ORDER BY (not_helpful_count + wrong_result_count) DESC, opened_full_document_count DESC, total_events DESC, last_seen DESC
         LIMIT ?
     """,
