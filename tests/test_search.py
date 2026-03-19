@@ -119,6 +119,21 @@ class TestSearchFeedback:
         r = client.post("/search-feedback", json={"query": "invoice 4821", "signal": "magic"})
         assert r.status_code == 400
 
+    def test_search_feedback_summary_aggregates_by_query(self, client, seeded_db):
+        for signal in ["helpful", "opened_overview", "opened_full_document", "wrong_result"]:
+            r = client.post("/search-feedback", json={"query": "invoice 4821", "signal": signal, "document_id": 1})
+            assert r.status_code == 200
+
+        r = client.get("/search-feedback/summary")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["count"] >= 1
+        row = next(item for item in data["results"] if item["query"] == "invoice 4821")
+        assert row["helpful_count"] >= 1
+        assert row["opened_overview_count"] >= 1
+        assert row["opened_full_document_count"] >= 1
+        assert row["wrong_result_count"] >= 1
+
 
 class TestDocument:
     def test_get_document_by_id(self, client, seeded_db):

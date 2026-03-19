@@ -283,6 +283,31 @@ def search_feedback_list(
     return {"count": len(rows), "results": [dict(r) for r in rows]}
 
 
+@router.get("/search-feedback/summary")
+def search_feedback_summary(limit: int = Query(20, ge=1, le=100)) -> dict:
+    """Aggregate recent search feedback by query for lightweight review."""
+    conn = _get_conn()
+    rows = conn.execute(
+        """
+        SELECT
+            query,
+            COUNT(*) AS total_events,
+            SUM(CASE WHEN signal = 'helpful' THEN 1 ELSE 0 END) AS helpful_count,
+            SUM(CASE WHEN signal = 'not_helpful' THEN 1 ELSE 0 END) AS not_helpful_count,
+            SUM(CASE WHEN signal = 'wrong_result' THEN 1 ELSE 0 END) AS wrong_result_count,
+            SUM(CASE WHEN signal = 'opened_overview' THEN 1 ELSE 0 END) AS opened_overview_count,
+            SUM(CASE WHEN signal = 'opened_full_document' THEN 1 ELSE 0 END) AS opened_full_document_count,
+            MAX(created_at) AS last_seen
+        FROM search_feedback
+        GROUP BY query
+        ORDER BY (not_helpful_count + wrong_result_count) DESC, opened_full_document_count DESC, total_events DESC, last_seen DESC
+        LIMIT ?
+    """,
+        (limit,),
+    ).fetchall()
+    return {"count": len(rows), "results": [dict(r) for r in rows]}
+
+
 @router.post("/web-search")
 def web_search(req: WebSearchRequest) -> dict:
     """Search the web using LangSearch API. Falls back to Jina Reader + Brave scraping."""
