@@ -15,6 +15,8 @@ from api.helpers import _background_index, _check_safe, record_generated_file
 
 router = APIRouter()
 
+_EXCEL_STREAM_SEARCH_BYTES = 25 * 1024 * 1024
+
 
 # --- Calculate (safe math) ---
 
@@ -210,6 +212,86 @@ def _normalize_for_search(val: str) -> str:
     return val.lower().strip()
 
 
+def _should_stream_excel_search(path: str, ext: str, operation: str) -> bool:
+    return (
+        operation == "search"
+        and ext in (".xlsx", ".xlsm")
+        and os.path.getsize(path) >= _EXCEL_STREAM_SEARCH_BYTES
+    )
+
+
+def _stream_excel_search(path: str, query: str, sheet: str | None = None, limit: int = 20) -> dict:
+    """Search large Excel files row-by-row without loading full sheets into pandas."""
+    import openpyxl
+
+    needle = _normalize_for_search(query)
+    wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+    try:
+        all_sheets = wb.sheetnames
+        if sheet:
+            if sheet not in all_sheets:
+                raise HTTPException(status_code=400, detail=f"Sheet '{sheet}' not found. Available: {all_sheets}")
+            sheets_to_search = [sheet]
+        else:
+            sheets_to_search = list(all_sheets)
+
+        matches = []
+        for sheet_name in sheets_to_search:
+            if len(matches) >= limit:
+                break
+            ws = wb[sheet_name]
+            rows = ws.iter_rows(values_only=True)
+            header_row = next(rows, None)
+            if header_row is None:
+                continue
+            headers = [str(v).strip() if v not in (None, "") else f"Column {i + 1}" for i, v in enumerate(header_row)]
+
+            for row_idx, row in enumerate(rows, start=2):
+                if len(matches) >= limit:
+                    break
+                values = ["" if v is None else str(v) for v in row]
+                hit_columns = []
+                for i, value in enumerate(values):
+                    if needle in _normalize_for_search(value):
+                        hit_columns.append(headers[i] if i < len(headers) else f"Column {i + 1}")
+                if not hit_columns:
+                    continue
+
+                row_data = {}
+                for i, value in enumerate(values[: min(len(values), 25)]):
+                    key = headers[i] if i < len(headers) else f"Column {i + 1}"
+                    row_data[key] = value
+
+                matches.append(
+                    {
+                        "sheet": sheet_name,
+                        "row": row_idx,
+                        "column": hit_columns[0],
+                        "matched_columns": hit_columns,
+                        "value": row_data.get(hit_columns[0], ""),
+                        "context": [row_data],
+                    }
+                )
+
+        result = {
+            "path": path,
+            "sheet": sheet,
+            "all_sheets": all_sheets,
+            "data": matches,
+            "matched": len(matches),
+            "search_mode": "streaming_excel",
+        }
+        if not matches:
+            result["_hint"] = (
+                f"No matches for '{query}' across {len(sheets_to_search)} sheet(s). Try different keywords or check the sheet names."
+            )
+        else:
+            result["_hint"] = f"{len(matches)} match(es) found via streaming search across large Excel workbook."
+        return result
+    finally:
+        wb.close()
+
+
 def _load_df(path: str, ext: str, sheet: str | None = None) -> tuple[Any, str | None, list[str] | None]:
     """Load DataFrame with LRU cache. Returns (df, sheet_name, all_sheet_names)."""
     import pandas as pd
@@ -294,6 +376,11 @@ def analyze_data_endpoint(req: AnalyzeDataRequest) -> dict:
 
     # Fire-and-forget: auto-index for future semantic search
     _background_index(path)
+
+    if _should_stream_excel_search(path, ext, req.operation.lower()):
+        if not req.query:
+            raise HTTPException(status_code=400, detail="query required for search")
+        return _stream_excel_search(path, req.query, req.sheet, req.head)
 
     try:
         df, sheet_name, all_sheets = _load_df(path, ext, req.sheet)

@@ -70,6 +70,31 @@ class TestAnalyzeData:
         assert r.status_code == 200
         assert r.json()["matched"] >= 1
 
+    def test_large_excel_search_uses_streaming_path(self, client, tmp_path):
+        import openpyxl
+
+        path = tmp_path / "large.xlsx"
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Contacts"
+        ws.append(["Name", "Phone", "City"])
+        ws.append(["Norene Kuhn", "920-889-6630", "Chicago"])
+        ws.append(["Alice", "555-0101", "Boston"])
+        wb.save(str(path))
+
+        with (
+            patch("api.data._EXCEL_STREAM_SEARCH_BYTES", 1),
+            patch("api.data._load_df", side_effect=AssertionError("streaming path should bypass pandas load")),
+        ):
+            r = client.post("/analyze-data", json={"path": str(path), "operation": "search", "query": "9208896630"})
+
+        assert r.status_code == 200
+        data = r.json()
+        assert data["search_mode"] == "streaming_excel"
+        assert data["matched"] >= 1
+        assert data["data"][0]["sheet"] == "Contacts"
+        assert "Phone" in data["data"][0]["matched_columns"]
+
     def test_filter(self, client, sample_folder):
         path = str(sample_folder / "data.csv")
         r = client.post("/analyze-data", json={"path": path, "operation": "filter", "query": "age > 28"})

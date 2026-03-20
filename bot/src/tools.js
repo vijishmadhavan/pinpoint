@@ -44,6 +44,7 @@ const SKILL_CATEGORIES = {
 // --- Tool grouping: map each tool to intent categories (mirrors SKILL_CATEGORIES) ---
 // Core tools are always included. Category tools added based on user message intent.
 const CORE_TOOLS = new Set([
+  "retrieve_context",
   "search_documents",
   "search_facts",
   "read_document_overview",
@@ -193,6 +194,21 @@ const TOOL_DECLARATIONS = [
         folder: {
           type: "STRING",
           description: "Only search within this folder path. Optional.",
+        },
+      },
+      required: ["query"],
+    },
+  },
+  {
+    name: "retrieve_context",
+    description:
+      "Search across the right local source first: persistent memory, extracted document facts, or full documents. Use this when the user asks a general lookup question and the source is not obvious. It routes personal/profile-style questions to memory, quick fact questions to extracted facts, and file/content questions to documents.",
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        query: {
+          type: "STRING",
+          description: "The user's lookup question. E.g. 'what is the invoice amount', 'what is my dentist number'.",
         },
       },
       required: ["query"],
@@ -720,7 +736,7 @@ const TOOL_DECLARATIONS = [
   {
     name: "analyze_data",
     description:
-      "Run pandas data analysis on CSV or Excel files. WORKFLOW: 1) FIRST call with operation='columns' to see all sheets, column names, types, and sample values. 2) Use operation='search' with query to find values across ALL sheets — auto-normalizes phone/ID formats (strips dashes, parens). 3) Use filter/groupby/sort when you know the exact column name. Operations: columns (schema+sheets), search (grep-like across all cells), describe, head, filter, value_counts, groupby, corr, sort, unique, shape, eval. For phone/ID lookups ALWAYS use search — it normalizes automatically. File is cached after first load (instant repeat calls).",
+      "Run data analysis on CSV or Excel files. WORKFLOW: 1) FIRST call with operation='columns' to see all sheets, column names, types, and sample values. 2) Use operation='search' with query to find values across ALL sheets — auto-normalizes phone/ID formats (strips dashes, parens). Large Excel files automatically use a streaming search path instead of loading the whole workbook into memory. 3) Use filter/groupby/sort when you know the exact column name. Operations: columns (schema+sheets), search (grep-like across all cells), describe, head, filter, value_counts, groupby, corr, sort, unique, shape, eval. For phone/ID lookups ALWAYS use search — it normalizes automatically. File is cached after first load when pandas is used.",
     parameters: {
       type: "OBJECT",
       properties: {
@@ -1520,6 +1536,7 @@ const enc = encodeURIComponent;
 function buildToolRoutes(maxResults) {
   return {
     // --- GET routes ---
+    retrieve_context: { m: "GET", p: (a) => `/retrieve-context?q=${enc(a.query || "")}&limit=10` },
     search_documents: {
       m: "GET",
       p: (a) => {
@@ -1893,6 +1910,11 @@ function summarizeToolResult(name, args, result) {
   if (!result) return null;
   if (result.error) return `${name}: ERROR — ${String(result.error).slice(0, 80)}`;
   switch (name) {
+    case "retrieve_context": {
+      const n = result.count || result.results?.length || 0;
+      const source = result.primary_source || result.intent || "documents";
+      return `retrieve_context: ${n} result(s) via ${source}`;
+    }
     case "search_documents": {
       const n = result.results?.length || result.total_items || 0;
       if (result.ambiguous_search) {
