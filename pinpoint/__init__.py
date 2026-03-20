@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-__version__ = "1.0.7"
+__version__ = "1.0.8"
 
 
 def user_data_dir() -> Path:
