@@ -2029,7 +2029,7 @@ function summarizeToolResult(name, args, result) {
       return `cull_photos: ${result.started ? `started ${result.total_images} photos` : "FAILED"}`;
     case "cull_status": {
       if (result.status === "done")
-        return `cull_status: done — kept ${result.kept}, rejected ${result.rejected}, report at ${result.report_path || "N/A"}`;
+        return `cull_status: done — kept ${result.kept}, rejected ${result.rejected}, report at ${result.report_path || "N/A"}, csv at ${result.csv_report_path || "N/A"}`;
       if (result.status === "cancelled" || result.status === "cancelling")
         return `cull_status: cancelled after ${result.scored || 0}/${result.total || "?"} scored`;
       return `cull_status: ${result.status} — ${result.scored || 0}/${result.total || "?"} scored`;

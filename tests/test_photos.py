@@ -54,6 +54,20 @@ class TestCullStatus:
         assert r.status_code == 200
         assert r.json()["percent"] == 50
 
+    def test_done_status_can_include_csv_report_path(self, client, tmp_path):
+        folder = str(tmp_path / "photos")
+        mock_result = {
+            "status": "done",
+            "kept": 40,
+            "rejected": 10,
+            "report_path": "/tmp/_cull_report.html",
+            "csv_report_path": "/tmp/_cull_report.csv",
+        }
+        with patch("photo_cull.get_cull_status", return_value=mock_result):
+            r = client.get("/cull-photos/status", params={"folder": folder})
+        assert r.status_code == 200
+        assert r.json()["csv_report_path"] == "/tmp/_cull_report.csv"
+
 
 class TestSuggestCategories:
     def test_suggest(self, client, tmp_path):

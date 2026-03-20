@@ -14,6 +14,7 @@ HTML report: thumbnail gallery (base64 tiny JPEGs), click opens original.
 
 from __future__ import annotations
 
+import csv
 import html as html_mod
 import io
 import json
@@ -288,13 +289,14 @@ def _generate_html_report(
         esc_name = html_mod.escape(os.path.basename(s["path"]))
         esc_reason = html_mod.escape(s.get("reasoning", ""))
         esc_file_url = html_mod.escape(original_path.replace(chr(92), "/"))
-        rows.append(f"""<div class="card {status_class}" onclick="window.open('file:///{esc_file_url}')">
+        rows.append(f"""<div class="card {status_class}" onclick="openPhoto(event, 'file:///{esc_file_url}')">
   <img src="data:image/jpeg;base64,{thumb}" alt="{esc_name}">
   <div class="score" style="background:{color}">{s["total"]}</div>
   <div class="info">
     <b>{esc_name}</b>
     <span class="badge" style="color:{color}">{status_label}</span>
     <div class="breakdown">S{s.get("sharpness", 0)} E{s.get("exposure", 0)} C{s.get("composition", 0)} Q{s.get("quality", 0)} | Em{s.get("emotion", 0)} I{s.get("interest", 0)} K{s.get("keeper", 0)}</div>
+    <button class="reason-toggle" onclick="toggleReason(event,this)">Show full reason</button>
     <div class="reason">{esc_reason}</div>
   </div>
 </div>""")
@@ -318,6 +320,8 @@ h1{{font-size:1.4em;margin-bottom:4px}}
 .badge{{font-size:.7em;font-weight:700}}
 .breakdown{{font-size:.7em;color:#888;margin-top:2px}}
 .reason{{font-size:.7em;color:#aaa;margin-top:3px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}}
+.reason.expanded{{display:block;-webkit-line-clamp:unset;overflow:visible}}
+.reason-toggle{{margin-top:6px;padding:2px 8px;border:none;border-radius:999px;background:#0f3460;color:#dbeafe;font-size:.68em;cursor:pointer}}
 .card.rejected{{opacity:.7}} .card.rejected:hover{{opacity:1}}
 .filter-bar{{margin-bottom:16px;display:flex;gap:8px}}
 .filter-bar button{{padding:6px 16px;border:none;border-radius:6px;cursor:pointer;font-size:.85em;background:#16213e;color:#eee}}
@@ -344,12 +348,78 @@ function filterCards(f,btn){{
     else c.style.display=c.classList.contains(f)?'':'none';
   }});
 }}
+function openPhoto(event,url){{
+  if(event.target.closest('.reason-toggle')) return;
+  window.open(url);
+}}
+function toggleReason(event,btn){{
+  event.stopPropagation();
+  const reason = btn.parentElement.querySelector('.reason');
+  const expanded = reason.classList.toggle('expanded');
+  btn.textContent = expanded ? 'Hide full reason' : 'Show full reason';
+}}
 </script>
 </body></html>"""
 
     report_path = os.path.join(folder, "_cull_report.html")
     with open(report_path, "w", encoding="utf-8") as f:
         f.write(html)
+    return report_path
+
+
+def _generate_csv_report(
+    folder: str,
+    scored_photos: list[dict[str, Any]],
+    kept_paths: list[str],
+    rejects_folder: str,
+) -> str:
+    """Generate a readable handoff CSV with scores and full reasons per image."""
+    report_path = os.path.join(folder, "_cull_report.csv")
+    kept_set = set(kept_paths)
+
+    with open(report_path, "w", encoding="utf-8", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(
+            [
+                "status",
+                "filename",
+                "current_path",
+                "original_path",
+                "total",
+                "sharpness",
+                "exposure",
+                "composition",
+                "quality",
+                "emotion",
+                "interest",
+                "keeper",
+                "reasoning",
+            ]
+        )
+        for s in sorted(scored_photos, key=lambda item: item.get("total", 0), reverse=True):
+            is_kept = s["path"] in kept_set
+            current_path = s["path"]
+            if not is_kept and rejects_folder:
+                moved_path = os.path.join(rejects_folder, os.path.basename(s["path"]))
+                if os.path.exists(moved_path):
+                    current_path = moved_path
+            writer.writerow(
+                [
+                    "kept" if is_kept else "rejected",
+                    os.path.basename(s["path"]),
+                    current_path,
+                    s["path"],
+                    s.get("total", 0),
+                    s.get("sharpness", 0),
+                    s.get("exposure", 0),
+                    s.get("composition", 0),
+                    s.get("quality", 0),
+                    s.get("emotion", 0),
+                    s.get("interest", 0),
+                    s.get("keeper", 0),
+                    s.get("reasoning", ""),
+                ]
+            )
     return report_path
 
 
@@ -384,6 +454,7 @@ def cull_photos(folder: str, keep_pct: int = 80, rejects_folder: str | None = No
         "started_at": time.time(),
         "eta_seconds": None,
         "report_path": None,
+        "csv_report_path": None,
     }
     with _cull_lock:
         _cull_jobs[folder] = progress
@@ -492,6 +563,7 @@ def cull_photos(folder: str, keep_pct: int = 80, rejects_folder: str | None = No
         )
         progress["rejects_folder"] = rejects_folder
         progress["report_path"] = report_path
+        progress["csv_report_path"] = _generate_csv_report(folder, scored, kept_paths, rejects_folder)
         progress["elapsed_seconds"] = round(time.time() - start, 1)
 
     thread = threading.Thread(target=_run, daemon=True)
@@ -503,6 +575,7 @@ def cull_photos(folder: str, keep_pct: int = 80, rejects_folder: str | None = No
         "total_images": len(images),
         "keep_pct": keep_pct,
         "rejects_folder": rejects_folder,
+        "csv_report_path": None,
         "_hint": f"Culling {len(images)} photos (keep top {keep_pct}%). Use cull_status to check progress.",
     }
 
@@ -529,7 +602,7 @@ def get_cull_status(folder: str, cancel: bool = False) -> dict[str, Any]:
             f"Done! Kept {result['kept']} (avg {result['avg_kept']}), "
             f"rejected {result['rejected']} (avg {result['avg_rejected']}), "
             f"threshold {result['threshold']}/100. "
-            f"Report: {result.get('report_path', 'N/A')}"
+            f"Report: {result.get('report_path', 'N/A')} · CSV: {result.get('csv_report_path', 'N/A')}"
         )
     elif result["status"] == "scoring":
         pct = round(result["scored"] / max(result["total"], 1) * 100)
