@@ -24,6 +24,16 @@ test("search_documents summary includes top match explanation and lexical mode",
   );
 });
 
+test("retrieve_context summary shows routed source", () => {
+  const summary = summarizeToolResult("retrieve_context", { query: "what is my dentist number" }, {
+    count: 2,
+    primary_source: "memory",
+    intent: "memory",
+  });
+
+  assert.equal(summary, "retrieve_context: 2 result(s) via memory");
+});
+
 test("search_documents summary reports relaxed lexical mode", () => {
   const summary = summarizeToolResult("search_documents", { query: "handoff checklist" }, {
     results: [

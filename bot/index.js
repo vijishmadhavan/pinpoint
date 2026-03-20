@@ -33,6 +33,7 @@ const USER_DATA_DIR = process.env.PINPOINT_USER_DIR || DEFAULT_USER_DIR;
 const DEFAULT_ENV_PATH = pathModule.join(USER_DATA_DIR, ".env");
 const REPO_ENV_PATH = pathModule.join(__dirname, "..", ".env");
 const ENV_PATH = process.env.PINPOINT_ENV_PATH || (existsSync(DEFAULT_ENV_PATH) ? DEFAULT_ENV_PATH : REPO_ENV_PATH);
+const PHOTO_TASK_REFS_PATH = pathModule.join(USER_DATA_DIR, "last-photo-tasks.json");
 
 // Load config from explicit/user-data path first, then fall back to repo root for dev workflow.
 require("dotenv").config({ path: ENV_PATH });
@@ -49,6 +50,13 @@ const {
 } = require("./src/tools");
 const { getSystemPrompt, USER_HOME, DOWNLOADS, DOCUMENTS, DESKTOP, PICTURES, SKILLS_DIR } = require("./src/skills");
 const llm = require("./src/llm");
+const {
+  PHOTO_TASK_TO_STATUS_TOOL,
+  rememberPhotoTask,
+  getLastPhotoTask,
+  isPhotoStatusFollowUp,
+  formatPhotoTaskStatusReply,
+} = require("./src/photo-task-followup");
 
 // Silent logger for Baileys
 const logger = pino({ level: "silent" });
@@ -76,6 +84,7 @@ const DEBOUNCE_MS = 1500; // Combine rapid messages within 1.5s
 mkdirSync(LOG_DIR, { recursive: true });
 mkdirSync(AUTH_DIR, { recursive: true });
 mkdirSync(QR_DIR, { recursive: true });
+mkdirSync(USER_DATA_DIR, { recursive: true });
 const logFile = pathModule.join(LOG_DIR, "bot.log");
 const logStream = require("fs").createWriteStream(logFile, { flags: "a" });
 const origLog = console.log,
@@ -488,10 +497,11 @@ function cleanExpiredRefs() {
     if (now - entry.createdAt > REF_EXPIRE_MS) tempStore.delete(key);
   }
 }
-setInterval(cleanExpiredRefs, 5 * 60 * 1000); // Check every 5 min
+const refCleanupInterval = setInterval(cleanExpiredRefs, 5 * 60 * 1000); // Check every 5 min
+refCleanupInterval.unref?.();
 
 // GC for stale per-chat state (prevents unbounded growth over days/weeks)
-setInterval(() => {
+const stateGcInterval = setInterval(() => {
   const now = Date.now();
   const staleMs = 2 * 60 * 60 * 1000; // 2 hours
   for (const [jid, ts] of allowedSessions) {
@@ -508,6 +518,7 @@ setInterval(() => {
     }
   }
 }, 15 * 60 * 1000); // Check every 15 min
+stateGcInterval.unref?.();
 
 // Create a preview summary for Gemini (array of items → first N + count + ref)
 function makeRefPreview(toolName, result, refKey) {
@@ -756,6 +767,35 @@ async function apiPut(path, body) {
   return resp.json();
 }
 
+async function tryHandlePhotoStatusFollowUp(userMsg, sock, chatJid) {
+  if (!isPhotoStatusFollowUp(userMsg)) return false;
+  const task = getLastPhotoTask(chatJid, PHOTO_TASK_REFS_PATH);
+  if (!task) return false;
+  const statusTool = PHOTO_TASK_TO_STATUS_TOOL[task.task_type];
+  if (!statusTool) return false;
+  try {
+    const result =
+      statusTool === "cull_status"
+        ? await apiGet(`/cull-photos/status?folder=${enc(task.folder)}`)
+        : await apiGet(`/group-photos/status?folder=${enc(task.folder)}`);
+    if (result?.error) return false;
+    rememberPhotoTask(chatJid, task.task_type, {
+      folder: task.folder,
+      status: result.status,
+      report_path: result.report_path || task.report_path || "",
+      csv_report_path: result.csv_report_path || task.csv_report_path || "",
+    }, PHOTO_TASK_REFS_PATH);
+    const reply = formatPhotoTaskStatusReply(task, result);
+    if (!reply) return false;
+    const text = `${PREFIX} ${reply}`;
+    await sock.sendMessage(chatJid, { text });
+    rememberSent(text);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
 async function logSearchFeedback(signal, args, result, chatJid) {
   try {
     const query = String(args?.query || "").trim();
@@ -808,6 +848,23 @@ async function executeTool(functionCall, sock, chatJid, sentFiles) {
     if (route) {
       const path = typeof route.p === "function" ? route.p(args) : route.p;
       const result = route.m === "GET" ? await apiGet(path) : await apiPost(path, route.b ? route.b(args) : args);
+      if (!result?.error) {
+        if ((name === "cull_photos" || name === "group_photos") && (result.started || result.already_done)) {
+          rememberPhotoTask(chatJid, name, {
+            folder: args.folder,
+            status: result.status,
+            report_path: result.report_path || "",
+            csv_report_path: result.csv_report_path || "",
+          }, PHOTO_TASK_REFS_PATH);
+        } else if ((name === "cull_status" || name === "group_status") && args.folder) {
+          rememberPhotoTask(chatJid, name === "cull_status" ? "cull_photos" : "group_photos", {
+            folder: args.folder,
+            status: result.status,
+            report_path: result.report_path || "",
+            csv_report_path: result.csv_report_path || "",
+          }, PHOTO_TASK_REFS_PATH);
+        }
+      }
       if (!result?.error) {
         if (name === "read_document_overview") {
           await logSearchFeedback("opened_overview", args, result, chatJid);
@@ -2499,6 +2556,11 @@ stop — Cancel current request`;
     const reply = `${PREFIX} Unknown command: ${userMsg}\nType /help for available commands.`;
     await sock.sendMessage(chatJid, { text: reply });
     rememberSent(reply);
+    return;
+  }
+
+  if (!activeRequests.has(chatJid) && (await tryHandlePhotoStatusFollowUp(userMsg, sock, chatJid))) {
+    console.log(`[Pinpoint] Resolved follow-up "${userMsg}" to last photo task for ${chatJid}`);
     return;
   }
 

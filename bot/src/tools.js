@@ -2026,6 +2026,8 @@ function summarizeToolResult(name, args, result) {
     case "score_photo":
       return `score_photo: ${result.total ?? "?"}${"/100"} — ${(result.reasoning || "").slice(0, 60)}`;
     case "cull_photos":
+      if (result.already_done)
+        return `cull_photos: already done — report at ${result.report_path || "N/A"}`;
       return `cull_photos: ${result.started ? `started ${result.total_images} photos` : "FAILED"}`;
     case "cull_status": {
       if (result.status === "done")
@@ -2037,6 +2039,8 @@ function summarizeToolResult(name, args, result) {
     case "suggest_categories":
       return `suggest_categories: ${result.categories ? `suggested ${result.categories.length} categories: ${result.categories.join(", ")}` : "FAILED"}`;
     case "group_photos":
+      if (result.already_done)
+        return `group_photos: already done — report at ${result.report_path || "N/A"}`;
       return `group_photos: ${result.started ? `started ${result.total_images} photos → ${result.categories?.length ?? "?"} categories` : "FAILED"}`;
     case "group_status": {
       if (result.status === "done")
