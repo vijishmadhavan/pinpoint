@@ -856,7 +856,7 @@ async function apiPing() {
 // Legacy enc used in executeTool switch cases
 const enc = encodeURIComponent;
 
-async function executeTool(functionCall, sock, chatJid, sentFiles) {
+async function executeTool(functionCall, sock, chatJid, sentFiles, opts = {}) {
   const { name } = functionCall;
   const args = resolveRefsInArgs(functionCall.args);
   console.log(`[${LLM_TAG}] Tool call: ${name}(${JSON.stringify(args).slice(0, 200)})`);
@@ -898,6 +898,9 @@ async function executeTool(functionCall, sock, chatJid, sentFiles) {
           await logSearchFeedback("opened_full_document", args, result, chatJid);
         }
       }
+      if (opts.onToolResult) {
+        try { opts.onToolResult(name, args, result); } catch (_) {}
+      }
       return result;
     }
 
@@ -914,9 +917,17 @@ async function executeTool(functionCall, sock, chatJid, sentFiles) {
         if (sent) {
           sentFiles.add(filePath);
           console.log(`[Pinpoint] Sent: ${pathModule.basename(filePath)}`);
-          return { success: true, file: pathModule.basename(filePath) };
+          const sendResult = { success: true, file: pathModule.basename(filePath) };
+          if (opts.onToolResult) {
+            try { opts.onToolResult(name, args, sendResult); } catch (_) {}
+          }
+          return sendResult;
         }
-        return { error: "File not found or too large to send" };
+        const sendError = { error: "File not found or too large to send" };
+        if (opts.onToolResult) {
+          try { opts.onToolResult(name, args, sendError); } catch (_) {}
+        }
+        return sendError;
       }
       case "search_images_visual": {
         if (!args.folder) return { error: "folder is required. Pass the absolute path to the image folder." };
@@ -1000,7 +1011,11 @@ async function executeTool(functionCall, sock, chatJid, sentFiles) {
           return await apiGet(`/web-read?url=${enc(args.url)}${args.start ? `&start=${args.start}` : ""}`);
         }
         // Search the web via LangSearch/Jina
-        return await apiPost("/web-search", { query: args.query, count: args.count || 10, freshness: args.freshness || "noLimit" });
+        const webResult = await apiPost("/web-search", { query: args.query, count: args.count || 10, freshness: args.freshness || "noLimit" });
+        if (opts.onToolResult) {
+          try { opts.onToolResult(name, args, webResult); } catch (_) {}
+        }
+        return webResult;
       }
       case "memory_save": {
         if (!(isMemoryEnabled(chatJid))) return { error: "Memory is disabled. User can enable it with /memory on." };
@@ -1013,7 +1028,11 @@ async function executeTool(functionCall, sock, chatJid, sentFiles) {
       }
       case "memory_search": {
         if (!(isMemoryEnabled(chatJid))) return { error: "Memory is disabled. User can enable it with /memory on." };
-        return await apiGet(`/memory/search?q=${enc(args.query)}&limit=10`);
+        const memoryResult = await apiGet(`/memory/search?q=${enc(args.query)}&limit=10`);
+        if (opts.onToolResult) {
+          try { opts.onToolResult(name, args, memoryResult); } catch (_) {}
+        }
+        return memoryResult;
       }
       case "memory_delete": {
         if (!(isMemoryEnabled(chatJid))) return { error: "Memory is disabled. User can enable it with /memory on." };
@@ -1081,7 +1100,7 @@ async function executeTool(functionCall, sock, chatJid, sentFiles) {
         const tz = USER_TZ;
         const pending = reminders.filter((r) => r.triggerAt > Date.now());
         if (pending.length === 0) return { count: 0, reminders: [], note: "No pending reminders." };
-        return {
+        const reminderList = {
           count: pending.length,
           reminders: pending.map((r) => ({
             id: r.id,
@@ -1097,6 +1116,10 @@ async function executeTool(functionCall, sock, chatJid, sentFiles) {
             }),
           })),
         };
+        if (opts.onToolResult) {
+          try { opts.onToolResult(name, args, reminderList); } catch (_) {}
+        }
+        return reminderList;
       }
       case "cancel_reminder": {
         const idx = reminders.findIndex((r) => r.id === args.id);
@@ -1105,13 +1128,27 @@ async function executeTool(functionCall, sock, chatJid, sentFiles) {
         try {
           await apiDelete(`/reminders/${removed.id}`);
         } catch (_) {}
-        return { success: true, cancelled: removed.message };
+        const cancelResult = { success: true, cancelled: removed.message };
+        if (opts.onToolResult) {
+          try { opts.onToolResult(name, args, cancelResult); } catch (_) {}
+        }
+        return cancelResult;
       }
       default:
-        return { error: `Unknown tool: ${name}` };
+        {
+          const unknown = { error: `Unknown tool: ${name}` };
+          if (opts.onToolResult) {
+            try { opts.onToolResult(name, args, unknown); } catch (_) {}
+          }
+          return unknown;
+        }
     }
   } catch (err) {
-    return { error: err.message };
+    const toolError = { error: err.message };
+    if (opts.onToolResult) {
+      try { opts.onToolResult(name, args, toolError); } catch (_) {}
+    }
+    return toolError;
   }
 }
 
@@ -1541,7 +1578,7 @@ async function runGemini(userMessage, sock, chatJid, opts = {}) {
           result = toolCache.get(folderKey);
           console.log(`[${LLM_TAG}] Dedup skip: ${fc.name} (same folder already listed)`);
         } else {
-          result = await executeTool(fc, sock, chatJid, sentFiles);
+          result = await executeTool(fc, sock, chatJid, sentFiles, opts);
           toolCache.set(callHash, result);
           if (folderKey) toolCache.set(folderKey, result); // Smart dedup for same-folder
         }
@@ -2707,6 +2744,43 @@ stop — Cancel current request`;
 
 async function runCliAgent(userMessage, sessionId, opts = {}) {
   const events = [];
+  let latestResults = [];
+  const onToolResult = (name, args, result) => {
+    if (!result || result.error) return;
+    if ((name === "search_documents" || name === "retrieve_context") && Array.isArray(result.results)) {
+      latestResults = result.results
+        .filter((item) => item && item.path)
+        .slice(0, 10)
+        .map((item) => ({
+          source: item.source || (name === "retrieve_context" ? "documents" : "documents"),
+          title: item.title || item.filename || item.path,
+          path: item.path,
+          snippet: item.snippet || item.preview || "",
+          id: item.id || null,
+        }));
+    } else if (name === "find_file" && Array.isArray(result.results)) {
+      latestResults = result.results
+        .filter((item) => item && item.path)
+        .slice(0, 10)
+        .map((item) => ({
+          source: "documents",
+          title: item.name || item.filename || item.path,
+          path: item.path,
+          snippet: item.modified || item.size_human || "",
+          id: item.id || null,
+        }));
+    } else if (name === "read_document" && result.path) {
+      latestResults = [
+        {
+          source: "documents",
+          title: result.title || result.path,
+          path: result.path,
+          snippet: result.summary || result.overview || "",
+          id: result.id || null,
+        },
+      ];
+    }
+  };
   const fakeSock = {
     async sendMessage(_chatJid, payload) {
       if (payload?.text) {
@@ -2724,8 +2798,8 @@ async function runCliAgent(userMessage, sessionId, opts = {}) {
   const requestId = `cli-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   activeRequests.set(sessionId, { msg: userMessage, startTime: Date.now(), id: requestId });
   try {
-    const result = await runGemini(userMessage, fakeSock, sessionId, opts);
-    return { ...result, events };
+    const result = await runGemini(userMessage, fakeSock, sessionId, { ...opts, onToolResult });
+    return { ...result, events, results: latestResults };
   } finally {
     const current = activeRequests.get(sessionId);
     if (current && current.id === requestId) {
