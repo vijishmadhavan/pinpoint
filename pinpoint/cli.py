@@ -389,7 +389,9 @@ def cmd_logs(args: argparse.Namespace) -> int:
 
 def cmd_chat(args: argparse.Namespace) -> int:
     env = _load_env()
-    return run_chat_loop(env, new=args.new, resume=args.resume, initial_message=args.message)
+    resume = bool(args.resume)
+    resume_id = args.resume if isinstance(args.resume, str) else None
+    return run_chat_loop(env, new=args.new, resume=resume, resume_id=resume_id, initial_message=args.message)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -436,7 +438,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_chat.add_argument("message", nargs="?", help="Optional one-shot message instead of interactive REPL")
     mode = p_chat.add_mutually_exclusive_group()
     mode.add_argument("--new", action="store_true", help="Start a fresh CLI chat session")
-    mode.add_argument("--resume", action="store_true", help="Resume the last CLI chat session")
+    mode.add_argument(
+        "--resume",
+        nargs="?",
+        const=True,
+        default=False,
+        help="Resume the last CLI chat session, or pass a specific session id",
+    )
     p_chat.set_defaults(func=cmd_chat, new=False, resume=False)
 
     return parser

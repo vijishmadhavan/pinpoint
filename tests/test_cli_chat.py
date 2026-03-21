@@ -10,11 +10,27 @@ def test_cli_session_meta_round_trip(tmp_path):
     meta_path = tmp_path / "cli_sessions.json"
     session_id = cli_chat.create_cli_session("Invoice lookup", path=meta_path)
     cli_chat.touch_cli_session(session_id, title="Invoice lookup", path=meta_path)
+    assert cli_chat.rename_cli_session(session_id, "Invoices", path=meta_path) is True
 
     sessions = cli_chat.get_recent_cli_sessions(path=meta_path)
     assert sessions
     assert sessions[0]["session_id"] == session_id
-    assert sessions[0]["title"] == "Invoice lookup"
+    assert sessions[0]["title"] == "Invoices"
+
+
+def test_resolve_cli_session_can_resume_specific_session(tmp_path):
+    from pinpoint import cli_chat
+
+    meta_path = tmp_path / "cli_sessions.json"
+    first = cli_chat.create_cli_session("First", path=meta_path)
+    second = cli_chat.create_cli_session("Second", path=meta_path)
+
+    resolved = cli_chat.resolve_cli_session(resume_id=first, path=meta_path)
+    assert resolved == first
+
+    recent = cli_chat.get_recent_cli_sessions(path=meta_path)
+    assert recent[0]["session_id"] == first
+    assert second in {item["session_id"] for item in recent}
 
 
 def test_cli_history_and_reset_use_conversation_tables(tmp_path):

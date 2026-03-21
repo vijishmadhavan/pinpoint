@@ -84,8 +84,32 @@ def get_recent_cli_sessions(limit: int = 10, path: Path = SESSION_META_PATH) -> 
     return sessions[:limit]
 
 
-def resolve_cli_session(new: bool = False, resume: bool = False, path: Path = SESSION_META_PATH) -> str:
+def rename_cli_session(session_id: str, title: str, path: Path = SESSION_META_PATH) -> bool:
     meta = _load_session_meta(path)
+    session = meta.get("sessions", {}).get(session_id)
+    if not session:
+        return False
+    session["title"] = (title or "").strip() or session.get("title") or "CLI chat"
+    session["updated_at"] = _now_iso()
+    meta["last_session_id"] = session_id
+    _save_session_meta(meta, path)
+    return True
+
+
+def resolve_cli_session(
+    new: bool = False,
+    resume: bool = False,
+    resume_id: str | None = None,
+    path: Path = SESSION_META_PATH,
+) -> str:
+    meta = _load_session_meta(path)
+    if resume_id:
+        if resume_id in meta.get("sessions", {}):
+            meta["last_session_id"] = resume_id
+            _save_session_meta(meta, path)
+            touch_cli_session(resume_id, path=path)
+            return resume_id
+        return create_cli_session(path=path)
     if new or not meta.get("last_session_id") or meta["last_session_id"] not in meta.get("sessions", {}):
         return create_cli_session(path=path)
     if resume:
@@ -320,6 +344,8 @@ def cli_help() -> str:
             "/reset          Clear the current session",
             "/history        Show recent turns",
             "/sessions       List recent CLI sessions",
+            "/resume ID      Switch to a saved session",
+            "/rename NAME    Rename the current session",
             "/open N         Open result N from the latest search",
             "/quit           Exit chat",
             "",
@@ -328,8 +354,15 @@ def cli_help() -> str:
     )
 
 
-def run_chat_loop(env: dict[str, str], *, new: bool = False, resume: bool = False, initial_message: str | None = None) -> int:
-    session_id = resolve_cli_session(new=new, resume=resume)
+def run_chat_loop(
+    env: dict[str, str],
+    *,
+    new: bool = False,
+    resume: bool = False,
+    resume_id: str | None = None,
+    initial_message: str | None = None,
+) -> int:
+    session_id = resolve_cli_session(new=new, resume=resume, resume_id=resume_id)
     meta = _load_session_meta()
     title = meta.get("sessions", {}).get(session_id, {}).get("title") or "New CLI chat"
     state = ChatState(session_id=session_id, title=title)
@@ -368,6 +401,27 @@ def run_chat_loop(env: dict[str, str], *, new: bool = False, resume: bool = Fals
             continue
         if user_msg == "/sessions":
             print(format_sessions())
+            continue
+        if user_msg.startswith("/resume "):
+            target = user_msg.split(maxsplit=1)[1].strip()
+            meta = _load_session_meta()
+            if target not in meta.get("sessions", {}):
+                print(f"Unknown session: {target}")
+                continue
+            state.session_id = target
+            state.title = meta["sessions"][target].get("title") or "CLI chat"
+            state.last_results = []
+            touch_cli_session(state.session_id, title=state.title)
+            print(f"Resumed {state.session_id} — {state.title}")
+            continue
+        if user_msg.startswith("/rename "):
+            new_title = user_msg.split(maxsplit=1)[1].strip()
+            if not new_title:
+                print("Usage: /rename NAME")
+                continue
+            rename_cli_session(state.session_id, new_title)
+            state.title = new_title
+            print(f"Renamed session to: {new_title}")
             continue
         if user_msg.startswith("/open "):
             try:
