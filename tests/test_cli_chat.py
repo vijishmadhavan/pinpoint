@@ -76,3 +76,38 @@ def test_render_results_and_open_out_of_range():
     ok, message = cli_chat.reveal_result(results, 2)
     assert ok is False
     assert "out of range" in message
+
+
+def test_format_status_reads_local_db(tmp_path):
+    from database import init_db
+    from pinpoint import cli_chat
+
+    db_path = str(tmp_path / "test.db")
+    conn = init_db(db_path)
+    conn.execute(
+        "INSERT INTO background_jobs(job_type, target_path, target_hash, status, current_stage, total_items, completed_items, details_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
+        ("folder_index", "/tmp/docs", "", "running", "indexing", 10, 3, "{}"),
+    )
+    conn.execute(
+        "INSERT INTO watched_folders(path, added_at) VALUES (?, datetime('now'))",
+        ("/tmp/docs",),
+    )
+    conn.commit()
+    conn.close()
+
+    with (
+        patch.object(cli_chat, "DB_PATH", db_path),
+        patch("pinpoint.cli._api_ping", return_value=False),
+    ):
+        text = cli_chat.format_status()
+
+    assert "API: stopped" in text
+    assert "Watched folders: 1" in text
+    assert "Active jobs: 1" in text
+
+
+def test_index_path_rejects_missing_folder():
+    from pinpoint import cli_chat
+
+    text = cli_chat.index_path("/tmp/definitely-not-a-real-pinpoint-folder")
+    assert "Not a directory" in text

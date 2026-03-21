@@ -166,6 +166,57 @@ def _truncate(text: str, limit: int = 220) -> str:
     return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
 
 
+def format_status() -> str:
+    from pinpoint.cli import _api_ping
+
+    conn = init_db(DB_PATH)
+    try:
+        doc_count = conn.execute("SELECT COUNT(*) FROM documents").fetchone()[0]
+        job_count = conn.execute(
+            "SELECT COUNT(*) FROM background_jobs WHERE status IN ('pending', 'running', 'cancelling')"
+        ).fetchone()[0]
+        watch_count = conn.execute("SELECT COUNT(*) FROM watched_folders").fetchone()[0]
+    finally:
+        conn.close()
+    api_running = _api_ping()
+    return (
+        f"API: {'running' if api_running else 'stopped'}\n"
+        f"Documents: {doc_count}\n"
+        f"Watched folders: {watch_count}\n"
+        f"Active jobs: {job_count}"
+    )
+
+
+def index_path(path: str) -> str:
+    from indexer import index_folder
+
+    target = os.path.abspath(path)
+    if not os.path.isdir(target):
+        return f"Not a directory: {target}"
+    result = index_folder(target, DB_PATH)
+    return (
+        f"Indexed {target}\n"
+        f"Indexed: {result.get('indexed', 0)}\n"
+        f"Skipped: {result.get('skipped', 0)}\n"
+        f"Failed: {result.get('failed', 0)}"
+    )
+
+
+def watch_path(path: str) -> str:
+    try:
+        from api.files import WatchFolderRequest, watch_folder_endpoint
+    except Exception as exc:
+        return f"Watch folders unavailable: {exc}"
+
+    target = os.path.abspath(path)
+    try:
+        result = watch_folder_endpoint(WatchFolderRequest(path=target))
+    except Exception as exc:
+        detail = getattr(exc, "detail", str(exc))
+        return f"Could not watch {target}: {detail}"
+    return result.get("_hint") or f"Watching {target}"
+
+
 def _terminal_link(path: str) -> str:
     if not path:
         return ""
@@ -379,6 +430,9 @@ def cli_help() -> str:
             "/sessions       List recent CLI sessions",
             "/resume ID      Switch to a saved session",
             "/rename NAME    Rename the current session",
+            "/status         Show local Pinpoint status",
+            "/index PATH     Index a folder into the local database",
+            "/watch PATH     Start watching a folder for background indexing",
             "/open N         Open result N from the latest search",
             "/reveal N       Open the containing folder for result N",
             "/quit           Exit chat",
@@ -436,6 +490,9 @@ def run_chat_loop(
         if user_msg == "/sessions":
             print(format_sessions())
             continue
+        if user_msg == "/status":
+            print(format_status())
+            continue
         if user_msg.startswith("/resume "):
             target = user_msg.split(maxsplit=1)[1].strip()
             meta = _load_session_meta()
@@ -456,6 +513,20 @@ def run_chat_loop(
             rename_cli_session(state.session_id, new_title)
             state.title = new_title
             print(f"Renamed session to: {new_title}")
+            continue
+        if user_msg.startswith("/index "):
+            target = user_msg.split(maxsplit=1)[1].strip()
+            if not target:
+                print("Usage: /index PATH")
+                continue
+            print(index_path(target))
+            continue
+        if user_msg.startswith("/watch "):
+            target = user_msg.split(maxsplit=1)[1].strip()
+            if not target:
+                print("Usage: /watch PATH")
+                continue
+            print(watch_path(target))
             continue
         if user_msg.startswith("/open "):
             try:
