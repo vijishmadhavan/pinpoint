@@ -14,6 +14,7 @@ from urllib.request import urlopen
 from dotenv import dotenv_values
 
 from pinpoint import __version__, user_data_dir
+from pinpoint.cli_chat import run_chat_loop
 
 DEFAULT_ENV = {
     "API_SECRET": "",
@@ -386,6 +387,11 @@ def cmd_logs(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_chat(args: argparse.Namespace) -> int:
+    env = _load_env()
+    return run_chat_loop(env, new=args.new, resume=args.resume, initial_message=args.message)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="pinpoint", description="Pinpoint CLI")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
@@ -425,6 +431,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_logs = sub.add_parser("logs", help="Show recent log lines")
     p_logs.add_argument("--lines", type=int, default=40)
     p_logs.set_defaults(func=cmd_logs)
+
+    p_chat = sub.add_parser("chat", help="Start a local terminal chat")
+    p_chat.add_argument("message", nargs="?", help="Optional one-shot message instead of interactive REPL")
+    mode = p_chat.add_mutually_exclusive_group()
+    mode.add_argument("--new", action="store_true", help="Start a fresh CLI chat session")
+    mode.add_argument("--resume", action="store_true", help="Resume the last CLI chat session")
+    p_chat.set_defaults(func=cmd_chat, new=False, resume=False)
 
     return parser
 
