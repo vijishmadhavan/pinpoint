@@ -170,3 +170,29 @@ def test_send_result_queues_file(tmp_path):
     assert row["chat_jid"] == "12345@s.whatsapp.net"
     assert row["file_path"] == str(file_path)
     assert row["status"] == "pending"
+
+
+def test_quick_chat_response_handles_greeting():
+    from pinpoint import cli_chat
+
+    text = cli_chat._quick_chat_response("hi")
+    assert text is not None
+    assert "search files" in text.lower()
+
+
+def test_answer_query_uses_quick_chat_when_agent_unavailable(tmp_path):
+    from database import init_db
+    from pinpoint import cli_chat
+
+    db_path = str(tmp_path / "test.db")
+    init_db(db_path).close()
+    state = cli_chat.ChatState(session_id="cli:test-hello", title="New CLI chat")
+
+    with (
+        patch.object(cli_chat, "DB_PATH", db_path),
+        patch.object(cli_chat, "_answer_via_node_agent", side_effect=RuntimeError("unavailable")),
+    ):
+        text, results = cli_chat.answer_query("hi", {}, state, save=False)
+
+    assert "help you search files" in text.lower()
+    assert results == []

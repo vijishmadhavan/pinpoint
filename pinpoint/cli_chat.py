@@ -356,6 +356,22 @@ def _answer_via_node_agent(query: str, env: dict[str, str], session_id: str) -> 
     return ("\n".join(p for p in parts if p).strip() or "No response.", data.get("results") or [])
 
 
+def _quick_chat_response(query: str) -> str | None:
+    q = (query or "").strip().lower()
+    if not q:
+        return None
+    if q in {"hi", "hello", "hey", "yo", "hiya"}:
+        return "Hi. I can help you search files, inspect results, and run Pinpoint workflows from the terminal."
+    if q in {"thanks", "thank you", "thx"}:
+        return "You're welcome."
+    if q in {"what can you do?", "what can you do", "help me", "help"}:
+        return (
+            "I can search your indexed files, open or reveal results, queue files to WhatsApp, and run Pinpoint file workflows. "
+            "Try: find invoice 4821, cull the wedding folder, or search this Excel for a phone number."
+        )
+    return None
+
+
 def _retrieve_context(query: str, limit: int = 5) -> tuple[dict, list[dict]]:
     from api.memory import _memory_fts_search
     from api.search import _detect_retrieval_intent, _document_overview, _search_facts
@@ -441,6 +457,17 @@ def answer_query(query: str, env: dict[str, str], state: ChatState, save: bool =
         return text, results
     except Exception:
         pass
+
+    quick = _quick_chat_response(query)
+    if quick:
+        if save:
+            _save_message(state.session_id, "user", query)
+            _save_message(state.session_id, "assistant", quick)
+            if state.title == "New CLI chat":
+                state.title = _truncate(query, 60)
+            touch_cli_session(state.session_id, title=state.title)
+        state.last_results = []
+        return quick, []
 
     history = _load_history(state.session_id, limit=MAX_HISTORY_MESSAGES)
     context, results = _retrieve_context(query)
