@@ -405,7 +405,7 @@ const TOOL_DECLARATIONS = [
   },
   {
     name: "move_file",
-    description: "Move, copy, or rename a single file. For moving multiple files, use batch_move instead.",
+    description: "Move, copy, or rename a single file. For moving multiple files, use batch_move instead. IMPORTANT: after moving/renaming a file, follow-up requests like 'open it', 'send it', or 'show me the moved file' should use the new destination path/result directly, not re-search from scratch unless the user changes scope.",
     parameters: {
       type: "OBJECT",
       properties: {
@@ -440,7 +440,7 @@ const TOOL_DECLARATIONS = [
   {
     name: "batch_move",
     description:
-      "Move or copy multiple files to a destination folder in one call. Much faster than calling move_file repeatedly. Creates destination folder if needed.",
+      "Move or copy multiple files to a destination folder in one call. Much faster than calling move_file repeatedly. Creates destination folder if needed. IMPORTANT: after batch organization, follow-up requests like 'send me the invoice one', 'open the tax folder', or 'show what you moved' should stay in the destination folder/result set first. Prefer list_files/read_file/send_file on the known destination before doing broad search again.",
     parameters: {
       type: "OBJECT",
       properties: {
@@ -463,7 +463,7 @@ const TOOL_DECLARATIONS = [
   },
   {
     name: "create_folder",
-    description: "Create a new folder (directory). Creates parent folders too if they don't exist.",
+    description: "Create a new folder (directory). Creates parent folders too if they don't exist. After creating a folder for an organization task, later follow-ups should prefer that same folder as the working location unless the user clearly switches context.",
     parameters: {
       type: "OBJECT",
       properties: {
@@ -1406,7 +1406,7 @@ const TOOL_DECLARATIONS = [
   {
     name: "group_photos",
     description:
-      "Auto-group ALL photos in a folder by Gemini vision classification. Each photo is sent to Gemini with the category list — Gemini picks the best match. Photos MOVED to category subfolders (destructive). Generates HTML report. Classifications cached in DB — re-runs are free. IMPORTANT: NEVER call this without user confirmation of categories first. Always show suggest_categories results and WAIT for user approval before calling this. Background job — use group_status to poll.",
+      "Auto-group ALL photos in a folder by Gemini vision classification. Each photo is sent to Gemini with the category list — Gemini picks the best match. Photos MOVED to category subfolders (destructive). Generates HTML report. Classifications cached in DB — re-runs are free. IMPORTANT: NEVER call this without user confirmation of categories first. Always show suggest_categories results and WAIT for user approval before calling this. IMPORTANT: after grouping completes, follow-up requests like 'send me the portraits', 'show the dance photos', or 'pick the best bride and groom photo' should stay within the grouped folder/category context and prefer photo-specific search (search_images_visual) over search_documents. Background job — use group_status to poll.",
     parameters: {
       type: "OBJECT",
       properties: {
@@ -1423,7 +1423,7 @@ const TOOL_DECLARATIONS = [
   {
     name: "group_status",
     description:
-      "Check progress of a running group_photos job. Returns classified/total count, ETA, and final group counts when done. Poll every few seconds until status is 'done'. Set cancel=true to stop the job.",
+      "Check progress of a running group_photos job. Returns classified/total count, ETA, and final group counts when done. Poll every few seconds until status is 'done'. Set cancel=true to stop the job. When done, later photo follow-ups should use the grouped folder/category context first.",
     parameters: {
       type: "OBJECT",
       properties: {

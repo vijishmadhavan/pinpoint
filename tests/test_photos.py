@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import sqlite3
+import time
 from unittest.mock import patch
 
 
@@ -67,6 +69,63 @@ class TestCullStatus:
             r = client.get("/cull-photos/status", params={"folder": folder})
         assert r.status_code == 200
         assert r.json()["csv_report_path"] == "/tmp/_cull_report.csv"
+
+
+class TestCullReuse:
+    def test_cull_reuses_completed_run_and_status_survives_memory_reset(self, tmp_path):
+        import photo_cull
+
+        folder = tmp_path / "wedding"
+        folder.mkdir()
+        for i in range(2):
+            (folder / f"img_{i}.jpg").write_bytes(b"fake")
+
+        conn = sqlite3.connect(tmp_path / "photo_cull.db", check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        photo_cull._db_conn = conn
+        photo_cull._init_table(conn)
+        photo_cull._cull_jobs.clear()
+
+        def fake_score(path):
+            base = 80 if path.endswith("img_0.jpg") else 72
+            return {
+                "path": path,
+                "sharpness": 10,
+                "exposure": 10,
+                "composition": 8,
+                "quality": 8,
+                "emotion": 15,
+                "interest": 14,
+                "keeper": 15,
+                "total": base,
+                "reasoning": "Strong frame and clean exposure.",
+            }
+
+        with (
+            patch("photo_cull.score_photo", side_effect=fake_score),
+            patch("photo_cull._make_thumbnail_b64", return_value="thumb"),
+        ):
+            first = photo_cull.cull_photos(str(folder), keep_pct=80)
+            assert first["started"] is True
+
+            for _ in range(100):
+                status = photo_cull.get_cull_status(str(folder))
+                if status.get("status") == "done":
+                    break
+                time.sleep(0.02)
+            assert status["status"] == "done"
+            assert status["report_path"].endswith("_cull_report.html")
+            assert status["csv_report_path"].endswith("_cull_report.csv")
+
+            second = photo_cull.cull_photos(str(folder), keep_pct=80)
+            assert second["status"] == "already_done"
+            assert second["already_done"] is True
+
+            photo_cull._cull_jobs.clear()
+            recovered = photo_cull.get_cull_status(str(folder))
+            assert recovered["reused"] is True
+            assert recovered["report_path"].endswith("_cull_report.html")
+            assert recovered["csv_report_path"].endswith("_cull_report.csv")
 
 
 class TestSuggestCategories:

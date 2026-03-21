@@ -21,3 +21,8 @@ Cannot analyze data in spreadsheets (use analyze_data), cannot search across fil
 ## Notes
 - File paths must be absolute (not relative)
 - File paths come from search_documents, list_files, or search_images_visual results
+
+## Post-File-Operation Follow-Ups
+- After `move_file`, `batch_move`, or `create_folder`, keep using the new destination path or moved result set as the first context for follow-up requests.
+- For requests like "open it", "send it", "show me the moved file", or "open the tax folder", prefer the known destination/result directly before doing a broad re-search.
+- If the user asks for "the invoice one" or "the file you just moved", inspect the last moved result set or destination folder with `list_files`/`read_file` before falling back to `search_documents`.

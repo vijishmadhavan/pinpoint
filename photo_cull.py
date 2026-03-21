@@ -23,6 +23,7 @@ import shutil
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from hashlib import sha1
 from typing import Any
 
 from database import DB_PATH, get_db
@@ -53,6 +54,21 @@ def _init_table(conn: Any) -> None:
             classified_at TEXT
         )
     """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS task_runs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_type TEXT NOT NULL,
+            target_path TEXT NOT NULL,
+            params_json TEXT NOT NULL DEFAULT '',
+            pre_signature TEXT NOT NULL DEFAULT '',
+            post_signature TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL,
+            result_json TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL,
+            completed_at TEXT DEFAULT NULL
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_task_runs_lookup ON task_runs(task_type, target_path, status, completed_at)")
     conn.commit()
 
 
@@ -76,6 +92,107 @@ def _cached_score(conn: Any, path: str, mtime: float) -> dict[str, Any] | None:
     if row:
         return dict(row)
     return None
+
+
+def _task_params_json(params: dict[str, Any]) -> str:
+    return json.dumps(params, sort_keys=True, separators=(",", ":"))
+
+
+def _folder_signature(folder: str) -> str:
+    """Lightweight recursive signature for photo workflow folder state."""
+    entries = []
+    for root, dirs, files in os.walk(folder):
+        dirs[:] = sorted([d for d in dirs if not d.startswith(".")])
+        for name in sorted(files):
+            ext = os.path.splitext(name)[1].lower()
+            if ext not in IMAGE_EXTENSIONS:
+                continue
+            path = os.path.join(root, name)
+            try:
+                st = os.stat(path)
+            except OSError:
+                continue
+            rel = os.path.relpath(path, folder).replace("\\", "/")
+            entries.append(f"{rel}|{st.st_size}|{int(st.st_mtime)}")
+    return sha1("\n".join(entries).encode("utf-8")).hexdigest()
+
+
+def _create_task_run(task_type: str, target_path: str, params: dict[str, Any], pre_signature: str) -> int:
+    with _db_lock:
+        conn = _get_conn()
+        cur = conn.execute(
+            """
+            INSERT INTO task_runs(task_type, target_path, params_json, pre_signature, status, created_at)
+            VALUES (?, ?, ?, ?, 'running', datetime('now'))
+        """,
+            (task_type, os.path.abspath(target_path), _task_params_json(params), pre_signature),
+        )
+        conn.commit()
+        return int(cur.lastrowid)
+
+
+def _finish_task_run(task_run_id: int, status: str, post_signature: str, result: dict[str, Any]) -> None:
+    with _db_lock:
+        conn = _get_conn()
+        conn.execute(
+            """
+            UPDATE task_runs
+            SET status = ?, post_signature = ?, result_json = ?, completed_at = datetime('now')
+            WHERE id = ?
+        """,
+            (status, post_signature, json.dumps(result, sort_keys=True), task_run_id),
+        )
+        conn.commit()
+
+
+def _latest_reusable_run(task_type: str, target_path: str, params: dict[str, Any], current_signature: str) -> dict[str, Any] | None:
+    with _db_lock:
+        conn = _get_conn()
+        row = conn.execute(
+            """
+            SELECT *
+            FROM task_runs
+            WHERE task_type = ?
+              AND target_path = ?
+              AND params_json = ?
+              AND status = 'completed'
+              AND post_signature = ?
+            ORDER BY id DESC
+            LIMIT 1
+        """,
+            (task_type, os.path.abspath(target_path), _task_params_json(params), current_signature),
+        ).fetchone()
+    if not row:
+        return None
+    data = dict(row)
+    try:
+        data["result"] = json.loads(data.get("result_json") or "{}")
+    except json.JSONDecodeError:
+        data["result"] = {}
+    return data
+
+
+def _latest_completed_run(task_type: str, target_path: str) -> dict[str, Any] | None:
+    with _db_lock:
+        conn = _get_conn()
+        row = conn.execute(
+            """
+            SELECT *
+            FROM task_runs
+            WHERE task_type = ? AND target_path = ? AND status = 'completed'
+            ORDER BY id DESC
+            LIMIT 1
+        """,
+            (task_type, os.path.abspath(target_path)),
+        ).fetchone()
+    if not row:
+        return None
+    data = dict(row)
+    try:
+        data["result"] = json.loads(data.get("result_json") or "{}")
+    except json.JSONDecodeError:
+        data["result"] = {}
+    return data
 
 
 # --- Gemini scoring ---
@@ -442,6 +559,18 @@ def cull_photos(folder: str, keep_pct: int = 80, rejects_folder: str | None = No
         rejects_folder = os.path.join(folder, "_rejects")
 
     keep_pct = max(1, min(99, keep_pct))
+    params = {"keep_pct": keep_pct}
+    current_signature = _folder_signature(folder)
+    reusable = _latest_reusable_run("cull_photos", folder, params, current_signature)
+    if reusable:
+        result = dict(reusable["result"])
+        result["status"] = "already_done"
+        result["already_done"] = True
+        result["_hint"] = (
+            "This folder was already culled and nothing changed. "
+            f"Reusing previous report at {result.get('report_path', 'N/A')}."
+        )
+        return result
 
     # Init progress
     progress = {
@@ -456,6 +585,7 @@ def cull_photos(folder: str, keep_pct: int = 80, rejects_folder: str | None = No
         "report_path": None,
         "csv_report_path": None,
     }
+    task_run_id = _create_task_run("cull_photos", folder, params, current_signature)
     with _cull_lock:
         _cull_jobs[folder] = progress
 
@@ -498,6 +628,17 @@ def cull_photos(folder: str, keep_pct: int = 80, rejects_folder: str | None = No
                         progress["status"] = "cancelled"
                         progress["kept"] = len(scored)
                         progress["elapsed_seconds"] = round(time.time() - start, 1)
+                        _finish_task_run(
+                            task_run_id,
+                            "cancelled",
+                            _folder_signature(folder),
+                            {
+                                "status": "cancelled",
+                                "folder": folder,
+                                "scored": progress["scored"],
+                                "total": progress["total"],
+                            },
+                        )
                         return
                     result = future.result()
                     if "error" in result:
@@ -513,6 +654,7 @@ def cull_photos(folder: str, keep_pct: int = 80, rejects_folder: str | None = No
         if not scored:
             progress["status"] = "error"
             progress["error"] = "No photos could be scored"
+            _finish_task_run(task_run_id, "error", _folder_signature(folder), {"status": "error", "folder": folder, "error": progress["error"]})
             return
 
         # Rank and split
@@ -565,6 +707,7 @@ def cull_photos(folder: str, keep_pct: int = 80, rejects_folder: str | None = No
         progress["report_path"] = report_path
         progress["csv_report_path"] = _generate_csv_report(folder, scored, kept_paths, rejects_folder)
         progress["elapsed_seconds"] = round(time.time() - start, 1)
+        _finish_task_run(task_run_id, "completed", _folder_signature(folder), dict(progress))
 
     thread = threading.Thread(target=_run, daemon=True)
     thread.start()
@@ -586,6 +729,18 @@ def get_cull_status(folder: str, cancel: bool = False) -> dict[str, Any]:
     with _cull_lock:
         progress = _cull_jobs.get(folder)
     if not progress:
+        previous = _latest_completed_run("cull_photos", folder)
+        if previous:
+            result = dict(previous["result"])
+            result["status"] = result.get("status", "done")
+            result["reused"] = True
+            if "csv_report_path" not in result:
+                result["csv_report_path"] = None
+            result["_hint"] = (
+                "No active cull job, but the most recent completed report is available at "
+                f"{result.get('report_path', 'N/A')} · CSV: {result.get('csv_report_path', 'N/A')}"
+            )
+            return result
         return {"error": "No cull job found for this folder", "_hint": "Start one with cull_photos first."}
 
     if cancel and progress["status"] not in ("done", "cancelled", "error"):
@@ -1128,6 +1283,18 @@ def group_photos(folder: str, categories: list[str], uncategorized_folder: str |
 
     if not uncategorized_folder:
         uncategorized_folder = os.path.join(folder, "_uncategorized")
+    params = {"categories": list(categories)}
+    current_signature = _folder_signature(folder)
+    reusable = _latest_reusable_run("group_photos", folder, params, current_signature)
+    if reusable:
+        result = dict(reusable["result"])
+        result["status"] = "already_done"
+        result["already_done"] = True
+        result["_hint"] = (
+            "This folder was already grouped with the same categories and nothing changed. "
+            f"Reusing previous report at {result.get('report_path', 'N/A')}."
+        )
+        return result
 
     # Init progress
     progress = {
@@ -1142,6 +1309,7 @@ def group_photos(folder: str, categories: list[str], uncategorized_folder: str |
         "eta_seconds": None,
         "report_path": None,
     }
+    task_run_id = _create_task_run("group_photos", folder, params, current_signature)
     with _group_lock:
         _group_jobs[folder] = progress
 
@@ -1184,6 +1352,17 @@ def group_photos(folder: str, categories: list[str], uncategorized_folder: str |
             progress["status"] = "cancelled"
             progress["classified_count"] = len(classified)
             progress["elapsed_seconds"] = round(time.time() - start, 1)
+            _finish_task_run(
+                task_run_id,
+                "cancelled",
+                _folder_signature(folder),
+                {
+                    "status": "cancelled",
+                    "folder": folder,
+                    "classified": progress.get("classified", 0),
+                    "total": progress["total"],
+                },
+            )
             return
 
         # Phase 2: Embed images + categories via Gemini Embedding 2, classify by cosine similarity
@@ -1211,6 +1390,7 @@ def group_photos(folder: str, categories: list[str], uncategorized_folder: str |
                     print(f"[Group] Failed to embed category '{cat}': {e}")
                     progress["status"] = "error"
                     progress["error"] = f"Failed to embed category '{cat}': {e}"
+                    _finish_task_run(task_run_id, "error", _folder_signature(folder), {"status": "error", "folder": folder, "error": progress["error"]})
                     return
             cat_matrix = np.stack(cat_embeddings)  # [num_cats, embed_dim]
             cat_matrix = _normalize(cat_matrix, axis=-1)
@@ -1224,6 +1404,17 @@ def group_photos(folder: str, categories: list[str], uncategorized_folder: str |
                     progress["status"] = "cancelled"
                     progress["classified_count"] = len(classified)
                     progress["elapsed_seconds"] = round(time.time() - start, 1)
+                    _finish_task_run(
+                        task_run_id,
+                        "cancelled",
+                        _folder_signature(folder),
+                        {
+                            "status": "cancelled",
+                            "folder": folder,
+                            "classified": progress.get("classified", 0),
+                            "total": progress["total"],
+                        },
+                    )
                     return
 
                 batch_paths = to_embed[i : i + _EMBED_BATCH]
@@ -1288,6 +1479,7 @@ def group_photos(folder: str, categories: list[str], uncategorized_folder: str |
         if not classified:
             progress["status"] = "error"
             progress["error"] = "No photos could be classified"
+            _finish_task_run(task_run_id, "error", _folder_signature(folder), {"status": "error", "folder": folder, "error": progress["error"]})
             return
 
         # Move to category subfolders
@@ -1333,6 +1525,7 @@ def group_photos(folder: str, categories: list[str], uncategorized_folder: str |
         progress["group_counts"] = group_counts
         progress["report_path"] = report_path
         progress["elapsed_seconds"] = round(time.time() - start, 1)
+        _finish_task_run(task_run_id, "completed", _folder_signature(folder), dict(progress))
 
         # (Gemini caching removed — category prompt sent inline with each call)
 
@@ -1424,6 +1617,13 @@ def get_group_status(folder: str, cancel: bool = False) -> dict[str, Any]:
     with _group_lock:
         progress = _group_jobs.get(folder)
     if not progress:
+        previous = _latest_completed_run("group_photos", folder)
+        if previous:
+            result = dict(previous["result"])
+            result["status"] = result.get("status", "done")
+            result["reused"] = True
+            result["_hint"] = f"No active group job, but the most recent completed report is available at {result.get('report_path', 'N/A')}"
+            return result
         return {"error": "No group job found for this folder", "_hint": "Start one with group_photos first."}
 
     if cancel and progress["status"] not in ("done", "cancelled", "error"):

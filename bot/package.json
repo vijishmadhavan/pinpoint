@@ -1,6 +1,6 @@
 {
   "name": "pinpoint-bot",
-  "version": "1.0.0",
+  "version": "1.0.3",
   "description": "WhatsApp bot for Pinpoint local file assistant",
   "main": "index.js",
   "bin": {
@@ -17,7 +17,14 @@
     "lint:fix": "eslint --fix . && prettier --write .",
     "test": "node --test"
   },
-  "keywords": ["whatsapp", "bot", "baileys", "pinpoint", "local-search", "assistant"],
+  "keywords": [
+    "whatsapp",
+    "bot",
+    "baileys",
+    "pinpoint",
+    "local-search",
+    "assistant"
+  ],
   "author": "Pinpoint contributors",
   "license": "MIT",
   "homepage": "https://github.com/vijishmadhavan/pinpoint",

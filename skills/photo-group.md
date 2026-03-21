@@ -26,5 +26,10 @@
 5. `group_status(folder)` — poll every 5s until done
 6. Report: group counts per category, send HTML report
 
+## Post-Group Follow-Ups
+- If the user asks for category-specific photos after grouping, stay in the grouped folder/category context first.
+- For requests like "send me the portraits", "show the dance photos", or "pick the best bride and groom photo", prefer `search_images_visual` in the grouped folder/category rather than `search_documents(file_type="image")`.
+- After finding the right match, send the image directly.
+
 ## Cost
 ~$0.045 per 1000 images (flash-lite, LOW resolution). Re-runs: $0 (cached).

@@ -15,3 +15,7 @@ Cannot find visually similar images or duplicate photos. For visual search use s
 - batch_rename only renames files (not folders), won't overwrite existing files
 - batch_rename shows a preview of changes before applying
 - Regex examples: "IMG_" → "" (remove prefix), "(.+)\\.jpeg" → "\\1.jpg" (fix extension)
+
+## Post-Operation Follow-Ups
+- After `find_duplicates`, follow-up requests like "show me the larger one", "send the original", or "open that duplicate" should stay within the returned duplicate groups first.
+- After `batch_rename`, follow-ups like "open the renamed file", "send the cleaned one", or "show what changed" should use the rename result set or destination folder first instead of starting a broad search.

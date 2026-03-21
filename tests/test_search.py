@@ -94,6 +94,47 @@ class TestSearchFacts:
         assert r.json()["count"] == 0
 
 
+class TestRetrieveContext:
+    def test_retrieve_context_routes_personal_query_to_memory(self, client, seeded_db):
+        from datetime import UTC, datetime
+
+        now = datetime.now(UTC).isoformat()
+        seeded_db.execute(
+            "INSERT INTO memories(fact, category, superseded_by, created_at, updated_at) VALUES (?, ?, NULL, ?, ?)",
+            ("My dentist number is 9876543210", "people", now, now),
+        )
+        memory_id = seeded_db.execute("SELECT last_insert_rowid() AS id").fetchone()["id"]
+        seeded_db.execute("INSERT INTO memories_fts(rowid, fact) VALUES (?, ?)", (memory_id, "My dentist number is 9876543210"))
+        seeded_db.commit()
+
+        r = client.get("/retrieve-context", params={"q": "what is my dentist number"})
+        assert r.status_code == 200
+        data = r.json()
+        assert data["intent"] == "memory"
+        assert data["primary_source"] == "memory"
+        assert data["searched_sources"][0] == "memory"
+        assert data["results"]
+        assert data["results"][0]["source"] == "memory"
+
+    def test_retrieve_context_routes_fact_query_to_facts(self, client, seeded_db):
+        r = client.get("/retrieve-context", params={"q": "what is the hello message"})
+        assert r.status_code == 200
+        data = r.json()
+        assert data["intent"] == "facts"
+        assert data["primary_source"] == "facts"
+        assert data["results"]
+        assert data["results"][0]["source"] == "facts"
+
+    def test_retrieve_context_defaults_to_documents(self, client, seeded_db):
+        r = client.get("/retrieve-context", params={"q": "hello world"})
+        assert r.status_code == 200
+        data = r.json()
+        assert data["intent"] == "documents"
+        assert data["primary_source"] == "documents"
+        assert data["results"]
+        assert any(item["source"] == "documents" for item in data["results"])
+
+
 class TestSearchFeedback:
     def test_search_feedback_can_be_recorded_and_listed(self, client, seeded_db):
         r = client.post("/search-feedback", json={
