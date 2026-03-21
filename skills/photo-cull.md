@@ -36,5 +36,10 @@
 4. `cull_status(folder)` — poll every 5s until done
 5. Report: kept/rejected counts, avg scores, threshold, send HTML report
 
+## Post-Cull Follow-Ups
+- If the user asks for the "best photo", "best bride and groom shot", "keeper", or similar AFTER culling, stay in the same folder and prefer `search_images_visual` to find the right visual match.
+- Do NOT start with `search_documents(file_type="image")` for best-photo selection after culling. Caption search may find a matching photo, but it does not reflect the cull workflow or quality ranking.
+- After finding the right match, send the image directly.
+
 ## Cost
 ~$0.045 per 1000 images (flash-lite, LOW resolution). 50K photos ~ $2.25.

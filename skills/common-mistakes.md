@@ -1,6 +1,6 @@
 # Common Mistakes to Avoid
 
-- **Don't** jump straight to search_images_visual for finding photos. **Instead** try search_documents(query, file_type="image", folder=...) FIRST — indexed captions are free and instant. Only use search_images_visual if search_documents returns no results.
+- **Don't** jump straight to search_images_visual for simple caption-style image lookup. **Instead** try search_documents(query, file_type="image", folder=...) FIRST when you just need a quick text/caption match. Exception: for "best photo", "keeper", or post-cull selection requests, prefer search_images_visual first.
 - **Don't** process 10+ images one by one with read_file. **Instead** use search_images_visual with folder param (SigLIP2, cached batch processing).
 - **Don't** retry a failed search with the same query. **Instead** reformulate with synonyms, broader terms, or try search_facts.
 - **Don't** use list_files to hunt for a file when you don't know the folder. **Instead** use find_file FIRST — it searches ALL common folders (Documents, Desktop, Downloads, etc.) by filename instantly. Only use list_files when you already know the specific folder.

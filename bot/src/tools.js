@@ -179,7 +179,7 @@ const TOOL_DECLARATIONS = [
   {
     name: "search_documents",
     description:
-      "Search indexed documents by keywords. Returns the exact matching section/paragraph (not just filenames). PREFERRED way to answer questions about document content — always try this FIRST before read_document or read_file. Also searches indexed IMAGE CAPTIONS — use file_type='image' to find photos by description (free, instant). If the file is not indexed yet, use index_file first, then search. Can filter by file type and folder.",
+      "Search indexed documents by keywords. Returns the exact matching section/paragraph (not just filenames). PREFERRED way to answer questions about document content — always try this FIRST before read_document or read_file. Also searches indexed IMAGE CAPTIONS — use file_type='image' to find photos by description when you need a quick caption/text match. IMPORTANT: do NOT use this as the primary tool for 'best photo', 'keeper', 'top shot', or post-cull photo selection requests. For those, prefer photo-specific workflows like search_images_visual and existing cull/group results. If the file is not indexed yet, use index_file first, then search. Can filter by file type and folder.",
     parameters: {
       type: "OBJECT",
       properties: {
@@ -1186,7 +1186,7 @@ const TOOL_DECLARATIONS = [
   {
     name: "search_images_visual",
     description:
-      "Search images in a folder by text description using AI vision. IMPORTANT: Try search_documents(query, file_type='image', folder=...) FIRST — indexed image captions are free and instant. Only use this tool if search_documents returns no results or the folder isn't indexed. Returns ranked list of images matching the query. Results are RELIABLE — trust them for categorization, grouping, and answering without manually inspecting individual images. Do NOT call read_file/resize_image/ocr on photos after getting visual search results. First call may take time, subsequent queries on same folder are faster (cached). Pass queries as array for batch search (multiple queries in one call). GROUPING WORKFLOW: When organizing/grouping photos into categories — 1) first run with default limit (10) as a PREVIEW, 2) show user the proposed categories with sample counts, 3) ask 'Shall I do the full folder?', 4) if yes, re-run with limit=200 per category to cover all photos.",
+      "Search images in a folder by text description using AI vision. Use this for visual photo requests like 'best bride and groom photo', 'show the cake cutting shot', 'find outdoor portraits', or after culling/grouping when the user wants the best matching photo from that folder. Caption search via search_documents(file_type='image') is fine for quick text matches, but for keeper/best-photo selection and post-cull follow-ups, prefer this tool FIRST. Returns ranked list of images matching the query. Results are RELIABLE — trust them for categorization, grouping, and answering without manually inspecting individual images. Do NOT call read_file/resize_image/ocr on photos after getting visual search results. First call may take time, subsequent queries on same folder are faster (cached). Pass queries as array for batch search (multiple queries in one call). GROUPING WORKFLOW: When organizing/grouping photos into categories — 1) first run with default limit (10) as a PREVIEW, 2) show user the proposed categories with sample counts, 3) ask 'Shall I do the full folder?', 4) if yes, re-run with limit=200 per category to cover all photos.",
     parameters: {
       type: "OBJECT",
       properties: {
@@ -1367,7 +1367,7 @@ const TOOL_DECLARATIONS = [
   {
     name: "cull_photos",
     description:
-      "Auto-cull photos in a folder: score ALL images, keep top N%, move rejects to _rejects subfolder. Generates an HTML report with thumbnail gallery. WORKFLOW: 1) list_files to survey folder 2) confirm with user 3) cull_photos 4) poll cull_status until done 5) report results + send report file. Background job — use cull_status to poll.",
+      "Auto-cull photos in a folder: score ALL images, keep top N%, move rejects to _rejects subfolder. Generates an HTML report with thumbnail gallery. WORKFLOW: 1) list_files to survey folder 2) confirm with user 3) cull_photos 4) poll cull_status until done 5) report results + send report file. IMPORTANT: after a cull completes, follow-up requests like 'send me the best bride and groom photo', 'show the best one', or 'send the keeper' should stay in the same folder and prefer photo-specific search (search_images_visual) over search_documents. Background job — use cull_status to poll.",
     parameters: {
       type: "OBJECT",
       properties: {
