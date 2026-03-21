@@ -104,6 +104,21 @@ def init_db(db_path: str = DB_PATH) -> sqlite3.Connection:
             message_count INTEGER DEFAULT 0
         );
 
+        -- Outgoing WhatsApp file queue (desktop CLI -> bot handoff)
+        CREATE TABLE IF NOT EXISTS outgoing_file_queue (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            chat_jid TEXT NOT NULL,
+            file_path TEXT NOT NULL,
+            caption TEXT DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'pending',
+            error TEXT DEFAULT '',
+            created_at TEXT NOT NULL,
+            claimed_at TEXT DEFAULT '',
+            completed_at TEXT DEFAULT ''
+        );
+        CREATE INDEX IF NOT EXISTS idx_outgoing_file_queue_status_created
+            ON outgoing_file_queue(status, created_at);
+
         -- Face embedding cache (Segment 14: on-demand face search)
         CREATE TABLE IF NOT EXISTS face_cache (
             image_path TEXT NOT NULL,

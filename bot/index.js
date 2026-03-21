@@ -767,6 +767,31 @@ async function apiPut(path, body) {
   return resp.json();
 }
 
+async function processOutgoingFileQueue() {
+  if (!currentSock) return;
+  try {
+    const claimed = await apiPost("/outgoing-files/claim", {});
+    if (!claimed?.queued || !claimed?.item) return;
+    const item = claimed.item;
+    try {
+      const caption = item.caption || `${PREFIX} ${pathModule.basename(item.file_path)}`;
+      const ok = await sendFile(currentSock, item.chat_jid, item.file_path, caption);
+      if (ok) {
+        await apiPost(`/outgoing-files/${item.id}/complete`, {});
+        console.log(`[Pinpoint] Delivered queued file ${item.file_path} to ${item.chat_jid}`);
+      } else {
+        await apiPost(`/outgoing-files/${item.id}/fail`, { error: "sendFile returned false" });
+        console.warn(`[Pinpoint] Failed to deliver queued file ${item.file_path} to ${item.chat_jid}`);
+      }
+    } catch (err) {
+      try {
+        await apiPost(`/outgoing-files/${item.id}/fail`, { error: err.message || String(err) });
+      } catch (_) {}
+      console.warn(`[Pinpoint] Outgoing file delivery error: ${err.message}`);
+    }
+  } catch (_) {}
+}
+
 async function tryHandlePhotoStatusFollowUp(userMsg, sock, chatJid) {
   if (!isPhotoStatusFollowUp(userMsg)) return false;
   const task = getLastPhotoTask(chatJid, PHOTO_TASK_REFS_PATH);
@@ -1949,6 +1974,10 @@ async function startBot() {
     clearInterval(global._reminderInterval);
     global._reminderInterval = null;
   }
+  if (global._outgoingFileInterval) {
+    clearInterval(global._outgoingFileInterval);
+    global._outgoingFileInterval = null;
+  }
 
   const sock = makeWASocket({
     auth: {
@@ -2038,8 +2067,15 @@ async function startBot() {
           }
         }, 30000);
       }
+      global._outgoingFileInterval = setInterval(() => {
+        processOutgoingFileQueue().catch(() => {});
+      }, 5000);
     }
     if (connection === "close") {
+      if (global._outgoingFileInterval) {
+        clearInterval(global._outgoingFileInterval);
+        global._outgoingFileInterval = null;
+      }
       const code = lastDisconnect?.error?.output?.statusCode;
       const shouldReconnect = code !== DisconnectReason.loggedOut;
       console.log(`[Pinpoint] Disconnected (${code}). ${shouldReconnect ? "Reconnecting..." : "Logged out."}`);

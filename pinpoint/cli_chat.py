@@ -44,6 +44,18 @@ def _save_session_meta(data: dict, path: Path = SESSION_META_PATH) -> None:
     path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
 
+def get_send_target(path: Path = SESSION_META_PATH) -> str:
+    meta = _load_session_meta(path)
+    return str(meta.get("send_target_chat_jid") or "").strip()
+
+
+def set_send_target(chat_jid: str, path: Path = SESSION_META_PATH) -> str:
+    meta = _load_session_meta(path)
+    meta["send_target_chat_jid"] = chat_jid.strip()
+    _save_session_meta(meta, path)
+    return meta["send_target_chat_jid"]
+
+
 def _now_iso() -> str:
     return datetime.now(UTC).isoformat()
 
@@ -96,6 +108,35 @@ def rename_cli_session(session_id: str, title: str, path: Path = SESSION_META_PA
     return True
 
 
+def choose_resume_session(
+    path: Path = SESSION_META_PATH,
+    *,
+    input_fn=input,
+    output_fn=print,
+    limit: int = 5,
+) -> str | None:
+    sessions = get_recent_cli_sessions(limit=limit, path=path)
+    if not sessions:
+        return None
+    if len(sessions) == 1:
+        return sessions[0]["session_id"]
+
+    output_fn("Recent CLI sessions:")
+    for i, item in enumerate(sessions, 1):
+        output_fn(f"{i}. {item['title']} [{item['session_id']}] ({item['updated_at']})")
+    output_fn("Press Enter to resume the latest session, or type a number.")
+    choice = (input_fn("Resume> ") or "").strip()
+    if not choice:
+        return sessions[0]["session_id"]
+    try:
+        idx = int(choice)
+    except ValueError:
+        return sessions[0]["session_id"]
+    if 1 <= idx <= len(sessions):
+        return sessions[idx - 1]["session_id"]
+    return sessions[0]["session_id"]
+
+
 def resolve_cli_session(
     new: bool = False,
     resume: bool = False,
@@ -117,6 +158,18 @@ def resolve_cli_session(
     return meta["last_session_id"]
 
 
+def startup_banner(state: ChatState, *, resumed: bool = False) -> str:
+    action = "Resumed" if resumed else "Started"
+    return "\n".join(
+        [
+            f"Pinpoint chat — {state.title}",
+            f"{action} session: {state.session_id}",
+            "Try: find invoice 4821",
+            "Type /help for commands.",
+        ]
+    )
+
+
 def _save_message(session_id: str, role: str, content: str) -> None:
     conn = init_db(DB_PATH)
     now = _now_iso()
@@ -134,6 +187,40 @@ def _save_message(session_id: str, role: str, content: str) -> None:
     )
     conn.commit()
     conn.close()
+
+
+def guess_recent_whatsapp_chat() -> str:
+    conn = init_db(DB_PATH)
+    try:
+        row = conn.execute(
+            """
+            SELECT session_id
+            FROM conversation_sessions
+            WHERE session_id NOT LIKE 'cli:%' AND instr(session_id, '@') > 0
+            ORDER BY updated_at DESC
+            LIMIT 1
+            """
+        ).fetchone()
+        return str(row["session_id"]) if row else ""
+    finally:
+        conn.close()
+
+
+def queue_outgoing_file(chat_jid: str, file_path: str, caption: str = "") -> int:
+    conn = init_db(DB_PATH)
+    try:
+        now = _now_iso()
+        cursor = conn.execute(
+            """
+            INSERT INTO outgoing_file_queue(chat_jid, file_path, caption, status, error, created_at, claimed_at, completed_at)
+            VALUES (?, ?, ?, 'pending', '', ?, '', '')
+            """,
+            (chat_jid, os.path.abspath(file_path), caption.strip(), now),
+        )
+        conn.commit()
+        return int(cursor.lastrowid)
+    finally:
+        conn.close()
 
 
 def _load_history(session_id: str, limit: int = MAX_HISTORY_MESSAGES) -> list[dict]:
@@ -420,6 +507,31 @@ def reveal_result(results: list[dict], index: int) -> tuple[bool, str]:
         return False, f"Could not reveal {abs_path}: {exc}"
 
 
+def send_result(
+    results: list[dict],
+    index: int,
+    *,
+    chat_jid: str = "",
+    path: Path = SESSION_META_PATH,
+) -> tuple[bool, str]:
+    if index < 1 or index > len(results):
+        return False, f"Result {index} is out of range."
+    item = results[index - 1]
+    file_path = item.get("path")
+    if not file_path:
+        return False, "That result has no sendable path."
+    abs_path = os.path.abspath(file_path)
+    if not os.path.isfile(abs_path):
+        return False, f"File not found: {abs_path}"
+
+    target = (chat_jid or get_send_target(path) or guess_recent_whatsapp_chat()).strip()
+    if not target:
+        return False, "No WhatsApp send target is set. Use /send-target CHAT_JID first."
+
+    queue_id = queue_outgoing_file(target, abs_path, caption=os.path.basename(abs_path))
+    return True, f"Queued {abs_path} to {target} (queue #{queue_id})."
+
+
 def cli_help() -> str:
     return "\n".join(
         [
@@ -435,6 +547,9 @@ def cli_help() -> str:
             "/watch PATH     Start watching a folder for background indexing",
             "/open N         Open result N from the latest search",
             "/reveal N       Open the containing folder for result N",
+            "/send-target    Show current WhatsApp send target",
+            "/send-target JID Set the WhatsApp JID used by /send",
+            "/send N         Queue result N to be sent to WhatsApp",
             "/quit           Exit chat",
             "",
             'Try: find invoice 4821',
@@ -450,13 +565,17 @@ def run_chat_loop(
     resume_id: str | None = None,
     initial_message: str | None = None,
 ) -> int:
+    if resume and not resume_id and sys.stdin.isatty():
+        selected = choose_resume_session()
+        if selected:
+            resume_id = selected
     session_id = resolve_cli_session(new=new, resume=resume, resume_id=resume_id)
     meta = _load_session_meta()
     title = meta.get("sessions", {}).get(session_id, {}).get("title") or "New CLI chat"
     state = ChatState(session_id=session_id, title=title)
 
-    print(f"Pinpoint chat — {session_id}")
-    print("Type /help for commands. Ctrl+C or /quit to exit.")
+    print(startup_banner(state, resumed=bool(resume or resume_id)))
+    print("Ctrl+C or /quit to exit.")
 
     if initial_message:
         text, results = answer_query(initial_message, env, state)
@@ -528,6 +647,24 @@ def run_chat_loop(
                 continue
             print(watch_path(target))
             continue
+        if user_msg == "/send-target":
+            target = get_send_target()
+            guessed = guess_recent_whatsapp_chat()
+            if target:
+                print(f"Current send target: {target}")
+            elif guessed:
+                print(f"No explicit send target set. Latest WhatsApp chat: {guessed}")
+            else:
+                print("No send target set. Use /send-target CHAT_JID")
+            continue
+        if user_msg.startswith("/send-target "):
+            target = user_msg.split(maxsplit=1)[1].strip()
+            if not target or "@" not in target:
+                print("Usage: /send-target CHAT_JID")
+                continue
+            set_send_target(target)
+            print(f"Send target set to: {target}")
+            continue
         if user_msg.startswith("/open "):
             try:
                 index = int(user_msg.split(maxsplit=1)[1])
@@ -544,6 +681,15 @@ def run_chat_loop(
                 print("Usage: /reveal N")
                 continue
             ok, message = reveal_result(state.last_results, index)
+            print(message)
+            continue
+        if user_msg.startswith("/send "):
+            try:
+                index = int(user_msg.split(maxsplit=1)[1])
+            except Exception:
+                print("Usage: /send N")
+                continue
+            ok, message = send_result(state.last_results, index)
             print(message)
             continue
 

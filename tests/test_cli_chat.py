@@ -17,6 +17,9 @@ def test_cli_session_meta_round_trip(tmp_path):
     assert sessions[0]["session_id"] == session_id
     assert sessions[0]["title"] == "Invoices"
 
+    cli_chat.set_send_target("12345@s.whatsapp.net", path=meta_path)
+    assert cli_chat.get_send_target(path=meta_path) == "12345@s.whatsapp.net"
+
 
 def test_resolve_cli_session_can_resume_specific_session(tmp_path):
     from pinpoint import cli_chat
@@ -31,6 +34,33 @@ def test_resolve_cli_session_can_resume_specific_session(tmp_path):
     recent = cli_chat.get_recent_cli_sessions(path=meta_path)
     assert recent[0]["session_id"] == first
     assert second in {item["session_id"] for item in recent}
+
+
+def test_choose_resume_session_defaults_to_latest(tmp_path):
+    from pinpoint import cli_chat
+
+    meta_path = tmp_path / "cli_sessions.json"
+    latest = cli_chat.create_cli_session("Latest", path=meta_path)
+    older = cli_chat.create_cli_session("Older", path=meta_path)
+    cli_chat.resolve_cli_session(resume_id=latest, path=meta_path)
+
+    outputs = []
+    picked = cli_chat.choose_resume_session(
+        path=meta_path,
+        input_fn=lambda _prompt="": "",
+        output_fn=outputs.append,
+    )
+    assert picked == latest
+    assert any("Recent CLI sessions:" in line for line in outputs)
+
+
+def test_startup_banner_mentions_title_and_session():
+    from pinpoint import cli_chat
+
+    banner = cli_chat.startup_banner(cli_chat.ChatState(session_id="cli:abc", title="Invoices"), resumed=True)
+    assert "Pinpoint chat — Invoices" in banner
+    assert "Resumed session: cli:abc" in banner
+    assert "Type /help for commands." in banner
 
 
 def test_cli_history_and_reset_use_conversation_tables(tmp_path):
@@ -111,3 +141,32 @@ def test_index_path_rejects_missing_folder():
 
     text = cli_chat.index_path("/tmp/definitely-not-a-real-pinpoint-folder")
     assert "Not a directory" in text
+
+
+def test_send_result_queues_file(tmp_path):
+    from database import init_db
+    from pinpoint import cli_chat
+
+    db_path = str(tmp_path / "test.db")
+    init_db(db_path).close()
+    meta_path = tmp_path / "cli_sessions.json"
+    file_path = tmp_path / "invoice.pdf"
+    file_path.write_text("dummy", encoding="utf-8")
+    results = [{"source": "documents", "path": str(file_path), "title": "Invoice"}]
+
+    with (
+        patch.object(cli_chat, "DB_PATH", db_path),
+        patch.object(cli_chat, "SESSION_META_PATH", meta_path),
+    ):
+        cli_chat.set_send_target("12345@s.whatsapp.net", path=meta_path)
+        ok, message = cli_chat.send_result(results, 1, path=meta_path)
+        assert ok is True
+        assert "Queued" in message
+
+        conn = init_db(db_path)
+        row = conn.execute("SELECT chat_jid, file_path, status FROM outgoing_file_queue").fetchone()
+        conn.close()
+
+    assert row["chat_jid"] == "12345@s.whatsapp.net"
+    assert row["file_path"] == str(file_path)
+    assert row["status"] == "pending"

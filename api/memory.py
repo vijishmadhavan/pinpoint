@@ -27,6 +27,16 @@ class ConversationResetRequest(BaseModel):
     session_id: str
 
 
+class OutgoingFileQueueRequest(BaseModel):
+    chat_jid: str
+    file_path: str
+    caption: str = ""
+
+
+class OutgoingFileUpdateRequest(BaseModel):
+    error: str = ""
+
+
 @router.post("/conversation")
 def conversation_save(msg: ConversationMessage) -> dict:
     """Save a conversation message (user or assistant)."""
@@ -143,6 +153,98 @@ def conversation_search(
 
     results = [dict(r) for r in rows]
     return {"query": q, "count": len(results), "results": results}
+
+
+@router.post("/outgoing-files")
+def outgoing_file_enqueue(req: OutgoingFileQueueRequest) -> dict:
+    """Queue a file for WhatsApp delivery by the connected bot."""
+    chat_jid = req.chat_jid.strip()
+    file_path = os.path.abspath(req.file_path)
+    caption = req.caption.strip()
+    if not chat_jid:
+        raise HTTPException(status_code=400, detail="chat_jid is required")
+    if "@" not in chat_jid:
+        raise HTTPException(status_code=400, detail="chat_jid must look like a WhatsApp JID")
+    if not os.path.isfile(file_path):
+        raise HTTPException(status_code=400, detail=f"file does not exist: {file_path}")
+
+    conn = _get_conn()
+    now = datetime.utcnow().isoformat()
+    cursor = conn.execute(
+        """
+        INSERT INTO outgoing_file_queue(chat_jid, file_path, caption, status, error, created_at, claimed_at, completed_at)
+        VALUES (?, ?, ?, 'pending', '', ?, '', '')
+        """,
+        (chat_jid, file_path, caption, now),
+    )
+    conn.commit()
+    return {"queued": True, "id": cursor.lastrowid, "chat_jid": chat_jid, "file_path": file_path}
+
+
+@router.post("/outgoing-files/claim")
+def outgoing_file_claim() -> dict:
+    """Claim the next pending outgoing file for the WhatsApp bot."""
+    conn = _get_conn()
+    now = datetime.utcnow().isoformat()
+    row = conn.execute(
+        """
+        SELECT id, chat_jid, file_path, caption, created_at
+        FROM outgoing_file_queue
+        WHERE status = 'pending'
+        ORDER BY created_at ASC, id ASC
+        LIMIT 1
+        """
+    ).fetchone()
+    if not row:
+        return {"queued": False}
+
+    cursor = conn.execute(
+        "UPDATE outgoing_file_queue SET status = 'sending', claimed_at = ? WHERE id = ? AND status = 'pending'",
+        (now, row["id"]),
+    )
+    conn.commit()
+    if cursor.rowcount == 0:
+        return {"queued": False}
+
+    return {
+        "queued": True,
+        "item": {
+            "id": row["id"],
+            "chat_jid": row["chat_jid"],
+            "file_path": row["file_path"],
+            "caption": row["caption"] or "",
+            "created_at": row["created_at"],
+        },
+    }
+
+
+@router.post("/outgoing-files/{item_id}/complete")
+def outgoing_file_complete(item_id: int) -> dict:
+    """Mark an outgoing file as delivered."""
+    conn = _get_conn()
+    now = datetime.utcnow().isoformat()
+    cursor = conn.execute(
+        "UPDATE outgoing_file_queue SET status = 'sent', completed_at = ?, error = '' WHERE id = ?",
+        (now, item_id),
+    )
+    conn.commit()
+    if cursor.rowcount == 0:
+        raise HTTPException(status_code=404, detail="queue item not found")
+    return {"success": True, "id": item_id}
+
+
+@router.post("/outgoing-files/{item_id}/fail")
+def outgoing_file_fail(item_id: int, req: OutgoingFileUpdateRequest) -> dict:
+    """Mark an outgoing file as failed so the CLI can surface the error if needed."""
+    conn = _get_conn()
+    cursor = conn.execute(
+        "UPDATE outgoing_file_queue SET status = 'failed', error = ? WHERE id = ?",
+        ((req.error or "").strip(), item_id),
+    )
+    conn.commit()
+    if cursor.rowcount == 0:
+        raise HTTPException(status_code=404, detail="queue item not found")
+    return {"success": True, "id": item_id}
 
 
 # --- Persistent Memory (Segment 18F) ---
