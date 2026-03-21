@@ -315,6 +315,47 @@ def _terminal_link(path: str) -> str:
     return f"\033]8;;{file_url}\033\\{abs_path}\033]8;;\033\\"
 
 
+def _cli_agent_script_path() -> Path:
+    return Path(__file__).resolve().parents[1] / "bot" / "bin" / "pinpoint-cli-agent.js"
+
+
+def _child_env(env: dict[str, str]) -> dict[str, str]:
+    child = os.environ.copy()
+    child.update(env)
+    user_dir = str(user_data_dir())
+    child.setdefault("PINPOINT_USER_DIR", user_dir)
+    child.setdefault("PINPOINT_ENV_PATH", str(user_data_dir() / ".env"))
+    child.setdefault("PINPOINT_LOG_DIR", str(user_data_dir() / "logs"))
+    child.setdefault("PINPOINT_AUTH_DIR", str(user_data_dir() / "bot-auth"))
+    child.setdefault("PINPOINT_QR_DIR", str(user_data_dir() / "qr"))
+    child.setdefault("PINPOINT_API_URL", child.get("PINPOINT_API_URL", "http://127.0.0.1:5123"))
+    child["PINPOINT_SILENT_STDOUT"] = "1"
+    return child
+
+
+def _answer_via_node_agent(query: str, env: dict[str, str], session_id: str) -> tuple[str, list[dict]]:
+    script = _cli_agent_script_path()
+    if not script.exists():
+        raise FileNotFoundError(f"CLI agent runner not found: {script}")
+    completed = subprocess.run(
+        ["node", str(script), "--session", session_id, "--message", query],
+        capture_output=True,
+        text=True,
+        env=_child_env(env),
+        check=True,
+    )
+    data = json.loads((completed.stdout or "").strip() or "{}")
+    events = data.get("events") or []
+    parts = []
+    for item in events:
+        if item.get("type") == "text" and item.get("text"):
+            parts.append(str(item["text"]).strip())
+    final_text = str(data.get("text") or "").strip()
+    if final_text:
+        parts.append(final_text)
+    return ("\n".join(p for p in parts if p).strip() or "No response.", data.get("results") or [])
+
+
 def _retrieve_context(query: str, limit: int = 5) -> tuple[dict, list[dict]]:
     from api.memory import _memory_fts_search
     from api.search import _detect_retrieval_intent, _document_overview, _search_facts
@@ -388,6 +429,19 @@ Retrieved results:
 
 
 def answer_query(query: str, env: dict[str, str], state: ChatState, save: bool = True) -> tuple[str, list[dict]]:
+    try:
+        text, results = _answer_via_node_agent(query, env, state.session_id)
+        if save:
+            _save_message(state.session_id, "user", query)
+            _save_message(state.session_id, "assistant", text)
+            if state.title == "New CLI chat":
+                state.title = _truncate(query, 60)
+            touch_cli_session(state.session_id, title=state.title)
+        state.last_results = results
+        return text, results
+    except Exception:
+        pass
+
     history = _load_history(state.session_id, limit=MAX_HISTORY_MESSAGES)
     context, results = _retrieve_context(query)
     gemini_key = env.get("GEMINI_API_KEY", "").strip()
@@ -593,6 +647,11 @@ def run_chat_loop(
             return 0
         if not user_msg:
             continue
+        if user_msg.startswith("/find "):
+            user_msg = user_msg[len("/find ") :].strip()
+            if not user_msg:
+                print("Usage: /find QUERY")
+                continue
         if user_msg == "/quit":
             return 0
         if user_msg == "/help":

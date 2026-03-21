@@ -90,6 +90,7 @@ const logStream = require("fs").createWriteStream(logFile, { flags: "a" });
 const origLog = console.log,
   origWarn = console.warn,
   origErr = console.error;
+const SILENT_STDOUT = process.env.PINPOINT_SILENT_STDOUT === "1";
 function _ts() {
   return new Date().toISOString().slice(11, 19);
 }
@@ -117,17 +118,17 @@ function clearQrPayload() {
 
 console.log = (...a) => {
   const s = a.map(String).join(" ");
-  origLog(s);
+  if (!SILENT_STDOUT) origLog(s);
   logStream.write(`${_ts()} ${s}\n`);
 };
 console.warn = (...a) => {
   const s = a.map(String).join(" ");
-  origWarn(s);
+  if (!SILENT_STDOUT) origWarn(s);
   logStream.write(`${_ts()} WARN ${s}\n`);
 };
 console.error = (...a) => {
   const s = a.map(String).join(" ");
-  origErr(s);
+  if (!SILENT_STDOUT) origErr(s);
   logStream.write(`${_ts()} ERR ${s}\n`);
 };
 
@@ -2704,7 +2705,36 @@ stop — Cancel current request`;
   }
 }
 
-module.exports = { startBot };
+async function runCliAgent(userMessage, sessionId, opts = {}) {
+  const events = [];
+  const fakeSock = {
+    async sendMessage(_chatJid, payload) {
+      if (payload?.text) {
+        events.push({ type: "text", text: payload.text });
+      } else if (payload?.document || payload?.image) {
+        events.push({ type: "file", note: "A file was generated during this turn." });
+      }
+      return { key: { id: `cli-${Date.now()}` } };
+    },
+    async sendPresenceUpdate() {
+      return;
+    },
+  };
+
+  const requestId = `cli-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  activeRequests.set(sessionId, { msg: userMessage, startTime: Date.now(), id: requestId });
+  try {
+    const result = await runGemini(userMessage, fakeSock, sessionId, opts);
+    return { ...result, events };
+  } finally {
+    const current = activeRequests.get(sessionId);
+    if (current && current.id === requestId) {
+      activeRequests.delete(sessionId);
+    }
+  }
+}
+
+module.exports = { startBot, runCliAgent };
 
 // --- Start ---
 if (require.main === module) {
