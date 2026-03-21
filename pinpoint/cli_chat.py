@@ -166,6 +166,17 @@ def _truncate(text: str, limit: int = 220) -> str:
     return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
 
 
+def _terminal_link(path: str) -> str:
+    if not path:
+        return ""
+    abs_path = os.path.abspath(path)
+    if os.name == "nt":
+        file_url = "file:///" + abs_path.replace("\\", "/")
+    else:
+        file_url = "file://" + abs_path
+    return f"\033]8;;{file_url}\033\\{abs_path}\033]8;;\033\\"
+
+
 def _retrieve_context(query: str, limit: int = 5) -> tuple[dict, list[dict]]:
     from api.memory import _memory_fts_search
     from api.search import _detect_retrieval_intent, _document_overview, _search_facts
@@ -286,6 +297,8 @@ def render_results(results: list[dict]) -> str:
         if source == "documents":
             name = item.get("title") or item.get("filename") or item.get("path")
             lines.append(f"{i}. {name}")
+            if item.get("path"):
+                lines.append(f"   {_terminal_link(item['path'])}")
             snippet = _truncate(item.get("snippet") or "", 140)
             if snippet:
                 lines.append(f"   {snippet}")
@@ -336,6 +349,26 @@ def open_result(results: list[dict], index: int) -> tuple[bool, str]:
         return False, f"Could not open {path}: {exc}"
 
 
+def reveal_result(results: list[dict], index: int) -> tuple[bool, str]:
+    if index < 1 or index > len(results):
+        return False, f"Result {index} is out of range."
+    item = results[index - 1]
+    path = item.get("path")
+    if not path:
+        return False, "That result has no revealable path."
+    abs_path = os.path.abspath(path)
+    try:
+        if sys.platform.startswith("win"):
+            subprocess.Popen(["explorer", "/select,", abs_path])
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", "-R", abs_path])
+        else:
+            subprocess.Popen(["xdg-open", os.path.dirname(abs_path)])
+        return True, f"Opened containing folder for {abs_path}"
+    except Exception as exc:
+        return False, f"Could not reveal {abs_path}: {exc}"
+
+
 def cli_help() -> str:
     return "\n".join(
         [
@@ -347,6 +380,7 @@ def cli_help() -> str:
             "/resume ID      Switch to a saved session",
             "/rename NAME    Rename the current session",
             "/open N         Open result N from the latest search",
+            "/reveal N       Open the containing folder for result N",
             "/quit           Exit chat",
             "",
             'Try: find invoice 4821',
@@ -430,6 +464,15 @@ def run_chat_loop(
                 print("Usage: /open N")
                 continue
             ok, message = open_result(state.last_results, index)
+            print(message)
+            continue
+        if user_msg.startswith("/reveal "):
+            try:
+                index = int(user_msg.split(maxsplit=1)[1])
+            except Exception:
+                print("Usage: /reveal N")
+                continue
+            ok, message = reveal_result(state.last_results, index)
             print(message)
             continue
 

@@ -67,7 +67,12 @@ def test_render_results_and_open_out_of_range():
     rendered = cli_chat.render_results(results)
     assert "Invoice March" in rendered
     assert "March invoice" in rendered
+    assert "/tmp/invoice-march.pdf" in rendered
 
     ok, message = cli_chat.open_result(results, 2)
+    assert ok is False
+    assert "out of range" in message
+
+    ok, message = cli_chat.reveal_result(results, 2)
     assert ok is False
     assert "out of range" in message
