@@ -1541,9 +1541,19 @@ async function runGemini(userMessage, sock, chatJid, opts = {}) {
       console.log(
         `[${LLM_TAG}] Round ${round + 1}, ${response.functionCalls.length} tool(s), ${elapsed}s elapsed${tokenInfo}`,
       );
+      if (opts.onProgress) {
+        try {
+          opts.onProgress(`Round ${round + 1}: ${response.functionCalls.length} tool call(s)`);
+        } catch (_) {}
+      }
       const functionResponses = [];
       const imageParts = []; // For read_file images — Gemini sees them visually
       for (const fc of response.functionCalls) {
+        if (opts.onProgress) {
+          try {
+            opts.onProgress(`Running ${fc.name}`);
+          } catch (_) {}
+        }
         // Loop detection: same tool+args called N times consecutively → stop
         const callHash = fc.name + ":" + JSON.stringify(fc.args || {});
         if (callHash === lastCallHash) {
@@ -2744,6 +2754,13 @@ stop — Cancel current request`;
 
 async function runCliAgent(userMessage, sessionId, opts = {}) {
   const events = [];
+  const eventWriter = typeof opts.eventWriter === "function" ? opts.eventWriter : null;
+  const pushEvent = (event) => {
+    events.push(event);
+    if (eventWriter) {
+      try { eventWriter(event); } catch (_) {}
+    }
+  };
   let latestResults = [];
   const onToolResult = (name, args, result) => {
     if (!result || result.error) return;
@@ -2784,9 +2801,9 @@ async function runCliAgent(userMessage, sessionId, opts = {}) {
   const fakeSock = {
     async sendMessage(_chatJid, payload) {
       if (payload?.text) {
-        events.push({ type: "text", text: payload.text });
+        pushEvent({ type: "text", text: payload.text });
       } else if (payload?.document || payload?.image) {
-        events.push({ type: "file", note: "A file was generated during this turn." });
+        pushEvent({ type: "file", note: "A file was generated during this turn." });
       }
       return { key: { id: `cli-${Date.now()}` } };
     },
@@ -2798,7 +2815,11 @@ async function runCliAgent(userMessage, sessionId, opts = {}) {
   const requestId = `cli-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   activeRequests.set(sessionId, { msg: userMessage, startTime: Date.now(), id: requestId });
   try {
-    const result = await runGemini(userMessage, fakeSock, sessionId, { ...opts, onToolResult });
+    const result = await runGemini(userMessage, fakeSock, sessionId, {
+      ...opts,
+      onToolResult,
+      onProgress: (text) => pushEvent({ type: "progress", text }),
+    });
     return { ...result, events, results: latestResults };
   } finally {
     const current = activeRequests.get(sessionId);

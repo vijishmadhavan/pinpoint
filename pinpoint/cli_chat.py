@@ -4,6 +4,7 @@ import json
 import os
 import subprocess
 import sys
+import threading
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -333,18 +334,52 @@ def _child_env(env: dict[str, str]) -> dict[str, str]:
     return child
 
 
-def _answer_via_node_agent(query: str, env: dict[str, str], session_id: str) -> tuple[str, list[dict]]:
+def _answer_via_node_agent(
+    query: str,
+    env: dict[str, str],
+    session_id: str,
+    *,
+    event_callback=None,
+) -> tuple[str, list[dict]]:
     script = _cli_agent_script_path()
     if not script.exists():
         raise FileNotFoundError(f"CLI agent runner not found: {script}")
-    completed = subprocess.run(
+    proc = subprocess.Popen(
         ["node", str(script), "--session", session_id, "--message", query],
-        capture_output=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
         text=True,
         env=_child_env(env),
-        check=True,
     )
-    data = json.loads((completed.stdout or "").strip() or "{}")
+    stderr_lines: list[str] = []
+
+    def _pump_stderr() -> None:
+        if not proc.stderr:
+            return
+        for raw_line in proc.stderr:
+            line = raw_line.rstrip("\n")
+            if line.startswith("EVENT "):
+                try:
+                    event = json.loads(line[6:])
+                except json.JSONDecodeError:
+                    continue
+                if event_callback:
+                    try:
+                        event_callback(event)
+                    except Exception:
+                        pass
+            else:
+                stderr_lines.append(line)
+
+    stderr_thread = threading.Thread(target=_pump_stderr, daemon=True)
+    stderr_thread.start()
+    stdout_text, _ = proc.communicate()
+    stderr_thread.join(timeout=1.0)
+    if proc.returncode != 0:
+        err_text = "\n".join(s for s in stderr_lines if s).strip() or f"CLI agent exited with {proc.returncode}"
+        raise RuntimeError(err_text)
+
+    data = json.loads((stdout_text or "").strip() or "{}")
     events = data.get("events") or []
     parts = []
     for item in events:
@@ -444,9 +479,16 @@ Retrieved results:
     return (resp.text or "").strip()
 
 
-def answer_query(query: str, env: dict[str, str], state: ChatState, save: bool = True) -> tuple[str, list[dict]]:
+def answer_query(
+    query: str,
+    env: dict[str, str],
+    state: ChatState,
+    save: bool = True,
+    *,
+    event_callback=None,
+) -> tuple[str, list[dict]]:
     try:
-        text, results = _answer_via_node_agent(query, env, state.session_id)
+        text, results = _answer_via_node_agent(query, env, state.session_id, event_callback=event_callback)
         if save:
             _save_message(state.session_id, "user", query)
             _save_message(state.session_id, "assistant", text)
@@ -658,8 +700,17 @@ def run_chat_loop(
     print(startup_banner(state, resumed=bool(resume or resume_id)))
     print("Ctrl+C or /quit to exit.")
 
+    last_progress = {"text": ""}
+
+    def _handle_event(event: dict) -> None:
+        kind = event.get("type")
+        text = str(event.get("text") or "").strip()
+        if kind == "progress" and text and text != last_progress["text"]:
+            last_progress["text"] = text
+            print(f"[working] {text}")
+
     if initial_message:
-        text, results = answer_query(initial_message, env, state)
+        text, results = answer_query(initial_message, env, state, event_callback=_handle_event)
         print(text)
         extra = render_results(results)
         if extra:
@@ -779,7 +830,8 @@ def run_chat_loop(
             print(message)
             continue
 
-        text, results = answer_query(user_msg, env, state)
+        last_progress["text"] = ""
+        text, results = answer_query(user_msg, env, state, event_callback=_handle_event)
         print(text)
         extra = render_results(results)
         if extra:

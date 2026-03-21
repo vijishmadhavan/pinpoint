@@ -25,7 +25,11 @@ async function main() {
   }
 
   try {
-    const result = await runCliAgent(args.message, args.session);
+    const result = await runCliAgent(args.message, args.session, {
+      eventWriter(event) {
+        process.stderr.write(`EVENT ${JSON.stringify(event)}\n`);
+      },
+    });
     process.stdout.write(JSON.stringify(result || {}) + "\n");
   } catch (err) {
     process.stderr.write((err && err.stack) || String(err));
