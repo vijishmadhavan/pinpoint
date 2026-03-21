@@ -29,7 +29,6 @@ try:
     _HAS_TESSERACT = True
 except Exception:
     pass
-print(f"[Pinpoint] Tesseract: {'available' if _HAS_TESSERACT else 'not installed — Gemini OCR fallback'}")
 
 # Minimum text per page to consider it "digital" (not scanned)
 _MIN_TEXT_PER_PAGE = 50
